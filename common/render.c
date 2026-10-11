@@ -1572,12 +1572,13 @@ static int      g_veg_mask_cx;
  * like the castle, so the grass leaves their pixels alone too - their masks
  * and these two live with the cluster, below (-1 = not baked in front) */
 static int      g_front_cl_x = -1, g_front_co_x = -1;   /* this frame's */
+static int      g_front_wk_x;                           /* the wreck's likewise (defined with the wreck, below) */
 static int      g_bake_cl_x = -1, g_bake_co_x = -1;     /* what the baked scene holds */
 static bool front_near(int x0, int x1, int y);
 static bool front_px(int x, int y);
 static void veg_span_front(ctx_t *c, int x0, int x1, int y, const src_t *s);   /* (scene cache only: always final) */
 static inline void veg_span(ctx_t *c, int x0, int x1, int y, const src_t *s, bool final) {
-    bool front = (g_front_cl_x >= 0 || g_front_co_x >= 0) && front_near(x0, x1, y);
+    bool front = (g_front_cl_x >= 0 || g_front_co_x >= 0 || g_front_wk_x >= 0) && front_near(x0, x1, y);   /* (the wreck too, 2026-10-11: the grass grew over a wreck IN FRONT - its mask was in front_near and veg_span_front, not in this gate) */
     if (g_veg_mask_cx >= 0 && y >= CASTLE_FY - CASTLE_ROWS && y < CASTLE_FY + 12 && x1 >= g_veg_mask_cx - 112 && x0 <= g_veg_mask_cx + 111) {
         const uint32_t *row = g_castle_mask[y - (CASTLE_FY - CASTLE_ROWS)];
         int run = -1;
@@ -2741,7 +2742,7 @@ static bool castle_state(const tank_t *t, int *cx, int *z, bool *placing) {
 }
 static int g_scene_castle_x = -2, g_scene_castle_z = -1;   /* what the baked scene holds (-1 = no castle) */
 static int g_scene_wk_x = -2, g_scene_wk_z = -1;           /* the shipwreck in the scene (-1 = none) */
-static int g_bake_wk_x = -1, g_front_wk_x = -1;            /* baked IN FRONT (its mask filled) / this frame's */
+static int g_bake_wk_x = -1; static int g_front_wk_x = -1;   /* baked IN FRONT (its mask filled) / this frame's (declared with the grass, above) */
 static int g_bake_ca_x = -1;                               /* a themed castle baked IN FRONT with its mask (2026-10-10) */
 static bool g_castle_live;                                 /* tests: the old per-rect repaint instead of the mask */
 void render_debug_castle_live(bool on) { g_castle_live = on; }

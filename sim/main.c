@@ -3959,6 +3959,26 @@ static int selftest_shop(void) {
             tank_decor_set(&tank, SD_ITEM_WRECK_IDX, 200, z); tank.fish[0].x = 200 - 22; tank.fish[0].y = TANK_BOT - 14 + DECOR_SINK - 14;
             for (int f = 0; f < 3; f++) { tank_tick(&tank, 1 / 60.0f, advisor_rules); render_tank(&tank, fb, TANK_W); }
         }
+        /* IN FRONT it stands over the grass too (2026-10-11, Alvin: "it still goes behind the weeds"):
+           on a bed, the hull band reads the same with the fronds as with the bed cut to nothing */
+        for (int th = 0; th < THEME_COUNT; th++) {
+          float bx0, bx1; tank_veg_bed(&tank, 0, &bx0, &bx1, NULL, NULL); int bcx = (int)((bx0 + bx1) / 2);
+          static uint16_t bare_fb[TANK_W * TANK_H]; float keep[VEG_FRONDS_MAX];
+          int th0 = tank.theme; tank.theme = (uint8_t)th; render_use_theme(th);
+          static uint16_t scene[TANK_W * TANK_H]; render_set_scene_cache(scene); render_set_dirty_mask(dirty_buf);   /* the board's path: the piece baked, the grass masked by it */
+          for (int i = 0; i < tank.n_fish; i++) { tank.fish[i].x = TANK_W - 40; tank.fish[i].y = 40; tank.fish[i].speed = 0; }
+          tank.startled = false; for (int i = 0; i < MAX_FOOD; i++) tank.food[i].alive = false;
+          tank_decor_set(&tank, SD_ITEM_WRECK_IDX, bcx, DECOR_Z_FRONT);
+          memcpy(keep, tank.veg_h[0], sizeof keep); memset(tank.veg_h[0], 0, sizeof tank.veg_h[0]); tank_veg_sync(&tank);
+          for (int f = 0; f < 3; f++) render_tank(&tank, bare_fb, TANK_W);
+          for (int i = 0; i < VEG_FRONDS_MAX; i++) tank.veg_h[0][i] = 1.0f; tank_veg_sync(&tank);   /* the bed full-grown: fronds up the hull */
+          for (int f = 0; f < 3; f++) render_tank(&tank, fb, TANK_W);
+          memcpy(tank.veg_h[0], keep, sizeof keep); tank_veg_sync(&tank);
+          int fy = TANK_BOT - 14 + DECOR_SINK, diff = 0;
+          for (int y = fy - 30; y < fy - 6; y++) for (int x = bcx - 34; x <= bcx + 34; x++) diff += fb[y * TANK_W + x] != bare_fb[y * TANK_W + x];
+          tank.theme = (uint8_t)th0; render_use_theme(th0); render_set_scene_cache(NULL); render_set_dirty_mask(NULL);
+          if (diff > 300) { printf("FAIL: the wreck IN FRONT is still behind the grass in theme %d (%d hull pixels changed by the fronds on bed 0 at x %d)\n", th, diff, bcx); return 1; }
+          printf("shop: the wreck IN FRONT stands over the grass in theme %d (%d hull pixels changed by the fronds, the holes' share)\n", th, diff); }
         if (!progression_sell(&tank, SD_ITEM_WRECK_IDX) || (tank.sd_unlocks & SD_ITEM_WRECK) || tank.sd_balance != progression_sell_value(SD_ITEM_WRECK_IDX)) { printf("FAIL: selling the wreck back\n"); return 1; }
         printf("shop: the shipwreck - item %d at %d, placed at 200 BEHIND, saved and back, drawn in both depths, sold back for %d\n", SD_ITEM_WRECK_IDX, SD_PRICE_WRECK, progression_sell_value(SD_ITEM_WRECK_IDX));
         /* feeding (2026-10-10): five portions at a time - five surface taps drop three pellets each
