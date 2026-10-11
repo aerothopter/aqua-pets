@@ -98,6 +98,21 @@ static void draw_theme_species(sk_t *k,int species) {
         sk_line(k,15.5f,-1,club?31:33,-.4f,club?1.6f:1.2f,club?.6f:.3f,mix(k->fin,0x000000,.3f));
         sk_eye(k,10.5f,-2,eye,false);break;
     }
+    case SP_TURTLE: {   /* 2026-10-11: a fat round shell, stubby paddles, a big-eyed head */
+        float st=k->asleep?.6f:sinf(k->f->jet*TAU);int v=k->f->variant&3;
+        uint32_t skin=k->fin,dark=mix(k->fin,0x000000,.3f);
+        turtle_flipper(k,6,0,-st*.7f,1,dark,255);sk_tri(k,-11,-1,-14,0,-18*round,-4,dark,255);
+        sk_dot(k,-2,-2,13*round,7*round,k->body,255,false);                              /* the shell */
+        sk_dot(k,-2,3.5f,11.5f,2.6f*round,belly,255,true);
+        if(v==0){for(int i=0;i<3;i++)sk_dot(k,5-i*6.5f,-3,2.4f*round,2.4f*round,mix(k->body,0x000000,.22f),255,false);}
+        else if(v==2){for(int i=0;i<3;i++)sk_line(k,9,-6+i*2.6f,-13,-5.5f+i*2.6f,club?.6f:.4f,club?.6f:.4f,mix(k->acc,k->body,.5f));}
+        else theme_creature_pattern(k,-2,-3,5);
+        sk_tri(k,-14,0,-20,1.5f,-14,3,skin,255);sk_tri(k,-11,2,-14,3,-18,7.5f,skin,255);
+        sk_dot(k,12,.5f,3,2.4f,skin,255,false);sk_dot(k,16.5f,-.3f,4*round,3.4f*round,skin,255,false);
+        sk_tri(k,20,-1.2f,22,.2f,20,1.4f,dark,255);
+        sk_eye(k,17.3f,-1.4f,eye,false);
+        turtle_flipper(k,6,2,st,1,skin,255);turtle_gulp(k,21.5f,-1);break;
+    }
     case SP_CRAB:
     case SP_LOBSTER: {
         bool lobster=species==SP_LOBSTER;float raise=clamp01(k->f->puff)*8;

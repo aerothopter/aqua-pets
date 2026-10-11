@@ -207,6 +207,7 @@ const char *const *progression_fry_tip(int kind);
  * for this at most (progression_fish_value). */
 #define SD_PRICE_SP_CRAB      10
 #define SD_PRICE_SP_SWORDFISH 10   /* 2026-10-10 night */
+#define SD_PRICE_SP_TURTLE    10   /* 2026-10-11 */
 #define SD_PRICE_SP_SEAHORSE  10
 #define SD_PRICE_SP_PUFFER    10
 #define SD_PRICE_SP_SQUID     10

@@ -101,6 +101,7 @@ modal's school two rows.
 | lobster | `lobster` | 1.10-1.40 | 0.50-0.85 | 0.05-0.25 | 5.5 | 0.60 | 2.0 | `LOCO_WALK` |
 | jellyfish | `jellyfish` | 0.95-1.15 | 0.10-0.40 | 0.40-0.75 | 5.0 | 0.70 | 1.6 | `LOCO_HOVER` (pulses, drifts) |
 | swordfish | `swordfish` | 1.10-1.35 | 0.70-0.95 | 0.30-0.60 | 5.5 | 0.10 | 1.3 | `LOCO_CRUISE` (the hammerhead's way, faster; 2026-10-10 night) |
+| turtle | `turtle` | 1.05-1.30 | 0.45-0.80 | 0.20-0.50 | 6.0 | 0.60 | 1.6 | `LOCO_HOVER` (slow strokes and glides, never backs; naps on the sand; up for air like the eel; 2026-10-11) |
 
 Sizes are tank-scaled (a "pup" hammerhead, a dwarf seahorse): 1.0 is the
 classic fish's ~42 px. A newborn's size, bold and social are rolled inside
@@ -132,6 +133,16 @@ other).
   flat, Quiet Lagoon shaded, Tidepool Club round and bold, Blackwater real).
   Its word is not in any shipped vocabulary, so every model hears it as
   `species fish` (its traits still make it a cruiser).
+- **Turtle (2026-10-11, 10 sand dollars):** 0 green (scutes), 1 hawksbill
+  (amber streaks), 2 leatherback (slate, ridges), 3 seafoam (pale spots) - a
+  domed carapace in the body colour over a pale plastron (the accent), skin
+  and flippers in the fin colour; the front flippers stroke on `f->jet`
+  (0.7 Hz), the far one a half-stroke behind. It rests lying on the sand like
+  the eel and shares the eel's trip for air (`SPM_RISE` / `GULP` / `SINK`,
+  bubbles off the beak at the surface). Drawn four ways: Original flat, Quiet
+  Lagoon shaded, Tidepool Club a fat round shell with three big scute dots,
+  Blackwater countershaded with vertebral and costal scutes, head scales and
+  a real eye. Like the swordfish, its word is in no vocabulary (`fish`).
 
 ## How they move (the reflex layer, tank.c)
 

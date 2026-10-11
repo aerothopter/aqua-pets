@@ -196,6 +196,7 @@ typedef enum { SP_FISH, SP_SEAHORSE, SP_OCTOPUS, SP_PUFFER, SP_ANGLER, SP_EEL, S
                SP_CRAB, SP_LOBSTER,     /* the floor's two (2026-10-05, the same day) */
                SP_JELLYFISH,           /* appended: persisted species IDs never move */
                SP_SWORDFISH,           /* 2026-10-10 night: a fast open-water cruiser with a bill */
+               SP_TURTLE,              /* 2026-10-11: a sea turtle - a slow paddler that naps on the sand and surfaces for a breath */
                SP_COUNT } species_t;
 #define SP_VARIANTS 4            /* designs a species (fish_t.variant) */
 #define SP_MUTATE_P 0.04f        /* a classic fish's fry hatching as a new species */
@@ -979,8 +980,9 @@ enum { SD_ITEM_PLANT = 1u << 0, SD_ITEM_SNAIL = 1u << 1, SD_ITEM_CASTLE = 1u << 
        SD_ITEM_WRECK = 1u << 17,   /* the shipwreck (2026-10-10): item index 7, after the urchin - a thing, before the species */
        SD_ITEM_FROGMAN = 1u << 18, /* the frogman (2026-10-10, later that day): item index 8, a resident like the snail */
        SD_ITEM_SUB = 1u << 19,     /* the submarine (2026-10-10, that night): item index 9, a resident that cruises the water */
-       SD_ITEM_SP_SWORDFISH = 1u << 20,   /* the swordfish (2026-10-10 night): the last species item */
-       SD_ITEM_COUNT = 21 };
+       SD_ITEM_SP_SWORDFISH = 1u << 20,   /* the swordfish (2026-10-10 night) */
+       SD_ITEM_SP_TURTLE = 1u << 21,      /* the turtle (2026-10-11): the last species item */
+       SD_ITEM_COUNT = 22 };
 #define SD_ITEM_SP_FIRST 10        /* the item index of the first species (the seahorse) */
 #define SD_ITEM_WRECK_IDX 7        /* the shipwreck's item index */
 #define SD_ITEM_FROGMAN_IDX 8      /* the frogman's item index */

@@ -554,6 +554,25 @@ static void draw_ink(const sk_t *k) {
 /* ---- seahorse: upright, the snout a tube, the coronet, a pot belly
    ringed with plates, a prehensile tail curled under, and the little dorsal
    fan that is its whole engine. Leans into its slow swim. ---- */
+/* the turtle's shared pieces (2026-10-11), used by every theme's drawer below: */
+static const float TURTLE_CX[10] = { 11, 8, 2, -5, -11, -15, -15, -11, -3, 7 };
+static const float TURTLE_CY[10] = { -1, -5.5f, -8, -8.2f, -6.5f, -3, 1, 2.6f, 3, 2 };
+static void turtle_flipper(const sk_t *k, float bx, float by, float st, float dir, uint32_t rgb, int a) {
+    /* a paddle hung from the shoulder (bx,by): it swings on st from forward and a little down
+       (-1) to straight down and back (1), the stroke a real turtle's; dir -1 for the far side */
+    float ang = 0.35f + 0.8f * st, L = 9.5f;
+    float c1 = fast_cos(ang), s1 = fast_sin(ang), c2 = fast_cos(ang + 0.5f), s2 = fast_sin(ang + 0.5f);
+    float lx[4] = { bx + 2.5f, bx + 1.0f + c1 * L, bx - 1.0f + c2 * L * 0.85f, bx - 2.5f };
+    float ly[4] = { by, by + s1 * L * dir, by + s2 * L * 0.85f * dir, by + 0.5f };
+    sk_poly(k, lx, ly, 4, rgb, a);
+}
+static void turtle_gulp(const sk_t *k, float mx, float my) {
+    if (k->f->sp_mode != SPM_GULP) return;
+    for (int q = 0; q < 2; q++) {                                /* a bubble or two off the beak */
+        float u = k->t * 1.5f + q * 0.5f; u -= floorf(u);
+        sk_dot(k, mx + q, my - 2 - u * 7, 1.1f, 1.1f, 0x9fd8e2, (int)(150 * (1 - u)), false);
+    }
+}
 #include "living_lagoon.inc"
 #include "theme_creatures.inc"
 #include "blackwater.inc"
@@ -1020,6 +1039,39 @@ static void draw_swordfish(sk_t *k) {
     sk_eye(k, 10.5f, -1.8f, 1.5f, false);
 }
 
+/* ---- turtle (2026-10-11): a sea turtle side-on - a domed carapace over a flat pale
+   plastron, the head out on a short neck with a beak, two long front flippers that
+   stroke on f->jet (the far one a half-stroke behind, darker), two small rear
+   flippers and a stub of tail. The design is the shell: scutes, streaks, ridges or
+   spots. It gulps air at the surface like the eel (SPM_GULP: bubbles off the beak). ---- */
+static void draw_turtle(sk_t *k) {
+    if(theme_active()){draw_theme_species(k,SP_TURTLE);return;}
+    const fish_t *f = k->f; int v = f->variant & 3;
+    float st = k->asleep ? 0.6f : fast_sin(f->jet * TAU);
+    uint32_t skin = k->fin, dark = mix(k->fin, 0x000000, 0.35f), rim = mix(k->body, 0x000000, 0.3f);
+    turtle_flipper(k, 6.5f, -0.5f, -st * 0.7f, 1, dark, 255);                                       /* the far front flipper, a half-stroke behind */
+    sk_tri(k, -12.0f, -1.0f, -15.0f, 0.0f, -19.0f, -4.0f, dark, 255);                                /* the far rear flipper */
+    sk_poly(k, TURTLE_CX, TURTLE_CY, 10, k->body, 255);                                             /* the carapace */
+    sk_line(k, 10.5f, -1.5f, -14.5f, -3.5f, 0.3f, 0.3f, rim);                                        /* its rim, dark */
+    sk_dot(k, -2.0f, 3.2f, 12.0f, 2.2f, k->acc, 255, true);                                          /* the plastron */
+    if (v == 0) {                                                                                     /* scutes: a row of plates down the middle, the rim's smaller ones */
+        for (int i = 0; i < 4; i++) { float x = 6.0f - i * 5.5f; sk_line(k, x, -7.0f, x, 1.0f, 0.3f, 0.3f, rim); }
+        sk_line(k, 9.0f, -4.0f, -13.0f, -5.0f, 0.3f, 0.3f, rim);
+    } else if (v == 1) {                                                                              /* the hawksbill's streaks */
+        for (int i = 0; i < 5; i++) sk_mark(k, 6.0f - i * 4.5f, -4.5f + (i & 1) * 1.5f, 1.8f, 0.7f, mix(k->fin, 0x000000, 0.2f), 230);
+    } else if (v == 2) {                                                                              /* the leatherback's ridges */
+        for (int i = 0; i < 3; i++) sk_line(k, 9.0f, -6.5f + i * 2.4f, -13.0f, -6.0f + i * 2.4f, 0.3f, 0.3f, mix(k->acc, k->body, 0.4f));
+    } else for (int i = 0; i < 6; i++) sk_dot(k, 7.0f - i * 4.0f, -5.0f + (i & 1) * 2.5f, 0.9f, 0.9f, k->acc, 220, false);   /* pale spots */
+    sk_tri(k, -14.0f, 0.0f, -20.0f, 1.5f, -14.0f, 2.5f, skin, 255);                                  /* the tail */
+    sk_tri(k, -11.0f, 2.0f, -14.0f, 3.0f, -18.0f, 7.5f, skin, 255);                                  /* the near rear flipper */
+    sk_dot(k, 12.0f, 0.5f, 3.0f, 2.2f, skin, 255, false);                                            /* the neck */
+    sk_dot(k, 16.5f, -0.3f, 3.6f, 3.0f, skin, 255, false);                                           /* the head */
+    sk_tri(k, 19.5f, -1.2f, 21.5f, 0.2f, 19.5f, 1.4f, dark, 255);                                    /* the beak */
+    sk_eye(k, 17.3f, -1.2f, 1.1f, false);
+    turtle_flipper(k, 6.5f, 1.5f, st, 1, skin, 255);                                                 /* the near front flipper */
+    turtle_gulp(k, 21.0f, -1.0f);
+}
+
 /* ---- squid: a torpedo mantle, the two fins at its tip rippling, eight
    arms and two long tentacles at the head, a big eye; chromatophores
    flicker in f->accent (the firefly's glow, undimmed). It swims either way:
@@ -1281,6 +1333,7 @@ static void draw_creature(ctx_t *c, const fish_t *f, float clock, bool asleep) {
     case SP_LOBSTER:  sk_setup(&k, c, f, clock, asleep, -26, 22, 0.3f, f->sp_mode == SPM_FLIP ? 1.0f : 0.0f); draw_lobster(&k); break;
     case SP_JELLYFISH: sk_setup(&k,c,f,clock,asleep,-18,18,0,0); draw_jellyfish(&k); break;
     case SP_SWORDFISH: sk_setup(&k, c, f, clock, asleep, -34, 32, 0.4f, 1); draw_swordfish(&k); break;
+    case SP_TURTLE:   sk_setup(&k, c, f, clock, asleep, -18, 14, 0.3f, clamp01(f->speed / 20)); draw_turtle(&k); break;
     default: break;
     }
 }
@@ -4692,8 +4745,9 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 }
 /* how big a species draws (2026-10-05): its half-length at size 1 (a page
    fits a creature by it) and the selection ring's radius round it */
-static const float SP_HALF_LEN[SP_COUNT] = { 22, 22, 24, 22, 24, 36, 34, 26, 18, 30, 30, 36 };   /* the swordfish's bill (2026-10-10 night) */
-static const float SP_RING_R[SP_COUNT]   = { 17, 19, 20, 17, 19, 28, 28, 19, 16, 24, 31, 29 };
+static const float SP_HALF_LEN[SP_COUNT] = { 22, 22, 24, 22, 24, 36, 34, 26, 18, 30, 30, 36, 24 };   /* the swordfish's bill (2026-10-10 night); the turtle (2026-10-11) */
+static const float SP_RING_R[SP_COUNT]   = { 17, 19, 20, 17, 19, 28, 28, 19, 16, 24, 31, 29, 21 };
+_Static_assert(sizeof SP_HALF_LEN / sizeof SP_HALF_LEN[0] == SP_COUNT && sizeof SP_RING_R / sizeof SP_RING_R[0] == SP_COUNT, "a size row per species");
 float render_species_half_len(int species) { return SP_HALF_LEN[species > 0 && species < SP_COUNT ? species : 0]; }
 /* a fish of the tank as the pages show it (2026-10-05): its species and
    design, in the colours given (its own, or a page's dim silhouette);
@@ -5501,7 +5555,7 @@ static bool g_shp_sell_armed;        /* SELL tapped once: the next tap on it sel
 static const icon_t *shop_icon(int item) {
     static const icon_t *const SP_ICONS[SP_COUNT - 1] = {   /* the species' pairs (2026-10-05), in species order */
         &icon_shop_seahorse, &icon_shop_octopus, &icon_shop_puffer, &icon_shop_angler, &icon_shop_eel,
-        &icon_shop_shark, &icon_shop_squid, &icon_shop_crab, &icon_shop_lobster, &icon_shop_jellyfish, &icon_shop_swordfish };
+        &icon_shop_shark, &icon_shop_squid, &icon_shop_crab, &icon_shop_lobster, &icon_shop_jellyfish, &icon_shop_swordfish, &icon_shop_turtle };
     if (progression_item_species(item) > 0) return SP_ICONS[progression_item_species(item) - 1];
     return item == 0 ? &icon_shop_plant : item == 1 ? &icon_shop_snail : item == 2 ? &icon_shop_castle : item == 3 ? &icon_shop_coral : item == 4 ? &icon_shop_cluster : item == 5 ? &icon_shop_shrimp : item == SD_ITEM_WRECK_IDX ? &icon_shop_wreck : item == SD_ITEM_FROGMAN_IDX ? &icon_shop_frogman : item == SD_ITEM_SUB_IDX ? &icon_shop_sub : &icon_shop_urchin; }
 /* a species' creature needs one free place (2026-10-07; a pair needed two): with no room its UNLOCK reads NO ROOM, dim */

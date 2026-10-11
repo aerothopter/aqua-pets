@@ -358,6 +358,7 @@ const sd_item_t SD_ITEMS[SD_ITEM_COUNT] = {
     { SD_ITEM_SP_LOBSTER,  "LOBSTER",     "A YOUNG FLOOR WALKER.",     "TWO OF THEM BREED",           SD_PRICE_SP_LOBSTER },
     { SD_ITEM_SP_JELLYFISH,"JELLYFISH",   "A YOUNG ONE. IT PULSES",    "AND DRIFTS. TWO BREED",       SD_PRICE_SP_JELLYFISH },
     { SD_ITEM_SP_SWORDFISH,"SWORDFISH",   "A YOUNG ONE. IT CRUISES",   "FAST, BILL FIRST. 2 BREED",   SD_PRICE_SP_SWORDFISH },   /* 2026-10-10 night */
+    { SD_ITEM_SP_TURTLE,   "TURTLE",      "A YOUNG ONE. IT PADDLES,",  "NAPS, BREATHES. 2 BREED",    SD_PRICE_SP_TURTLE },      /* 2026-10-11 */
 };
 _Static_assert(SD_ITEM_SP_FIRST + SP_COUNT - 1 == SD_ITEM_COUNT, "a shop item per species, after the things");
 _Static_assert(SD_ITEM_COUNT <= 32, "sd_unlocks is 32 bits");

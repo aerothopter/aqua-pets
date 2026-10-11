@@ -1,5 +1,5 @@
 {
-  "pixel_and_font_bytes": 331320,
+  "pixel_and_font_bytes": 337464,
   "icons": [
     {
       "theme": "quiet-lagoon",
@@ -368,6 +368,14 @@
       "height": 32,
       "bytes": 3072,
       "sha256": "868ecc8305e8c6e7a264231c2b151aa60a67562ab2e727347c8371e5229ca043"
+    },
+    {
+      "theme": "quiet-lagoon",
+      "file": "shop_turtle.svg",
+      "width": 32,
+      "height": 32,
+      "bytes": 3072,
+      "sha256": "b633bd2b74b3f8a45110a8eb78c18becdbe028bb62a3b59e926f2caa67d70d09"
     },
     {
       "theme": "quiet-lagoon",
@@ -784,6 +792,14 @@
       "height": 32,
       "bytes": 3072,
       "sha256": "24ba9fab3d4c13f8bc0b4f267b61d9f2db374246e6b79d70c8ee857c9a5aea4e"
+    },
+    {
+      "theme": "tidepool-club",
+      "file": "shop_turtle.svg",
+      "width": 32,
+      "height": 32,
+      "bytes": 3072,
+      "sha256": "9b187cb44097f47a7ca016872a2a6295f081d899b4174e47cd4eb196d0dbee1c"
     },
     {
       "theme": "tidepool-club",

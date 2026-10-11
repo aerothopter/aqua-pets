@@ -52,6 +52,7 @@ extern const icon_t icon_shop_shrimp;
 extern const icon_t icon_shop_snail;
 extern const icon_t icon_shop_squid;
 extern const icon_t icon_shop_swordfish;
+extern const icon_t icon_shop_turtle;
 extern const icon_t icon_shop_urchin;
 extern const icon_t icon_snail_glass;
 extern const icon_t icon_snail_upright;

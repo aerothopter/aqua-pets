@@ -3380,7 +3380,7 @@ static int selftest_shop(void) {
            walls; BEHIND the fish and the grass pass in front of it; the spot and
            the depth survive a save */
         {
-            if (SD_ITEM_COUNT != 21 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
+            if (SD_ITEM_COUNT != 22 || SD_ITEMS[2].bit != SD_ITEM_CASTLE || SD_ITEMS[2].price != SD_PRICE_CASTLE) { printf("FAIL: the castle is not the third item\n"); return 1; }
             if (!tank_decor_placeable(2) || tank_decor_z_count(2) != 2 || tank_decor_z_at(2, 0) != DECOR_Z_BACK || tank_decor_z_at(2, 1) != DECOR_Z_FRONT
                 || tank_decor_z_index(2, DECOR_Z_FRONT) != 1 || tank_decor_z_index(2, DECOR_Z_BACK) != 0) { printf("FAIL: the castle's depths\n"); return 1; }
             tank.sd_balance = SD_PRICE_CASTLE - 1;
@@ -4046,7 +4046,7 @@ static int selftest_shop(void) {
         if (SHP_PAGES != 6) { printf("FAIL: %d shop pages for %d items\n", SHP_PAGES, SD_ITEM_COUNT); return 1; }
         for (int sp = 1; sp < SP_COUNT; sp++) {
             int item = SD_ITEM_SP_FIRST + sp - 1; const sd_item_t *it = &SD_ITEMS[item];
-            uint32_t want_bit = sp < SP_SWORDFISH ? SD_ITEM_SP_SEAHORSE << (sp - 1) : SD_ITEM_SP_SWORDFISH;   /* the species' bits run from 7; the swordfish's (2026-10-10 night) sits past the wreck's, the frogman's and the sub's */
+            uint32_t want_bit = sp < SP_SWORDFISH ? SD_ITEM_SP_SEAHORSE << (sp - 1) : SD_ITEM_SP_SWORDFISH << (sp - SP_SWORDFISH);   /* the species' bits run from 7; the swordfish's (2026-10-10 night) and the turtle's (2026-10-11) sit past the wreck's, the frogman's and the sub's */
             if (progression_item_species(item) != sp || it->bit != want_bit || tank_decor_placeable(item)   /* (the bits sit one below the indices since the wreck, 2026-10-10) */
                 || strlen(it->name) > 12 || strlen(it->words) > 25 || strlen(it->words2) > 28 || it->price < 1 || it->price > 999) {   /* (10 a creature since 2026-10-07) */
                 printf("FAIL: the %s item (%d): '%s' '%s' '%s' at %d\n", SPECIES[sp].token, item, it->name, it->words, it->words2, it->price); return 1; }

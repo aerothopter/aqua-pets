@@ -234,6 +234,11 @@ const species_def_t SPECIES[SP_COUNT] = {
         { "SUNSET", 0xb8743a, 0x7a4a22, 0xffd79a }, { "GHOST", 0xc9d6de, 0x8ea0ac, 0xffffff } },
       1.10f, 1.35f, 0.70f, 0.95f, 0.30f, 0.60f, 5.5f, 0.1f, 1.3f, LOCO_CRUISE,
       1.25f, 1.60f, 0.50f, 18.0f, 52, true },
+    { "TURTLE", "turtle", { "shelly", "moss", "pebble", "tide" },   /* 2026-10-11: a sea turtle - slow strokes, long glides, a nap on the sand, up for a breath */
+      { { "GREEN", 0x6f9a3e, 0x8fb45c, 0xe9dc9c }, { "HAWKSBILL", 0xb57a2c, 0x6b4318, 0xf3cf78 },
+        { "LEATHERBACK", 0x45546a, 0x2c3542, 0xcfd9e6 }, { "SEAFOAM", 0x3f9c8a, 0x2c6c63, 0xdaf3e6 } },
+      1.05f, 1.30f, 0.45f, 0.80f, 0.20f, 0.50f, 6.0f, 0.6f, 1.6f, LOCO_HOVER,
+      0.55f, 1.20f, 1.00f, 0.0f, 46, false },
 };
 
 /* the keeper's palettes (setup.c): the six roster bodies + a blue and a
@@ -2019,6 +2024,7 @@ static const sp_motion_t SP_MOTION[SP_COUNT] = {
     { 1.2f, 0.90f,  0, 3.0f, 1.20f, 0.70f,  7 },   /* lobster */
     { 1.2f, 0.30f,  0, 2.5f, 1.50f, 0.00f,  0 },   /* jellyfish: upright bell and long trailing arms */
     { 0.7f, 0.00f,  0, 1.0f, 1.25f, 0.85f,  0 },   /* swordfish (2026-10-10 night): the hammerhead's wide turn, the bill most of the front */
+    { 0.9f, 0.60f,  0, 1.4f, 1.10f, 0.70f,  6 },   /* turtle (2026-10-11): a slow, half-braked turn, never backs; the head out front; it sits on the sand */
 };
 _Static_assert(sizeof SP_MOTION / sizeof SP_MOTION[0] == SP_COUNT, "a motion row per species");
 static const sp_motion_t *sp_mo(const fish_t *f) { return &SP_MOTION[f->species < SP_COUNT ? f->species : SP_FISH]; }
@@ -2239,7 +2245,7 @@ static void sp_state(tank_t *t, int idx, fish_t *f, float dt) {
         float want = clampf(0.35f + (t->night ? 0.4f : 0) + hunt + 0.12f * sinf(t->clock * 1.7f + f->wander), 0, 1);
         f->lure += (want - f->lure) * clampf(dt * 2, 0, 1);
         break; }
-    case SP_EEL:        /* an obligate air-breather: up for a gulp every minute or two, whatever it was doing */
+    case SP_EEL: case SP_TURTLE:   /* air-breathers (the turtle since 2026-10-11): up for a gulp every minute or two, whatever they were doing */
         if (f->sp_mode < SPM_RISE || f->sp_mode > SPM_SINK) {
             if ((f->air_s -= dt) <= 0) { f->sp_mode = SPM_RISE; f->air_s = 0; }
         } else {
@@ -2299,6 +2305,7 @@ static void sp_startle_steer(const tank_t *t, const fish_t *f, float *desired, f
     case SP_EEL:     w = 0.7f; v = lerpf(40, 60, f->bold); break;
     case SP_SHARK:   w = 0.3f; break;               /* hardly bothered: a mild turn away, its own pace */
     case SP_SWORDFISH: w = 0.5f; v = lerpf(70, 100, f->bold) * s->burst_k; break;   /* a flash of speed away */
+    case SP_TURTLE:  w = 0.6f; v = lerpf(26, 40, f->bold) * s->burst_k; break;      /* a few hard strokes, then it settles (2026-10-11) */
     case SP_ANGLER:  w = 0.6f; v = 14; break;
     case SP_CRAB:    away = f->x >= t->startle_x ? 0 : 3.14159f; w = 1;
                      v = f->sp_mode == SPM_SCUTTLE ? 60 * s->burst_k : f->sp_mode == SPM_CLAWS ? 0 : 14; break;
@@ -2409,8 +2416,8 @@ static void sp_target(tank_t *t, int idx, goal_id_t goal, bool glance, target_t 
         if (goal == GOAL_EXPLORE || goal == GOAL_REST) tg->y = tank_ground_y(t, tg->x) - tank_walk_off(f);
         tg->y = fmaxf(tg->y, low);
         break; }
-    case SP_EEL:
-        if (goal == GOAL_REST) {                       /* stretched out along the floor */
+    case SP_EEL: case SP_TURTLE:
+        if (goal == GOAL_REST) {                       /* stretched out along the floor (the turtle naps there too, 2026-10-11) */
             float lo, hi; sp_floor_span(f, TANK_BOT - 30, &lo, &hi);
             tg->x = clampf(t->reef_x + 70 + f->rest_dx, lo, hi); tg->y = TANK_BOT - 16 - tank_walk_off(f); tg->speed = fmaxf(tg->speed, 5);
         }
@@ -2575,7 +2582,7 @@ static void sp_swim(tank_t *t, int idx, fish_t *f, const target_t *tg, float des
     if (!rev) { float sd = side * f->facing; if (c * sd < 0) desired = atan2f(sinf(desired), sd * fabsf(c)); }
     float rate = f->turn_rate * (jetting ? 1.5f : 1.0f) * dt;
     f->heading = norm_ang(f->heading + clampf(norm_ang(desired - f->heading), -rate, rate));
-    if (f->species == SP_EEL && f->goal.id == GOAL_REST && dist < 12)        /* lying flat along the floor */
+    if ((f->species == SP_EEL || f->species == SP_TURTLE) && f->goal.id == GOAL_REST && dist < 12)   /* lying flat along the floor */
         f->heading = norm_ang(f->heading + norm_ang((f->facing > 0 ? 0 : 3.14159f) - f->heading) * clampf(dt * 2, 0, 1));
     f->yaw += clampf(f->facing - f->yaw, -mo->yaw_rate * dt, mo->yaw_rate * dt);
     f->yaw_tail += (f->yaw - f->yaw_tail) * clampf(dt * 8, 0, 1);
@@ -2598,7 +2605,7 @@ static void sp_swim(tank_t *t, int idx, fish_t *f, const target_t *tg, float des
         else f->speed *= 1 - clampf(dt * 2.6f, 0, 1);
     } else {
         f->speed = lerpf(f->speed, want, clampf(dt * (snap ? 12 : mo->resp), 0, 1));
-        static const float FIN_HZ[SP_COUNT] = { 0, 3.0f, 0.5f, 1.6f, 0.4f, 0, 0, 0.9f, 0, 0, 0, 0 };
+        static const float FIN_HZ[SP_COUNT] = { 0, 3.0f, 0.5f, 1.6f, 0.4f, 0, 0, 0.9f, 0, 0, 0, 0, 0.7f };   /* the turtle's flipper stroke (2026-10-11) */
         f->jet = wrap01(f->jet + dt * (f->species == SP_EEL ? 0.4f + f->speed / 30 : FIN_HZ[f->species]));
     }
     float hc = cosf(f->heading), hs = sinf(f->heading);
@@ -3008,7 +3015,7 @@ static void update_fish(tank_t *t, int idx, float dt) {
      * resting finger (reflex-layer, independent of the advisor's goal) */
     float touch_speed = -1;
     bool sp_units = false;                 /* a species' reflex set touch_speed in its own px/s */
-    bool breathing = f->species == SP_EEL && f->sp_mode >= SPM_RISE && f->sp_mode <= SPM_SINK;
+    bool breathing = (f->species == SP_EEL || f->species == SP_TURTLE) && f->sp_mode >= SPM_RISE && f->sp_mode <= SPM_SINK;
     if (t->startled && f->goal.id != GOAL_FLEE_SHADOW && !breathing) {
         float d = tank_dist(f->x, f->y, t->startle_x, t->startle_y);
         if (d < STARTLE_RADIUS * 1.6f) {

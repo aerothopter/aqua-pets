@@ -204,6 +204,26 @@ d = I.layer(0xffffff, shade=False); dots(d, [(21, 14)])
 d = I.layer(0x101010, shade=False); dots(d, [(22, 14)])
 icons['shop_swordfish'] = I
 
+# turtle (2026-10-11): side-on, the domed shell with its scutes, the head out on the right, the paddles
+I = Icon()
+d = I.layer(0x8fb45c)                                                                  # the skin: far paddle, tail, rear paddle
+d.polygon([(10, 20), (14, 21), (18, 27), (12, 26)], 1)
+d.polygon([(4, 18), (0, 21), (4, 22)], 1)
+d.polygon([(6, 21), (9, 22), (4, 27), (2, 24)], 1)
+d = I.layer(0x6f9a3e)                                                                  # the carapace
+d.polygon([(5, 18), (6, 13), (10, 9), (16, 8), (21, 10), (24, 14), (24, 18), (21, 20), (8, 20)], 1)
+d = I.layer(0xe9dc9c, shade=False); d.rectangle((7, 20, 22, 21), 1)                    # the plastron
+d = I.layer(0x3f5c22, shade=False)                                                      # the scute seams
+d.line((11, 10, 10, 19), 1); d.line((16, 9, 16, 19), 1); d.line((21, 11, 21, 19), 1); d.line((6, 15, 24, 15), 1)
+d = I.layer(0x8fb45c)                                                                  # the neck, the head
+d.rectangle((23, 15, 26, 18), 1); d.ellipse((25, 12, 31, 18), 1)
+d = I.layer(0x8fb45c)                                                                  # the near front paddle
+d.polygon([(14, 19), (19, 19), (24, 24), (22, 27), (16, 22)], 1)
+d = I.layer(0x3f5c22, shade=False); dots(d, [(31, 15)])                                # the beak
+d = I.layer(0xffffff, shade=False); dots(d, [(28, 14)])
+d = I.layer(0x101010, shade=False); dots(d, [(29, 14)])
+icons['shop_turtle'] = I
+
 big = Image.new('RGBA', (len(icons) * 140, 140), (4, 20, 26, 255))
 for i, (name, ic) in enumerate(icons.items()):
     im = ic.render(); im.save(f"{OUT}/{name}.png")
