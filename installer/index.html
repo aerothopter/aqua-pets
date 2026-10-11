@@ -67,6 +67,16 @@ async function choose(id){
 /* on Android (the polyfill is in) the Android section leads the page (2026-10-10: "there is no test button") */
 window.addEventListener('DOMContentLoaded',()=>{   /* (after the module scripts: the polyfill's marker is set by then) */
  if(document.documentElement.dataset.serialPolyfill){const a=document.querySelector('#android'),first=document.querySelector('.layout');if(a&&first){const card=document.createElement('section');card.className='card';card.style.marginBottom='24px';card.innerHTML='<span class="eyebrow">Android</span><h2>On this phone, first.</h2>';card.appendChild(a);first.parentNode.insertBefore(card,first);}}});
+/* the installer's own words on a failure (2026-10-11, Alvin's phone: "failed to initialize"): the dialog
+   hides the exception behind one sentence; the status box shows it, with the step that gets round a
+   failed auto-reset - the ROM's download mode, held on BOOT, needs no DTR/RTS dance from the browser */
+document.querySelectorAll('esp-web-install-button').forEach(b=>b.addEventListener('state-changed',ev=>{
+ const st=ev.detail||{};if(st.state!=='error')return;
+ const d=st.details||{},e=d.details,why=e?(e.message||String(e)):'';
+ status.classList.add('warn');
+ status.textContent=(st.message||'Installation failed.')+(why?' Reason: '+why:'')+(d.error==='failed_initialize'?
+  ' — Hold BOOT, tap PWR (or unplug and replug the cable) while still holding BOOT, keep holding it, then tap Install again and keep holding until the progress bar appears.':'');
+}));
 /* the plain-HTTP twin of this server (2026-10-10): the certificate download and the no-certificate way */
 {const h='http://'+location.hostname+':8765';const o=document.querySelector('#httporigin');if(o)o.textContent=h;
  const l=document.querySelector('#httplink');if(l)l.href=h+'/';const c=document.querySelector('#crtlink');if(c)c.href=h+'/aqua-pets-installer.crt';}
