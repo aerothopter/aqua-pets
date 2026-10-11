@@ -102,11 +102,13 @@ static void draw_theme_species(sk_t *k,int species) {
         float st=k->asleep?.6f:sinf(k->f->jet*TAU);int v=k->f->variant&3;
         uint32_t skin=k->fin,dark=mix(k->fin,0x000000,.3f);
         turtle_flipper(k,6,0,-st*.7f,1,dark,255);sk_tri(k,-11,-1,-14,0,-18*round,-4,dark,255);
-        sk_dot(k,-2,-2,13*round,7*round,k->body,255,false);                              /* the shell */
+        sk_dot(k,-2,-2,13*round*fmaxf(fabsf(sk_yaw(k,-2)),.08f),7*round,k->body,255,false);   /* the shell, narrowing with the turn (turtle_volume takes over) */
         sk_dot(k,-2,3.5f,11.5f,2.6f*round,belly,255,true);
-        if(v==0){for(int i=0;i<3;i++)sk_dot(k,5-i*6.5f,-3,2.4f*round,2.4f*round,mix(k->body,0x000000,.22f),255,false);}
+        turtle_volume(k,k->body,belly,skin,mix(k->body,0x000000,.3f),0xffefd1);
+        if(fabsf(sk_yaw(k,-2))<.45f)v=-1;
+        if(v==0){for(int i=0;i<3;i++)sk_dot(k,5-i*6.5f,-3,2.4f*round,2.4f*round,mix(k->body,0x000000,.22f),255,true);}
         else if(v==2){for(int i=0;i<3;i++)sk_line(k,9,-6+i*2.6f,-13,-5.5f+i*2.6f,club?.6f:.4f,club?.6f:.4f,mix(k->acc,k->body,.5f));}
-        else theme_creature_pattern(k,-2,-3,5);
+        else if(v==3)theme_creature_pattern(k,-2,-3,5);
         sk_tri(k,-14,0,-20,1.5f,-14,3,skin,255);sk_tri(k,-11,2,-14,3,-18,7.5f,skin,255);
         sk_dot(k,12,.5f,3,2.4f,skin,255,false);sk_dot(k,16.5f,-.3f,4*round,3.4f*round,skin,255,false);
         sk_tri(k,20,-1.2f,22,.2f,20,1.4f,dark,255);

@@ -4461,6 +4461,8 @@ static int species_sheet(const char *prefix) {
         { .sp = SP_OCTOPUS, .v = 3, .st = STAGE_ADULT, .x = 390, .y = 165, .speed = 4, .camo = 0.5f },                   /* half */
         { .sp = SP_SQUID, .v = 0, .st = STAGE_ADULT, .x = 90, .y = 270, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 50, .jet = 0.6f, .mode = SPM_JET },   /* jetting mantle first (facing right, going left), gliding */
         { .sp = SP_SHARK, .v = 0, .st = STAGE_ADULT, .x = 300, .y = 270, .yaw = 0.08f, .yaw_tail = 0.85f, .speed = 25 },                           /* mid-turn, head-on */
+        { .sp = SP_TURTLE, .v = 0, .st = STAGE_ADULT, .x = 380, .y = 320, .yaw = 0.05f, .yaw_tail = 0.3f, .speed = 10, .jet = 0.3f },               /* the turtle head-on (2026-10-11: its volume) */
+        { .sp = SP_TURTLE, .v = 1, .st = STAGE_ADULT, .x = 40, .y = 320, .yaw = -0.5f, .yaw_tail = -0.8f, .speed = 10, .jet = 0.8f },               /* mid-turn */
     };
     static const sheet_fish_t S2[] = {
         { .sp = SP_SHARK, .v = 3, .st = STAGE_ADULT, .x = 100, .y = 60, .heading = 3.14159265f, .yaw = -0.35f, .yaw_tail = -0.9f, .speed = 25 },

@@ -497,10 +497,12 @@ static void draw_blackwater_species(sk_t *k,int species) {
         float st=k->asleep?.6f:fast_sin(f->jet*TAU);
         uint32_t skin=mix(k->fin,BW_DARK,.15f),fdark=mix(k->fin,BW_DARK,.5f),seam=mix(body,BW_DARK,.6f);
         turtle_flipper(k,6.5f,-.5f,-st*.7f,1,fdark,230);sk_tri(k,-12,-1,-15,0,-19,-4,fdark,230);
-        bw_shape(k,TURTLE_CX,TURTLE_CY,10,body);bw_volume(k,-2,-2.5f,5.2f,5.6f,body);
+        bw_shape(k,TURTLE_CX,TURTLE_CY,10,body);
         bw_line_a(k,10.5f,-1.3f,-14.5f,-3.3f,.35f,.35f,seam,200);                              /* the rim */
         sk_dot(k,-2,3.2f,12,2.1f,mix(k->acc,BW_PALE,.4f),240,true);                            /* the plastron */
         bw_line_a(k,9,3,-13,3.2f,.25f,.25f,seam,120);
+        turtle_volume(k,body,mix(k->acc,BW_PALE,.4f),skin,seam,BW_SUN);
+        if(fabsf(sk_yaw(k,-2))<.45f)v=-1;
         if(v==0){                                                                               /* the green's scutes: five vertebrals, the costals either side */
             for(int i=0;i<5;i++){float x=8-i*5.2f;bw_line_a(k,x,-7.5f,x-.5f,-.5f,.3f,.3f,seam,170);}
             bw_line_a(k,9.5f,-4.5f,-13.5f,-5.2f,.3f,.3f,seam,170);bw_line_a(k,10,-1.2f,-14,-2.2f,.25f,.25f,seam,120);
@@ -511,7 +513,7 @@ static void draw_blackwater_species(sk_t *k,int species) {
         } else if(v==2){                                                                        /* the leatherback's seven ridges, pale-flecked */
             for(int i=0;i<3;i++)bw_line_a(k,9.5f,-6.8f+i*2.4f,-13.5f,-6.2f+i*2.4f,.3f,.3f,mix(k->acc,body,.5f),200);
             for(int i=0;i<7;i++)sk_dot(k,7-i*3.6f,-5.8f+(i%3)*1.9f,.5f,.4f,k->acc,120,false);
-        } else for(int i=0;i<7;i++)sk_dot(k,7.5f-i*3.9f,-5.2f+(i&1)*2.6f,.95f,.85f,mix(k->acc,BW_SUN,.2f),210,false);   /* pale spots */
+        } else if(v==3)for(int i=0;i<7;i++)sk_dot(k,7.5f-i*3.9f,-5.2f+(i&1)*2.6f,.95f,.85f,mix(k->acc,BW_SUN,.2f),210,false);   /* pale spots */
         sk_tri(k,-14,0,-20,1.5f,-14,2.5f,skin,255);sk_tri(k,-11,2,-14,3,-18,7.5f,skin,255);
         bw_body(k,12,.5f,3,2.2f,skin);bw_body(k,16.5f,-.3f,3.6f,3,skin);
         for(int i=0;i<4;i++)bw_line_a(k,14.5f+(i&1)*1.6f,-2.5f+i*1.2f,15.5f+(i&1)*1.6f,-1.7f+i*1.2f,.2f,.2f,fdark,80);   /* the head's scales */

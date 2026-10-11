@@ -559,12 +559,36 @@ static const float TURTLE_CX[10] = { 11, 8, 2, -5, -11, -15, -15, -11, -3, 7 };
 static const float TURTLE_CY[10] = { -1, -5.5f, -8, -8.2f, -6.5f, -3, 1, 2.6f, 3, 2 };
 static void turtle_flipper(const sk_t *k, float bx, float by, float st, float dir, uint32_t rgb, int a) {
     /* a paddle hung from the shoulder (bx,by): it swings on st from forward and a little down
-       (-1) to straight down and back (1), the stroke a real turtle's; dir -1 for the far side */
+       (-1) to straight down and back (1), the stroke a real turtle's; dir -1 for the far side.
+       Off the body's side plane (sk_pt3): as the turtle turns to the glass the two paddles
+       part, the near one to its near side, instead of folding onto its middle */
     float ang = 0.35f + 0.8f * st, L = 9.5f;
     float c1 = fast_cos(ang), s1 = fast_sin(ang), c2 = fast_cos(ang + 0.5f), s2 = fast_sin(ang + 0.5f);
     float lx[4] = { bx + 2.5f, bx + 1.0f + c1 * L, bx - 1.0f + c2 * L * 0.85f, bx - 2.5f };
     float ly[4] = { by, by + s1 * L * dir, by + s2 * L * 0.85f * dir, by + 0.5f };
-    sk_poly(k, lx, ly, 4, rgb, a);
+    float X[4], Y[4];
+    for (int i = 0; i < 4; i++) sk_pt3(k, lx[i], ly[i], dir * 6.0f, 0, &X[i], &Y[i]);
+    src_t sc = src_color(rgb, k->c->dim);
+    fill_poly_s(k->c, X, Y, 4, &sc, a);
+}
+/* the shell's volume (2026-10-11, Alvin: "looks flat when it turns around"): a shaded dome
+   cross-section at the carapace's middle that widens as the turtle turns to the glass (as the
+   lagoon's volume does), lit from the upper left - a dark rim, the shell, a shine, a shadow
+   under the curve - and the plastron's flat slab beneath it; the head gets a round section
+   of its own. Side-on (zq ~ 0) it draws nothing. */
+static void turtle_volume(const sk_t *k, uint32_t shell, uint32_t plastron, uint32_t skin, uint32_t dark, uint32_t light) {
+    float w = fabsf(sk_yaw(k, -2)), q = sqrtf(fmaxf(0, 1 - w * w));
+    float RX = 8.5f * q * k->s, RY = 7.2f * k->s;
+    if (RX < 1) return;
+    float X, Y; sk_pt(k, -2, -1.8f, &X, &Y);
+    fill_ellipse(k->c, X, Y, RX + 0.7f, RY + 0.7f, dark, 255);                           /* the rim */
+    fill_ellipse(k->c, X, Y, RX, RY, shell, 255);
+    fill_ellipse(k->c, X - RX * 0.3f, Y - RY * 0.35f, RX * 0.5f, RY * 0.4f, light, 70);  /* the shine */
+    fill_ellipse(k->c, X, Y + RY * 0.55f, RX * 0.9f, RY * 0.45f, dark, 60);              /* the shadow under the curve */
+    fill_ellipse(k->c, X, Y + RY * 0.72f, RX * 0.95f, RY * 0.28f, plastron, 255);         /* the plastron's slab */
+    float HX, HY; sk_pt(k, 16.5f, -0.3f, &HX, &HY);
+    fill_ellipse(k->c, HX, HY, 3.2f * q * k->s, 3.0f * k->s, skin, 255);                   /* the head's round section */
+    fill_ellipse(k->c, HX - 1.0f * q * k->s, HY - 1.0f * k->s, 1.2f * q * k->s, 1.0f * k->s, light, 60);
 }
 static void turtle_gulp(const sk_t *k, float mx, float my) {
     if (k->f->sp_mode != SPM_GULP) return;
@@ -1054,6 +1078,8 @@ static void draw_turtle(sk_t *k) {
     sk_poly(k, TURTLE_CX, TURTLE_CY, 10, k->body, 255);                                             /* the carapace */
     sk_line(k, 10.5f, -1.5f, -14.5f, -3.5f, 0.3f, 0.3f, rim);                                        /* its rim, dark */
     sk_dot(k, -2.0f, 3.2f, 12.0f, 2.2f, k->acc, 255, true);                                          /* the plastron */
+    turtle_volume(k, k->body, k->acc, skin, rim, 0xffffff);
+    if (fabsf(sk_yaw(k, -2)) < 0.45f) v = -1;                                                        /* past a half-turn the dome carries the look: no pattern piled on its middle */
     if (v == 0) {                                                                                     /* scutes: a row of plates down the middle, the rim's smaller ones */
         for (int i = 0; i < 4; i++) { float x = 6.0f - i * 5.5f; sk_line(k, x, -7.0f, x, 1.0f, 0.3f, 0.3f, rim); }
         sk_line(k, 9.0f, -4.0f, -13.0f, -5.0f, 0.3f, 0.3f, rim);
@@ -1061,7 +1087,7 @@ static void draw_turtle(sk_t *k) {
         for (int i = 0; i < 5; i++) sk_mark(k, 6.0f - i * 4.5f, -4.5f + (i & 1) * 1.5f, 1.8f, 0.7f, mix(k->fin, 0x000000, 0.2f), 230);
     } else if (v == 2) {                                                                              /* the leatherback's ridges */
         for (int i = 0; i < 3; i++) sk_line(k, 9.0f, -6.5f + i * 2.4f, -13.0f, -6.0f + i * 2.4f, 0.3f, 0.3f, mix(k->acc, k->body, 0.4f));
-    } else for (int i = 0; i < 6; i++) sk_dot(k, 7.0f - i * 4.0f, -5.0f + (i & 1) * 2.5f, 0.9f, 0.9f, k->acc, 220, false);   /* pale spots */
+    } else if (v == 3) for (int i = 0; i < 6; i++) sk_dot(k, 7.0f - i * 4.0f, -5.0f + (i & 1) * 2.5f, 0.9f, 0.9f, k->acc, 220, false);   /* pale spots */
     sk_tri(k, -14.0f, 0.0f, -20.0f, 1.5f, -14.0f, 2.5f, skin, 255);                                  /* the tail */
     sk_tri(k, -11.0f, 2.0f, -14.0f, 3.0f, -18.0f, 7.5f, skin, 255);                                  /* the near rear flipper */
     sk_dot(k, 12.0f, 0.5f, 3.0f, 2.2f, skin, 255, false);                                            /* the neck */

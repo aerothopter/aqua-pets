@@ -167,13 +167,15 @@ static void draw_lagoon_species(sk_t *k,int species) {
         float st=k->asleep?.6f:fast_sin(k->f->jet*TAU);int v=k->f->variant&3;
         uint32_t skin=k->fin,dark=mix(k->fin,0x123b3d,.4f);
         turtle_flipper(k,6.5f,-.5f,-st*.7f,1,dark,230);sk_tri(k,-12,-1,-15,0,-19,-4,dark,230);
-        lagoon_shape(k,TURTLE_CX,TURTLE_CY,10,body);lagoon_volume(k,-2,-2.5f,5,5.5f,body);
+        lagoon_shape(k,TURTLE_CX,TURTLE_CY,10,body);
         sk_line(k,10.5f,-1.5f,-14.5f,-3.5f,.3f,.3f,mix(body,0x123b3d,.5f));
         sk_dot(k,-2,3.2f,12,2.2f,mix(k->acc,0xe2dec0,.3f),255,true);
+        turtle_volume(k,body,mix(k->acc,0xe2dec0,.3f),skin,mix(body,0x123b3d,.5f),0xe2dec0);
+        if(fabsf(sk_yaw(k,-2))<.45f)v=-1;
         if(v==0){for(int i=0;i<4;i++){float x=6-i*5.5f;sk_line(k,x,-7,x,1,.3f,.3f,mix(body,0x123b3d,.5f));}sk_line(k,9,-4,-13,-5,.3f,.3f,mix(body,0x123b3d,.5f));}
         else if(v==1)for(int i=0;i<5;i++)sk_mark(k,6-i*4.5f,-4.5f+(i&1)*1.5f,1.8f,.7f,mix(k->fin,0x123b3d,.3f),230);
         else if(v==2)for(int i=0;i<3;i++)sk_line(k,9,-6.5f+i*2.4f,-13,-6+i*2.4f,.3f,.3f,mix(k->acc,body,.4f));
-        else lagoon_pattern(k,-2,-3,5,2.5f);
+        else if(v==3)lagoon_pattern(k,-2,-3,5,2.5f);
         sk_tri(k,-14,0,-20,1.5f,-14,2.5f,skin,255);sk_tri(k,-11,2,-14,3,-18,7.5f,skin,255);
         lagoon_body(k,12,.5f,3,2.2f,skin);lagoon_body(k,16.5f,-.3f,3.6f,3,skin);
         sk_tri(k,19.5f,-1.2f,21.5f,.2f,19.5f,1.4f,dark,255);
