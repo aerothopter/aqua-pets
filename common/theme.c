@@ -16,9 +16,11 @@ static const theme_palette_t palettes[THEME_COUNT] = {
     /* Blackwater (2026-10-10, Alvin: "a realistic version of the creatures ... let the water and the
        sand be darker ... the creatures brighter for contrast"): near-black water over dark volcanic
        sand, the sunlight's caustics the only brightness; cyan accents, amber gold */
+    /* 2026-10-12 (the abyss): deep indigo water falling to black, blue-black sand, kelp a cold
+       teal; the cyan accent and the amber gold stay */
     {"BLACKWATER",0x04090e,0x0c171f,0xe6f2f5,0x56707c,0x3fd8e6,0x04090e,0x1b2f3b,0xffb648,
-     {0x0a2434,0x05141e,0x02080c}, {0x1f5c3c,0x123a2a,0x3d8a55,0x24633c},
-     {0x33302c,0x262421,0x1a1917,0x100f0e},5}
+     {0x0d2a56,0x07183a,0x02050f}, {0x1a5a56,0x0f3a3c,0x2f8a7a,0x1e6a62},
+     {0x1e2634,0x171d29,0x11151e,0x0a0c12},5}
 };
 int theme_valid(int id) { return id >= 0 && id < THEME_COUNT ? id : THEME_ORIGINAL; }
 const theme_palette_t *theme_palette(int id) { return &palettes[theme_valid(id)]; }

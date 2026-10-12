@@ -307,11 +307,12 @@ broken off short with a yard and a rag of sail, a deckhouse, an anchor off the
 bow; Tidepool Club a cheerful little tug sitting upright -
 cream topsides, a red boot stripe, a teal bottom, a wheelhouse with lit windows,
 an orange funnel, a pennant on the mast, a life ring on the side and an anchor
-hung off the bow; Blackwater (2026-10-12) a block shipwreck built of 4 px
-oak planks stepped to the bow, a spruce deck with fence posts, a stern cabin
-with a door and a window hole, a mast with a yard and a torn wool sail, a
-barrel and a chest on the deck, a ragged breach in the side for the second
-hole, kelp on the lower planks. Every hull has two big holes (the tug's are brass-rimmed
+hung off the bow; Blackwater (2026-10-12) a sunken galleon: a rounded
+oak hull with barnacles and weed below the waterline, a high stern castle with
+three windows lit amber, a rail, a main mast leaning aft and broken, a foremast
+with a yard and a rag of sail, a bowsprit, two lanterns that light the planks
+and stay lit at night, a breach amidships and a gap in the stern quarter for the
+two holes. Every hull has two big holes (the tug's are brass-rimmed
 portholes): IN FRONT, the fish pass behind the hull and show through them,
 swimming in and out; BEHIND it is a backdrop in the weeds. The octopus, crab
 and lobster den under its holes when there is no reef.
@@ -325,9 +326,9 @@ and then - anywhere from just under the surface to just above the sand since
 mask. His arm reaches forward, and every 23 s it goes up and waves. He wears
 the theme's suit: a yellow-and-black banded wetsuit with red fins in Original,
 turquoise with coral bands and violet fins in Quiet Lagoon, hot pink with lime
-bands and cyan fins in Tidepool Club, and in Blackwater (2026-10-12) he is a
-block diver with a cube head and a pixel face behind a cyan mask, black
-neoprene with amber bands, yellow fins and a steel tank. A resident like the snail: bought once,
+bands and cyan fins in Tidepool Club, and in Blackwater black neoprene with
+high-vis amber bands and fins and an aluminium tank, a torch in his forward
+hand throwing a cone of light ahead of him (2026-10-12). A resident like the snail: bought once,
 never placed or sold.
 
 **The submarine.** The tenth thing (60, 2026-10-10 night) is a little sub
@@ -338,7 +339,8 @@ and a stream of bubbles from the stern, easing to a new lane now and then; every
 look each way, and it sinks before the sub goes on. The hull is the theme's:
 the yellow sub with black trim in Original, a moss-green navy boat with brass in
 Quiet Lagoon, a red-and-white toy with a cyan tower in Tidepool Club, a grey
-steel boat with a black waterline and rust in Blackwater. A resident like the
+steel boat with a black waterline and rust in Blackwater, its portholes lit
+and a headlight cone from the bow (2026-10-12). A resident like the
 frogman - and the two never collide: a lane picked near the other's is pushed
 clear, and when they close nearly level each eases off to the far side.
 
@@ -488,7 +490,7 @@ charge lasts. The tank learns those times from its own battery as you use
 it.
 
 **Four themes.** Settings → SETTINGS / THEMES picks the look: Original, Quiet
-Lagoon, Tidepool Club, and since 2026-10-10 Blackwater - the realistic one.
+Lagoon, Tidepool Club, and since 2026-10-10 Blackwater - the abyss: realistic creatures that glow.
 Near-black water over dark volcanic sand, and the creatures drawn as the real
 animals (countershading, rayed fins, real eyes, scales, suckers, shells) in
 vivid colours lifted from the ones you chose, so they stand off the dark water;
