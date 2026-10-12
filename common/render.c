@@ -229,7 +229,7 @@ static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, 
     if (f->species != SP_FISH) { draw_creature(c, f, clock, asleep); return; }
     if(theme_active()==THEME_QUIET_LAGOON){draw_lagoon_fish(c,f,clock,asleep);return;}
     if(theme_active()==THEME_BLACKWATER){draw_blackwater_fish(c,f,clock,asleep);return;}
-    float tail = sinf(clock * (8 + f->speed * 0.055f) + f->wander) *
+    float tail = sinf(f->jet * TAU + f->wander) *                      /* the beat's phase: tank.c integrates it (2026-10-12) */
                  (0.32f + f->speed * 0.007f);
     float stress = f->stress / 10.0f;
     float pale = f->hunger > 7 ? (f->hunger - 7) / 3.0f * 0.35f : 0;   /* hungry = washed out */
@@ -4807,6 +4807,7 @@ void render_creature_preview(uint16_t *fb, int stride, float x, float y, float s
     f.color = body; f.fin = fin; f.accent = accent;
     f.species = (uint8_t)(species > 0 && species < SP_COUNT ? species : SP_FISH); f.variant = (uint8_t)(variant & (SP_VARIANTS - 1));
     if (f.species != SP_FISH) { f.speed = f.species == SP_SHARK ? 30 : 8; f.jet = f.species == SP_LOBSTER ? 0 : clock * 1.2f - floorf(clock * 1.2f); f.lure = 0.5f; f.anchor = -1; }   /* (a lobster's jet is its tail-flip) */
+    else { float b = clock * (10.2f / TAU); f.jet = b - floorf(b); }   /* the tail beat at speed 40 */
     tank_fish_face(&f);                          /* side-on, facing right */
     draw_fish_core(&c, &f, clock, false, size);
 }
@@ -4823,6 +4824,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
     f.color = who->color; f.fin = who->fin; f.accent = who->accent;
     f.species = who->species < SP_COUNT ? who->species : SP_FISH; f.variant = who->variant & (SP_VARIANTS - 1);
     if (f.species != SP_FISH) { f.speed = f.species == SP_SHARK ? 30 : 8; f.jet = f.species == SP_LOBSTER ? 0 : clock * 1.2f - floorf(clock * 1.2f); f.lure = 0.5f; f.anchor = -1; }   /* (a lobster's jet is its tail-flip) */
+    else { float b = clock * (10.2f / TAU); f.jet = b - floorf(b); }
     tank_fish_face(&f);
     draw_fish_core(&c, &f, clock, false, size);
 }

@@ -75,7 +75,7 @@ static void lagoon_pattern(sk_t *k,float cx,float cy,float width,float height) {
     }
 }
 static void draw_lagoon_species(sk_t *k,int species) {
-    float beat=k->asleep?0:fast_sin(k->t*(2+k->f->speed*.025f)+k->f->wander);
+    float beat=k->asleep?0:fast_sin(k->t*2.6f+k->f->wander);   /* a fixed rate (2026-10-12): t x (2 + speed x k) jumped the phase with every change of speed */
     uint32_t body=k->body;
     if(species==SP_OCTOPUS&&k->f->camo>0) {
         body=mix(body,k->f->camo_rgb,clamp01(k->f->camo));

@@ -6,8 +6,13 @@
  * flank keeps the keeper's colour, the belly fades into the dark, and every creature is BIO-
  * LUMINESCENT - a soft aura of its own accent colour around it and a row of photophores along
  * the flank that pulse slowly, both drawn undimmed so the tank is a field of drifting lights at
- * night. Cost as the lagoon's: a light ramp once a shape, nine spans a row, three alpha ellipses
- * for the aura, a handful of dots; no per-pixel trig, no allocation. */
+ * night. Cost as the lagoon's: a light ramp once a shape, nine spans a row, four to six alpha
+ * ellipses for the aura, a handful of dots; no per-pixel trig, no allocation.
+ * THE SWIM (2026-10-12, Alvin: "movement not smooth and natural"): every beat runs on a phase that
+ * tank.c integrates (f->jet) or on the plain clock - never clock x (rate + speed), which jumped
+ * the phase at every change of speed - and the fish, the shark and the swordfish bend: a lateral
+ * wave runs down the body (bw_wave), nothing at the head, the trunk's rear swinging a little, the
+ * caudal whipping a beat behind it, the fins on the body riding the wave with it. */
 #define BW_DARK 0x06121c   /* the shade: the water's own dark */
 #define BW_SUN  0xe9f6ff   /* the light: cool, from above */
 #define BW_PALE 0xdfe1d6   /* a belly's silver */
@@ -139,9 +144,9 @@ static void bw_aura(const sk_t *k,float lx,float ly,float rx,float ry) {
     uint32_t g=mix(k->body,0x8af0ff,.35f);
     float br=1+.1f*fast_sin(k->t*.9f+k->f->wander);
     float RX=rx*k->s*br,RY=ry*k->s*br;if(RX<4)return;
-    int a=k->c->dim<.8f?14:7;
+    bool night=k->c->dim<.8f;int n=night?6:4,a=night?14:9;   /* by day four rings (a third the cost of six: the bench's 25-creature frame), at night six */
     src_t s=src_color(g,1);
-    for(int i=0;i<6;i++){float q=1.4f-i*.18f;fill_ellipse_s(k->c,X,Y,RX*q,RY*q,&s,a);}
+    for(int i=0;i<n;i++){float q=night?1.4f-i*.18f:1.3f-i*.25f;fill_ellipse_s(k->c,X,Y,RX*q,RY*q,&s,a);}
 }
 /* a photophore: one of the lights along the flank, a pale core in a coloured halo, pulsing on
    its own phase; undimmed */
@@ -156,6 +161,14 @@ static void bw_photo(const sk_t *k,float lx,float ly,float r,int i) {
 static void bw_photos(const sk_t *k,float x0,float y0,float x1,float y1,int n,float r) {
     if(!k->marked)return;
     for(int i=0;i<n;i++){float u=n>1?(float)i/(n-1):.5f;bw_photo(k,x0+(x1-x0)*u,y0+(y1-y0)*u,r*1.6f,i);}
+}
+/* the swimming wave: a lateral offset at body point lx - nothing ahead of x0, growing as the square
+   of the way back from it (amp px at the body's end xe, up to 2.56 amp past it: the tail's whip), its
+   phase lagging along the body by `lag` a px so the tail follows the trunk */
+typedef struct{float ph,x0,xe,amp,lag;} bw_wave_t;
+static inline float bw_wave(const bw_wave_t *w,float lx) {
+    float u=(w->x0-lx)/(w->x0-w->xe);if(u<=0)return 0;if(u>1.6f)u=1.6f;
+    return w->amp*u*u*fast_sin(w->ph+lx*w->lag+TAU*4);
 }
 /* a scale lattice over the flank: staggered, faint, narrowing with the turn */
 static void bw_scales(const sk_t *k,float x0,float x1,float y0,float y1,int cols,int rows,uint32_t rgb) {
@@ -177,24 +190,29 @@ static void draw_blackwater_species(sk_t *k,int species) {
     }
     switch(species) {
     case SP_FISH: {
-        float tail=k->asleep?0:fast_sin(t*(8+f->speed*.055f)+f->wander)*(.32f+f->speed*.007f);
-        float tl=elder?1.2f:1,wag=tail*6;
+        /* the swim: the beat's phase from tank.c (f->jet), its amplitude with the speed; the wave runs
+           down the body from behind the gill, the trunk's rear swinging up to ~1.5 px, the caudal's tips
+           whipping ~4 px a beat behind; asleep, a slow breath of it */
+        bw_wave_t W={f->jet*TAU+f->wander,4,-12,(k->asleep?.5f:1.6f+f->speed*.035f),.09f};
+        float tl=elder?1.2f:1;
         bw_aura(k,-2,0,22,12);
-        /* the forked caudal: two lobes, rayed, wagging */
-        bw_fin(k,-12,-1.6f,-12,0,-27*tl,-10+wag,-21*tl,-1+wag*.3f,4);
-        bw_fin(k,-12,0,-12,1.6f,-21*tl,1+wag*.3f,-27*tl,10+wag,4);
-        /* the dorsal along the back, taller with age; the anal and the pelvic underneath */
+        /* the forked caudal: two lobes, rayed, riding the wave at the body's end and whipping past it */
+        float wb=bw_wave(&W,-12),wt=bw_wave(&W,-27*tl),wm=bw_wave(&W,-21*tl);
+        bw_fin(k,-12,-1.6f+wb,-12,wb,-27*tl,-10+wt,-21*tl,-1+wm,4);
+        bw_fin(k,-12,wb,-12,1.6f+wb,-21*tl,1+wm,-27*tl,10+wt,4);
+        /* the dorsal along the back, taller with age; the anal and the pelvic underneath - each on the wave */
         float dh=elder?-15.5f:grown?-12.5f:-10;
-        bw_fin(k,5,-6.3f,-8,-6.8f,1,dh,-11,dh+1.2f,5);
-        bw_fin(k,-5,5.8f,-10,4.5f,-7,10,-12,8.5f,3);
-        bw_fin(k,3,6.5f,0,7,1,10.5f,-3,10,2);
-        /* the body: fusiform, countershaded */
+        bw_fin(k,5,-6.3f+bw_wave(&W,5),-8,-6.8f+bw_wave(&W,-8),1,dh+bw_wave(&W,1),-11,dh+1.2f+bw_wave(&W,-11),5);
+        bw_fin(k,-5,5.8f+bw_wave(&W,-5),-10,4.5f+bw_wave(&W,-10),-7,10+bw_wave(&W,-7),-12,8.5f+wb,3);
+        bw_fin(k,3,6.5f+bw_wave(&W,3),0,7+bw_wave(&W,0),1,10.5f+bw_wave(&W,1),-3,10+bw_wave(&W,-3),2);
+        /* the body: fusiform, countershaded, bent by the wave */
         float x[14]={17,15,11,5,-2,-8,-12,-14,-12,-8,-2,5,11,15};
         float y[14]={0,-3,-5.5f,-7.3f,-7.6f,-6.5f,-4,0,4,6.5f,7.6f,7.3f,5.5f,3};
+        for(int i=0;i<14;i++)y[i]+=bw_wave(&W,x[i]);
         bw_shape(k,x,y,14,body);bw_volume(k,0,0,5.5f,7.4f,body);
         bw_scales(k,-10,10,-5,5,5,3,dark);
         /* the lateral line, the operculum's curve, the mouth */
-        float lx[4]={11,4,-4,-12},ly[4]={-1.5f,-.5f,0,-.5f},lr[4]={.3f,.3f,.3f,.3f};
+        float lx[4]={11,4,-4,-12},ly[4]={-1.5f,-.5f+bw_wave(&W,4),bw_wave(&W,-4),-.5f+wb},lr[4]={.3f,.3f,.3f,.3f};
         bw_tube_a(k,lx,ly,lr,4,dark,90);
         float gx[3]={10,8,10},gy[3]={-5,0,5},gr[3]={.35f,.35f,.35f};
         bw_tube_a(k,gx,gy,gr,3,dark,120);
@@ -206,10 +224,11 @@ static void draw_blackwater_species(sk_t *k,int species) {
             else if(v==2)sk_mark(k,px,-2,1.8f,1,k->acc,130);
             else sk_mark(k,px,(i%2)*3-1.5f,1.2f,1.2f,k->acc,130);
         }
-        /* the pectoral behind the gill, then the eye */
-        bw_fin(k,6,1.5f,5,4,-1,.5f,-3,6,3);
+        /* the pectoral behind the gill, sculling - a slow stroke of its own, deeper when the fish hangs still - then the eye */
+        float sc=k->asleep?0:(.9f+1.1f*(1-clamp01(f->speed/30)))*fast_sin(t*2.4f+f->wander+TAU);
+        bw_fin(k,6,1.5f,5,4,-1+sc*.8f,.5f+sc*.5f,-3+sc,6+sc*.4f,3);
         bw_eye(k,11.5f,-2.3f,1.6f,mix(0xc8a048,k->acc,.25f));
-        bw_photos(k,9,3.2f,-10,3.6f,5,.55f);                                 /* the lights along the flank */
+        bw_photos(k,9,3.2f,-10,3.6f+bw_wave(&W,-10),5,.55f);                 /* the lights along the flank */
         break;
     }
     case SP_SEAHORSE: {
@@ -277,7 +296,7 @@ static void draw_blackwater_species(sk_t *k,int species) {
         float wob=k->asleep?0:1;
         for(int i=0;i<8;i++) {
             float aj=((i&3)-1.5f+(i>=4?.5f:0))*.07f*(.5f+1.5f*open);
-            float ac=AC[i]+.22f*wob*fast_sin(t*(1.6f+f->speed*.04f)+i*1.9f);
+            float ac=AC[i]+.22f*wob*fast_sin(t*1.8f+i*1.9f);
             float a=ac+(aj-ac)*jk;
             float cc=(AC[i]<1.57f?-.3f:.3f)*(1-jk)+.08f*fast_sin(t*5+i*1.1f)*jk;
             float L=(19+5*jk)*(1+.08f*wob*fast_sin(t*1.7f+i*2.3f)),sl=L/5;
@@ -454,7 +473,7 @@ static void draw_blackwater_species(sk_t *k,int species) {
     case SP_EEL: {
         float x[16],y[16],r[16],uy[16],ur[16],ly[16],lr[16];
         for(int i=0;i<16;i++) {
-            float u=i/15.f;x[i]=23-u*60;y[i]=fast_sin(u*7-t*(k->asleep?.5f:3)+TAU*64)*u*6;r[i]=4.1f*(1-u)+.4f;
+            float u=i/15.f;x[i]=23-u*60;y[i]=fast_sin(u*7-f->jet*TAU+TAU*4)*u*(k->asleep?2:4.5f+1.5f*clamp01(f->speed/20));r[i]=4.1f*(1-u)+.4f;   /* the wave on tank.c's phase (quicker with speed), deeper the faster it goes */
             uy[i]=y[i]-r[i]*1.05f;ur[i]=r[i]*.55f+.4f;ly[i]=y[i]+r[i]*.95f;lr[i]=r[i]*.45f+.3f;
         }
         /* the fin ridge the length of the back and the belly, rayed */
@@ -483,25 +502,28 @@ static void draw_blackwater_species(sk_t *k,int species) {
         break;
     }
     case SP_SHARK: {
-        float beat=k->asleep?0:fast_sin(f->jet*TAU);
+        /* the swim: the whole rear third sweeps on tank.c's beat, the caudal a beat behind it */
+        bw_wave_t W={f->jet*TAU,0,-21,k->asleep?.4f:1.4f+.8f*clamp01(f->speed/25),.07f};
         uint32_t belly=v==3?mix(body,0xf4f6f0,.7f):0xe4e8e4;
         bw_aura(k,-4,0,30,13);
         /* the heterocercal tail: the upper lobe the long one; the far pectoral behind */
-        bw_fin(k,-21,-1.5f,-21,.5f,-34,-13+beat*2,-27,-2+beat,4);
-        bw_fin(k,-21,.5f,-21,2,-27,beat,-29,6+beat*1.5f,3);
+        float wb=bw_wave(&W,-21),w27=bw_wave(&W,-27),w34=bw_wave(&W,-34);
+        bw_fin(k,-21,-1.5f+wb,-21,.5f+wb,-34,-13+w34,-27,-2+w27,4);
+        bw_fin(k,-21,.5f+wb,-21,2+wb,-27,w27,-29,6+bw_wave(&W,-29),3);
         sk_tri(k,5,2,-2,3,-6,8,mix(k->fin,BW_DARK,.4f),140);
         float x[14]={17,14,8,0,-8,-15,-20,-22,-20,-15,-8,0,8,14};
         float y[14]={-1,-3,-4.6f,-5.2f,-4.6f,-3.2f,-2,0,1.6f,2.8f,4,4.8f,4.4f,2.6f};
+        for(int i=0;i<14;i++)y[i]+=bw_wave(&W,x[i]);
         bw_shape(k,x,y,14,body);bw_volume(k,-2,0,4.5f,4.8f,body);
         sk_dot(k,-2,3,13,1.8f,belly,150,true);                            /* the white belly */
-        /* the first dorsal, tall and raked; the second; the pectoral; the pelvic */
-        bw_fin(k,2,-4.8f,-8,-4.6f,-2,-15,-9,-8,4);
-        bw_fin(k,-14,-3.2f,-18,-2.2f,-16,-6.5f,-19,-4.2f,2);
+        /* the first dorsal, tall and raked; the second; the pectoral; the pelvic - the rear ones on the wave */
+        bw_fin(k,2,-4.8f,-8,-4.6f+bw_wave(&W,-8),-2,-15,-9,-8+bw_wave(&W,-9),4);
+        bw_fin(k,-14,-3.2f+bw_wave(&W,-14),-18,-2.2f+bw_wave(&W,-18),-16,-6.5f+bw_wave(&W,-16),-19,-4.2f+bw_wave(&W,-19),2);
         bw_fin(k,6,3,1,4.2f,-3,10.5f,-8,8.5f,4);
-        bw_fin(k,-10,4.2f,-14,3.2f,-12,7,-16,6,2);
+        bw_fin(k,-10,4.2f+bw_wave(&W,-10),-14,3.2f+bw_wave(&W,-14),-12,7+bw_wave(&W,-12),-16,6+bw_wave(&W,-16),2);
         for(int i=0;i<5;i++)bw_line_a(k,9-i*1.3f,-2.2f,8.4f-i*1.3f,2.2f,.25f,.25f,dark,170);   /* five gill slits */
         bw_line_a(k,15,2.3f,11,2.8f,.3f,.3f,dark,160);                     /* the mouth, underslung */
-        bw_photos(k,4,.8f,-16,.6f,5,.4f);
+        bw_photos(k,4,.8f,-16,.6f+bw_wave(&W,-16),5,.4f);
         /* the cephalofoil: a flat lens across the glass, its lobes shown obliquely, an eye at each end */
         {
             static const float HX[9]={18.5f,18,16,13.5f,12,12,13.5f,16,18},HZ[9]={0,-7,-10,-9,-4,4,9,10,7};
@@ -515,27 +537,30 @@ static void draw_blackwater_species(sk_t *k,int species) {
         break;
     }
     case SP_SWORDFISH: {
-        float beat=k->asleep?0:fast_sin(f->jet*TAU);
+        /* the swim: a stiff fast body - only the last third sweeps, the lunate tail a beat behind */
+        bw_wave_t W={f->jet*TAU,-2,-19,k->asleep?.4f:1.2f+.8f*clamp01(f->speed/40),.08f};
         uint32_t belly=mix(k->acc,0xf4f6f8,.5f),bill=mix(k->fin,BW_DARK,.45f);
         bw_aura(k,-2,0,34,13);
-        bw_fin(k,-19,-1,-19,1,-31,-12+beat*2.2f,-31,12+beat*1.6f,5);                 /* the lunate tail */
+        float wb=bw_wave(&W,-19),wt=bw_wave(&W,-31);
+        bw_fin(k,-19,-1+wb,-19,1+wb,-31,-12+wt,-31,12+wt*.8f,5);                      /* the lunate tail */
         sk_tri(k,6,2.5f,.5f,8.5f,3.5f,3,mix(k->fin,BW_DARK,.4f),140);               /* the far pectoral */
         float x[14]={16,13,7,0,-7,-14,-20,-21.5f,-20,-14,-7,0,7,13};
         float y[14]={-1.6f,-3.8f,-5.2f,-5.6f,-5,-3.6f,-1.8f,0,1.8f,3.4f,4.6f,4.9f,4.4f,3};
+        for(int i=0;i<14;i++)y[i]+=bw_wave(&W,x[i]);
         bw_shape(k,x,y,14,body);bw_volume(k,0,0,4.4f,5.2f,body);
         sk_dot(k,-2,3.2f,13,1.6f,belly,150,true);                                    /* the silver belly */
-        bw_fin(k,5,-4.6f,-10,-4.2f,-1,-18.5f,-8,-9,4);                               /* the tall sickle dorsal */
-        bw_fin(k,-13.5f,-3,-18,-2.2f,-15.5f,-7,-19,-4.5f,2);
-        bw_fin(k,-13,3,-17,2.2f,-15,6.2f,-18.5f,4.2f,2);
+        bw_fin(k,5,-4.6f,-10,-4.2f+bw_wave(&W,-10),-1,-18.5f,-8,-9+bw_wave(&W,-8),4);   /* the tall sickle dorsal */
+        bw_fin(k,-13.5f,-3+bw_wave(&W,-13.5f),-18,-2.2f+bw_wave(&W,-18),-15.5f,-7+bw_wave(&W,-15.5f),-19,-4.5f+wb,2);
+        bw_fin(k,-13,3+bw_wave(&W,-13),-17,2.2f+bw_wave(&W,-17),-15,6.2f+bw_wave(&W,-15),-18.5f,4.2f+bw_wave(&W,-18.5f),2);
         bw_fin(k,6,3,1,4.2f,-3,10,-7,8,4);                                           /* the near pectoral */
-        bw_line_a(k,12,-.5f,-17,.5f,.3f,.3f,mix(body,BW_DARK,.5f),150);              /* the lateral line */
+        {float llx[3]={12,-8,-17},lly[3]={-.5f,bw_wave(&W,-8),.5f+bw_wave(&W,-17)},llr[3]={.3f,.3f,.3f};bw_tube_a(k,llx,lly,llr,3,mix(body,BW_DARK,.5f),150);}   /* the lateral line, on the wave */
         if(v==1||v==2)for(int i=0;i<5;i++)bw_line_a(k,9-i*5.5f,-4,8.5f-i*5.5f,2.5f,.5f,.4f,mix(k->acc,k->fin,.5f),90);   /* faint bars */
-        sk_tri(k,-19,-1.3f,-22.5f,-1.3f,-19,1.3f,mix(k->fin,BW_DARK,.4f),255);       /* the keel */
+        sk_tri(k,-19,-1.3f+wb,-22.5f,-1.3f+bw_wave(&W,-22.5f),-19,1.3f+wb,mix(k->fin,BW_DARK,.4f),255);   /* the keel */
         bw_line_a(k,15.5f,-1,33.5f,-.3f,1.2f,.2f,bill,255);                           /* the bill */
         bw_line_a(k,16,-1.7f,25,-1.3f,.35f,.15f,mix(k->acc,0xffffff,.5f),200);
         bw_line_a(k,15,2.3f,11.5f,2.6f,.3f,.3f,mix(body,BW_DARK,.55f),160);          /* the mouth */
         bw_eye(k,10.5f,-1.8f,1.6f,0x1a2a44);
-        bw_photos(k,8,1.2f,-15,1.4f,6,.4f);
+        bw_photos(k,8,1.2f,-15,1.4f+bw_wave(&W,-15),6,.4f);
         break;
     }
     case SP_TURTLE: {   /* 2026-10-11: a countershaded carapace with its scutes, leathery flippers, a scaled head, a real eye */
@@ -612,7 +637,7 @@ static void draw_blackwater_species(sk_t *k,int species) {
     }
     case SP_LOBSTER: {
         float curl=f->sp_mode==SPM_FLIP&&f->jet>.5f?clamp01((f->jet-.5f)*8):0;
-        float ph=t*(2+clamp01(f->speed/20)*7),mv=clamp01(f->speed/6),wob=k->asleep?0:1;
+        float ph=t*5,mv=clamp01(f->speed/6),wob=k->asleep?0:1;   /* the legs' step at a fixed rate (the stride's length follows the speed, mv) */
         uint32_t ant=v==0?k->acc:mix(body,k->fin,.5f),shade=mix(body,BW_DARK,.4f);
         bw_aura(k,-2,1,26,10);
         /* the long antennae, sweeping back; the antennules */

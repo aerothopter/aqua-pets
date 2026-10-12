@@ -3205,6 +3205,11 @@ static void update_fish(tank_t *t, int idx, float dt) {
         for (int b = 0; b < tank_veg_beds(t); b++)
             if (veg_inside(t, b, f->x, f->y)) { f->target_speed *= VEG_SLOW; break; }
     f->speed = lerpf(f->speed, f->target_speed, clampf(dt * 2.6f, 0, 1));
+    /* the tail beat's phase (2026-10-12, Alvin: the Blackwater creatures' movement "not smooth"): it used to be
+       clock x (8 + speed x .055) in the drawer, so every change of speed JUMPED the phase by clock x .055 x the
+       change - a random tail flick on every acceleration, worse the longer the tank had run. Integrated here
+       instead, at the same rate, so the beat only quickens and slows */
+    f->jet = wrap01(f->jet + dt * (8 + f->speed * 0.055f) * (1.0f / TAU));
     /* the swim follows the facing: side-on it is the heading's own, and as
      * the fish turns head-on its level travel crosses zero and it brakes to
      * 40%. Only a LEVEL turn: steep, the heading steers as it always did (a

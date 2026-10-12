@@ -45,6 +45,7 @@
  *   ./fishsim --selftest-saves       headless update promise: every save in testdata/saves, whole and cut to older builds' lengths
  *   ./fishsim --bench                headless render-cost profile (veg, card)
  *   ./fishsim --species-sheet <pfx>  headless: every species x design x stage as PPMs, their states, their draw cost
+ *   ./fishsim --swim-strip <pfx>     headless: 16 frames of the fish, shark, swordfish, eel swimming in place (<pfx>_swim.ppm)
  *   (key Z: jump through 7 h of device-style sleep; key G: grow the canopy +
  *    algae now to try the chores - press again to cycle; key Y: the urchin)
  */
@@ -4450,6 +4451,38 @@ static void sheet_render(uint16_t *fb, const char *path) {
     render_tank(&tank, fb, TANK_W);
     if (path) write_ppm(path, fb);
 }
+/* --swim-strip <pfx> (2026-10-12, the smoothness pass): one adult of the fish, the shark, the swordfish
+   and the eel swimming in place for 16 frames at 25 fps, each frame's window round it laid in a row
+   (<pfx>_swim.ppm) - the way to eyeball a beat's continuity, which no still sheet shows */
+static int swim_strip(const char *prefix) {
+    static uint16_t fb[TANK_W * TANK_H];
+    enum { WW = 120, WH = 72, NF = 16 };
+    static const int SPS[4] = { SP_FISH, SP_SHARK, SP_SWORDFISH, SP_EEL };
+    static uint16_t strip[WW * NF * WH * 4];
+    memset(strip, 0, sizeof strip);
+    for (int r = 0; r < 4; r++) {
+        sheet_tank();
+        sheet_fish_t q = { .sp = SPS[r], .v = 0, .st = STAGE_ADULT, .x = 224, .y = 184, .heading = 0, .speed = SPS[r] == SP_FISH ? 30 : 20, .lure = 0.4f };
+        sheet_put(0, &q);
+        fish_t *f = &tank.fish[0];
+        f->size = sheet_size(SPS[r], STAGE_ADULT) * 1.3f;
+        for (int i = 0; i < NF; i++) {
+            float x0 = f->x, y0 = f->y;
+            tank_tick(&tank, 1.0f / 25.0f, advisor_rules);
+            f->x = x0; f->y = y0; f->heading = 0; f->target_speed = q.speed; tank_fish_face(f);   /* held in place: only the beat moves */
+            sheet_render(fb, NULL);
+            for (int y = 0; y < WH; y++) for (int x = 0; x < WW; x++) {
+                int sx = (int)f->x - WW / 2 + x, sy = (int)f->y - WH / 2 + y;
+                if (sx >= 0 && sx < TANK_W && sy >= 0 && sy < TANK_H) strip[(r * WH + y) * WW * NF + i * WW + x] = fb[sy * TANK_W + sx];
+            }
+        }
+    }
+    char path[512]; snprintf(path, sizeof path, "%s_swim.ppm", prefix);
+    FILE *fp = fopen(path, "wb"); if (!fp) return 1;
+    fprintf(fp, "P6\n%d %d\n255\n", WW * NF, WH * 4);
+    for (int i = 0; i < WW * NF * WH * 4; i++) { uint16_t v = strip[i]; unsigned char px[3] = { (unsigned char)(((v >> 11) & 31) * 255 / 31), (unsigned char)(((v >> 5) & 63) * 255 / 63), (unsigned char)((v & 31) * 255 / 31) }; fwrite(px, 1, 3, fp); }
+    fclose(fp); printf("swim-strip: wrote %s\n", path); return 0;
+}
 static int species_sheet(const char *prefix) {
     static uint16_t fb[TANK_W * TANK_H];
     char path[512]; int files = 0;
@@ -5159,6 +5192,7 @@ int main(int argc, char **argv) {
         if (strcmp(argv[a], "--selftest") == 0) return selftest();
         if (strcmp(argv[a], "--bench") == 0) return bench();
         if (strcmp(argv[a], "--species-sheet") == 0 && a + 1 < argc) return species_sheet(argv[a + 1]);
+        if (strcmp(argv[a], "--swim-strip") == 0 && a + 1 < argc) return swim_strip(argv[a + 1]);
         if (strcmp(argv[a], "--selftest-hunger") == 0) return selftest_hunger();
         if (strcmp(argv[a], "--selftest-shop") == 0) return selftest_shop();
         if (strcmp(argv[a], "--selftest-battery") == 0) return selftest_battery();
