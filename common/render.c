@@ -2240,7 +2240,8 @@ static void coral_build(float g) {
     g_coral_cells = 0;
     for (int j = 0; j < CORAL_CH; j++)
         for (int i = 0; i < CORAL_CW; i++) {
-            bool tip; sd[j][i] = sd_q(coral_sd(i + 0.5f, (CORAL_CH - 1 - j) + 0.5f, g, &tip));
+            bool bwq = theme_active() == THEME_BLACKWATER;                                      /* Blackwater (2026-10-12): 4 px blocks */
+            bool tip; sd[j][i] = sd_q(coral_sd(bwq ? (i & ~1) + 1.0f : i + 0.5f, bwq ? (CORAL_CH - 1 - (j | 1)) + 1.0f : (CORAL_CH - 1 - j) + 0.5f, g, &tip));
             if (tip) tp[j][i >> 3] |= (uint8_t)(1 << (i & 7)); else tp[j][i >> 3] &= (uint8_t)~(1 << (i & 7));
         }
     for (int j = 0; j < CORAL_CH; j++)
@@ -2922,7 +2923,9 @@ static void cl_paint(int e, int pass, float s) {
     uint8_t (*dp)[(CL_CW + 7) / 8] = ds()->cl_dp;
     for (int j = 0; j < CL_CH; j++)
         for (int i = 0; i < CL_CW; i++) {
-            float px = CL_CX + (i + 0.5f - CL_CX) / s, py = (CL_CH - 1 - j + 0.5f) / s;   /* unscale the query */
+            bool bwq = theme_active() == THEME_BLACKWATER;                                      /* Blackwater (2026-10-12): 4 px blocks - the 2 x 2 cells share a sample */
+            float qi = bwq ? (i & ~1) + 1.0f : i + 0.5f, qj = bwq ? (CL_CH - 1 - (j | 1)) + 1.0f : CL_CH - 1 - j + 0.5f;
+            float px = CL_CX + (qi - CL_CX) / s, py = qj / s;                                   /* unscale the query */
             bool deep; sd[j][i] = sd_q(cl_sd(e, pass, px, py, &deep) * s);
             if (deep) dp[j][i >> 3] |= (uint8_t)(1 << (i & 7)); else dp[j][i >> 3] &= (uint8_t)~(1 << (i & 7));
         }
@@ -2941,7 +2944,7 @@ static void cl_paint(int e, int pass, float s) {
             else if (out_l || out_u) v = CLV_LIT;
             else if (deep) v = CLV_DEEP;                        /* the rock's moss: never on its edge */
             else if (bw) {                                      /* Blackwater's surfaces: the anemone's dark column, ribbed tubes, a plain pale coral */
-                uint32_t h = chash(i + 97 * e, j) % 100;
+                uint32_t h = chash((i >> 1) + 97 * e, j >> 1) % 100;
                 float py = (CL_CH - 1 - j + 0.5f) / s;
                 v = e == CLE_BRAIN ? (py < 13.5f ? CLV_SHADE : CLV_BODY)
                   : e == CLE_TUBE  ? (i % 4 == 0 ? CLV_SHADE : h < 8 ? CLV_LIT : CLV_BODY)
@@ -3368,6 +3371,14 @@ static void draw_wreck(ctx_t *c, int cx, bool final, int layer) {
  * the wreck's old grey diver: Original a yellow-and-black banded wetsuit with red fins,
  * Quiet Lagoon turquoise with coral bands and violet fins, Tidepool Club hot pink with lime
  * bands and cyan fins. Live every frame; the rect he and his mist cover comes back. */
+/* a filled block: whole pixels [x0,x1) x [y0,y1) (the Blackwater residents are built of these, 2026-10-12) */
+static void frect(ctx_t *c, float x0, float y0, float x1, float y1, uint32_t rgb, int a) {
+    src_t s = src_color(rgb, c->dim);
+    int ax = (int)floorf(fminf(x0, x1)), bx = (int)floorf(fmaxf(x0, x1)) - 1, ay = (int)floorf(fminf(y0, y1)), by = (int)floorf(fmaxf(y0, y1)) - 1;
+    if (bx < ax) bx = ax;
+    if (by < ay) by = ay;
+    for (int y = ay; y <= by; y++) span(c, ax, bx, y, &s, a);
+}
 static void thick_line(ctx_t *c, float x0, float y0, float x1, float y1, float w, uint32_t rgb) {
     float dx = x1 - x0, dy = y1 - y0, l = sqrtf(dx * dx + dy * dy) + 1e-3f, nx = -dy / l * w * 0.5f, ny = dx / l * w * 0.5f;
     float px[4] = { x0 + nx, x1 + nx, x1 - nx, x0 - nx }, py[4] = { y0 + ny, y1 + ny, y1 - ny, y0 - ny };
@@ -3388,6 +3399,35 @@ static void draw_frogman(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *bx1
     uint32_t mist  = bw ? 0xc8e8ee : th == THEME_TIDEPOOL_CLUB ? 0x3d8e83 : th == THEME_QUIET_LAGOON ? 0xc4e6d1 : 0x9fd8e2;
 #define FX(lx) (fx + (lx) * d * sx)                                                /* local x along the body, + = forward */
     float kick = sinf(clock * 2.6f) * 2.5f;
+    if (bw) {
+        /* Blackwater (2026-10-12): a BLOCK diver, as the game's players are built - a cube head with a
+           pixel face behind a cyan mask, a slab body in black neoprene with amber bands, slab arms and
+           legs, a steel tank on his back, yellow fins; the mist square bubbles. The same motion. */
+        #define FR(lx0, ly0, lx1, ly1, rgb) frect(c, FX(lx0), fy + (ly0), FX(lx1), fy + (ly1), rgb, 255)
+        fy = floorf(fy);
+        for (int i = 0; i < 12; i++) {
+            float ph = fmodf(clock * (0.42f + 0.03f * (i % 4)) + i * 0.083f, 1.0f);
+            float bx = FX(10) + sinf(clock * 2.5f + i * 1.7f) * (1.5f + ph * 4) + (i % 3 - 1) * 1.5f, by = fy - 7 - ph * 46;
+            int sz = ph > 0.5f ? 2 : 1; int a = (int)(170 * (1 - ph * 0.8f));
+            frect(c, bx, by, bx + sz, by + sz, mist, a);
+        }
+        FR(-16, -4 + kick * 0.5f, -7, -1 + kick * 0.5f, suit); FR(-16, 1 - kick * 0.5f, -7, 4 - kick * 0.5f, suit);           /* the legs */
+        FR(-23, -5 + kick, -16, -2 + kick, fin); FR(-23, 2 - kick, -16, 5 - kick, fin);                                       /* the fins */
+        FR(-7, -9, 7, -5, tankc); FR(-6, -9, 6, -8, 0xf0f4f6); FR(7, -8, 9, -6, 0x565a5d);                                    /* the tank, its valve */
+        FR(-9, -5, 9, 5, suit); FR(-6, -5, -3, 5, band); FR(2, -5, 5, 5, band);                                               /* the torso, the bands */
+        float wph = fmodf(clock, 23.0f);
+        if (wph < 2.6f) {
+            float lift = fminf(1, wph * 4) * fminf(1, (2.6f - wph) * 4), swing = sinf(clock * 9.0f) * 3 * lift;
+            FR(3, -5 - 7 * lift, 6, 2, suit); FR(3 + swing, -11 * lift - 5, 6 + swing, -6 * lift - 4, suit); FR(3 + swing, -13 * lift - 5, 7 + swing, -11 * lift - 5, band);   /* up and waving */
+        } else { FR(3, 0, 13, 3, suit); FR(13, 0, 16, 3, band); }                                                             /* forward, the hand */
+        FR(8, -6, 17, 3, suit);                                                                                               /* the hood */
+        FR(11, -3, 17, 3, skin);                                                                                              /* the face */
+        FR(10, -4, 17, 0, mask); FR(12, -3, 17, -1, glass); FR(13, -3, 14, -2, 0xffffff);                                     /* the mask and its glass */
+        FR(14, 1, 17, 3, 0x3a3d40); FR(9, -1, 12, 0, 0x3a3d40);                                                               /* the regulator, its hose */
+        #undef FR
+        *bx0 = (int)fx - 30; *bx1 = (int)fx + 30; *by0 = (int)fy - 58; *by1 = (int)fy + 12;
+        return;
+    }
     /* the mist: a dozen fine bubbles rising from the mask, each on its own slow loop; behind him */
     for (int i = 0; i < 12; i++) {
         float ph = fmodf(clock * (0.42f + 0.03f * (i % 4)) + i * 0.083f, 1.0f);
@@ -3454,6 +3494,39 @@ static void draw_submarine(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *b
     uint32_t mist  = th == THEME_TIDEPOOL_CLUB ? 0x3d8e83 : th == THEME_BLACKWATER ? 0xc8e8ee : th == THEME_QUIET_LAGOON ? 0xc4e6d1 : 0x9fd8e2;
 #define FX(lx) (fx + (lx) * d * sx)
     bool moving = t->sub_v > 1.5f;
+    if (th == THEME_BLACKWATER) {
+        /* Blackwater (2026-10-12): a BLOCK submarine - a stepped iron hull with a dark keel, rust blocks, three
+           square portholes, a block tower with a window and a rail, slab planes and rudders, a cross of a
+           propeller; square bubbles. The same motion, periscope and stop. */
+        #define SR(lx0, ly0, lx1, ly1, rgb) frect(c, FX(lx0), fy + (ly0), FX(lx1), fy + (ly1), rgb, 255)
+        fy = floorf(fy);
+        int nb = moving ? 14 : 5;
+        for (int i = 0; i < nb; i++) {
+            float ph = fmodf(clock * (moving ? 0.55f + 0.04f * (i % 4) : 0.3f + 0.03f * (i % 3)) + i * 0.071f, 1.0f);
+            float ox = moving ? -28 - ph * 26 * sx : 2, oy = moving ? -2 - ph * 34 : -9 - ph * 40;
+            float bx = FX(ox) + sinf(clock * 2.1f + i * 1.9f) * (1 + ph * 3), by = fy + oy; int sz = ph > 0.5f ? 2 : 1;
+            frect(c, bx, by, bx + sz, by + sz, mist, (int)(170 * (1 - ph * 0.8f)));
+        }
+        { float spin = moving ? clock * 22 : clock * 1.5f, bl = fabsf(sinf(spin));                      /* the propeller: a cross, its blades foreshortening */
+          SR(-29, -1, -24, 1, metal);
+          SR(-31, -6 * bl - 1, -29, 6 * bl + 1, metal); SR(-31, -1, -29, 1, 0x303438); }
+        SR(-27, -11, -21, -6, trim); SR(-27, 6, -21, 11, trim); SR(-25, -1, -20, 2, trim);              /* the rudders, the stern planes */
+        SR(-22, -7, 22, 7, hull); SR(-26, -5, -22, 5, hull); SR(22, -5, 27, 5, hull); SR(27, -3, 29, 3, 0x3e464e);   /* the hull, stepped to the bow */
+        SR(-22, 3, 22, 7, belly); SR(-26, 2, -22, 5, belly); SR(22, 2, 27, 5, belly);                    /* the dark keel */
+        SR(-20, -6, 20, -5, lit);                                                                        /* the light along the top */
+        SR(-10, 0, -7, 3, 0x7a4a30); SR(9, 1, 12, 3, 0x7a4a30); SR(16, -4, 18, -2, 0x7a4a30);             /* rust */
+        SR(12, 0, 19, 2, trim);                                                                          /* the bow planes */
+        for (int i = 0; i < 3; i++) { SR(-11 + i * 9, -3, -6 + i * 9, 2, trim); SR(-10 + i * 9, -2, -7 + i * 9, 1, glass); SR(-10 + i * 9, -2, -9 + i * 9, -1, 0xffffff); }   /* three square portholes */
+        SR(-5, -15, 7, -7, tower); SR(2, -12, 6, -9, glass); SR(2, -12, 3, -11, 0xffffff); SR(-4, -16, 7, -15, trim);   /* the tower, its window, the rail */
+        if (t->sub_peri > 0.02f) {
+            float up = floorf(t->sub_peri * 13), look = sinf(t->sub_look * 1.7f);
+            SR(0, -15 - up, 2, -15, metal); SR(1, -17 - up, 1 + look * 5, -15 - up, metal);
+            frect(c, FX(1) + look * 5 * d * sx - 1, fy - 17 - up, FX(1) + look * 5 * d * sx + 1, fy - 15 - up, 0x20262a, 255);
+        }
+        #undef SR
+        *bx0 = (int)fx - 60; *bx1 = (int)fx + 60; *by0 = (int)fy - 62; *by1 = (int)fy + 14;
+        return;
+    }
     /* the bubbles: a stream from the stern while moving (fast, many), a lazy few from the tower at a stop */
     int nb = moving ? 14 : 5;
     for (int i = 0; i < nb; i++) {
@@ -3621,7 +3694,7 @@ static inline uint32_t floor_rgb(int x, int y) {
     if (theme_active() == THEME_BLACKWATER) {
         /* dark volcanic sand (2026-10-10): a fine grain of three near-blacks, a scatter of pale shell
            grit and the odd rounded pebble, lit from the upper left, darker with depth */
-        unsigned g = (unsigned)x * 73856093u ^ (unsigned)y * 19349663u; g ^= g >> 13; g *= 0x5bd1e995u; g ^= g >> 15;
+        unsigned g = (unsigned)(x >> 1) * 73856093u ^ (unsigned)(y >> 1) * 19349663u; g ^= g >> 13; g *= 0x5bd1e995u; g ^= g >> 15;   /* 2 px grain (2026-10-12: gravel blocks) */
         const uint32_t *sand = theme_palette(THEME_BLACKWATER)->sand;
         uint32_t col = sand[(g >> 3) % 3];
         if (g % 53 == 0) col = 0x8a8577;                                   /* shell grit */
@@ -3631,7 +3704,7 @@ static inline uint32_t floor_rgb(int x, int y) {
             float px = cx * 11 + 3 + (h >> 4) % 5, py = (TANK_BOT - 14) + cy * 7 + 3 + (h >> 8) % 2;
             float rx = 2.2f + (h >> 12) % 3, ry = 1.4f + ((h >> 16) % 2) * 0.5f;
             float dx = (x - px) / rx, dy = (y - py) / ry;
-            if (dx * dx + dy * dy <= 1.0f) col = dx < -0.3f && dy < 0 ? 0x5c5a55 : dy < -0.2f ? 0x45443f : (h >> 20) % 2 ? 0x2c2b28 : 0x232220;
+            if (fabsf(dx) <= 0.8f && fabsf(dy) <= 0.9f) col = dy < -0.2f ? 0x5c5a55 : dx > 0.3f ? 0x2c2b28 : (h >> 20) % 2 ? 0x45443f : 0x3a3936;   /* a square pebble */
         }
         float depth = clamp01((y - (TANK_BOT - 14)) / (float)(TANK_H - (TANK_BOT - 14)));
         return mix(col, 0x060605, depth * 0.5f);
@@ -3860,10 +3933,16 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
     {
         float ax = t->bubble_x, ay = TANK_BOT - 17;
         bool bw = theme_active()==THEME_BLACKWATER;   /* Blackwater: three basalt stones, lit from the upper left */
-        fill_ellipse(&c, ax - 6, ay + 1, 7, 4, theme_active()==THEME_TIDEPOOL_CLUB?0xcaac87:bw?0x3a3b3c:theme_active()?0x788f7a:0x2a3634, 255);
-        fill_ellipse(&c, ax + 5, ay + 2, 6, 3.5f, theme_active()==THEME_TIDEPOOL_CLUB?0xa78767:bw?0x2a2b2c:theme_active()?0x536e63:0x22302c, 255);
-        fill_ellipse(&c, ax, ay - 2, 6, 3.5f, theme_active()==THEME_TIDEPOOL_CLUB?0xead6ad:bw?0x55575a:theme_active()?0x96aa90:0x3a4a48, 255);
+        if (bw) {   /* 2026-10-12: three stone blocks, the top one lit */
+            frect(&c, ax - 12, ay - 2, ax, ay + 5, 0x4a4c50, 255); frect(&c, ax, ay - 1, ax + 10, ay + 5, 0x3a3b3c, 255);
+            frect(&c, ax - 5, ay - 6, ax + 5, ay - 1, 0x6a6c70, 255); frect(&c, ax - 5, ay - 6, ax + 5, ay - 5, 0x9a9ca0, 255);
+            frect(&c, ax - 12, ay - 2, ax - 11, ay + 5, 0x2a2b2c, 255); frect(&c, ax + 9, ay - 1, ax + 10, ay + 5, 0x2a2b2c, 255);
+        } else {
+        fill_ellipse(&c, ax - 6, ay + 1, 7, 4, theme_active()==THEME_TIDEPOOL_CLUB?0xcaac87:theme_active()?0x788f7a:0x2a3634, 255);
+        fill_ellipse(&c, ax + 5, ay + 2, 6, 3.5f, theme_active()==THEME_TIDEPOOL_CLUB?0xa78767:theme_active()?0x536e63:0x22302c, 255);
+        fill_ellipse(&c, ax, ay - 2, 6, 3.5f, theme_active()==THEME_TIDEPOOL_CLUB?0xead6ad:theme_active()?0x96aa90:0x3a4a48, 255);
         fill_ellipse(&c, ax - 1, ay - 3, 2, 1.2f, 0x5a6a68, 200);
+        }
         DYN_RECT((int)ax - 14, (int)ay - 7, (int)ax + 12, (int)ay + 7);
     }
     /* food pellets */
@@ -3874,10 +3953,8 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
                 if(theme_active()==THEME_QUIET_LAGOON) {
                     float xx[4]={x-3,x+1,x+3,x-1},yy[4]={y-1,y-3,y+1,y+3};fill_poly(&c,xx,yy,4,0xddc790);
                     fill_ellipse(&c,x,y,1.6f,.6f,0xf3e7b9,230);
-                } else if(theme_active()==THEME_BLACKWATER) {   /* a real flake: a tan curl with a lit edge and a dark crease */
-                    float xx[5]={x-3.2f,x-.5f,x+3,x+1.5f,x-2},yy[5]={y-.5f,y-2.8f,y-.8f,y+2.4f,y+2};fill_poly(&c,xx,yy,5,0xb9834a);
-                    fill_ellipse(&c,x-.8f,y-.9f,1.5f,.7f,0xe8c48a,220);
-                    px_blend(&c,(int)x+1,(int)y+1,0x5a3a1c,170);
+                } else if(theme_active()==THEME_BLACKWATER) {   /* a block of food (2026-10-12): an orange cube, a lit top, a dark side */
+                    frect(&c,x-3,y-3,x+3,y+3,0xe08a3a,255);frect(&c,x-3,y-3,x+3,y-1,0xffc070,255);frect(&c,x+1,y-1,x+3,y+3,0x9a5420,255);
                 } else {
                     fill_ellipse(&c,x,y,3.2f,3.2f,0xc07a45,255);
                     fill_ellipse(&c,x,y-.5f,2,2,0xffd889,255);
@@ -3894,13 +3971,11 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
         const bubble_t *b = &t->bubble[i];
         float r = b->column ? 2.6f : 1.8f;
         if(theme_active()==THEME_BLACKWATER) {
-            /* a real bubble: a thin bright rim (the surface's reflection), a dark glassy inside, the sun's window top-left */
-            for(int j=0;j<12;j++) {
-                float a=TAU*j/12;
-                px_blend(&c,(int)(b->x+cosf(a)*r),(int)(b->y+sinf(a)*r),j>=6&&j<=10?0xe8f6ff:0x7fb4c4,j>=6&&j<=10?200:120);
-            }
-            fill_ellipse(&c,b->x,b->y,r*.55f,r*.55f,0x9fd8e2,45);
-            fill_ellipse(&c,b->x-r*.4f,b->y-r*.4f,.9f,.6f,0xffffff,230);
+            /* a block bubble (2026-10-12): a hollow square of pale blue, a white block at its top-left corner */
+            int R=(int)r,x0=(int)b->x-R,y0=(int)b->y-R,x1=(int)b->x+R,y1=(int)b->y+R;
+            frect(&c,x0,y0,x1+1,y0+1,0x9fd8e2,170);frect(&c,x0,y1,x1+1,y1+1,0x9fd8e2,170);
+            frect(&c,x0,y0+1,x0+1,y1,0x9fd8e2,170);frect(&c,x1,y0+1,x1+1,y1,0x9fd8e2,170);
+            frect(&c,x0,y0,x0+2,y0+2,0xffffff,230);
         } else if(theme_active()) {
             bool club=theme_active()==THEME_TIDEPOOL_CLUB;
             r=club?r+0.6f:r;

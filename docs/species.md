@@ -130,7 +130,7 @@ other).
 - **Swordfish (2026-10-10 night, 10 sand dollars):** 0 steel, 1 cobalt (bars),
   2 sunset (bars), 3 ghost - a long slim body, the bill out front, a sickle
   dorsal, a lunate tail on a keel, a silver belly; drawn four ways (Original
-  flat, Quiet Lagoon shaded, Tidepool Club round and bold, Blackwater real).
+  flat, Quiet Lagoon shaded, Tidepool Club round and bold, Blackwater in blocks).
   Its word is not in any shipped vocabulary, so every model hears it as
   `species fish` (its traits still make it a cruiser).
 - **Turtle (2026-10-11, 10 sand dollars):** 0 green (scutes), 1 hawksbill
@@ -141,8 +141,8 @@ other).
   the eel and shares the eel's trip for air (`SPM_RISE` / `GULP` / `SINK`,
   bubbles off the beak at the surface). Drawn four ways: Original flat, Quiet
   Lagoon shaded, Tidepool Club a fat round shell with three big scute dots,
-  Blackwater countershaded with vertebral and costal scutes, head scales and
-  a real eye. Like the swordfish, its word is in no vocabulary (`fish`).
+  Blackwater (2026-10-12) a flat block shell with scute cells over a pale
+  plastron, a head block and paddle flippers. Like the swordfish, its word is in no vocabulary (`fish`).
 
 ## How they move (the reflex layer, tank.c)
 

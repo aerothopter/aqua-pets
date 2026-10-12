@@ -307,11 +307,11 @@ broken off short with a yard and a rag of sail, a deckhouse, an anchor off the
 bow; Tidepool Club a cheerful little tug sitting upright -
 cream topsides, a red boot stripe, a teal bottom, a wheelhouse with lit windows,
 an orange funnel, a pennant on the mast, a life ring on the side and an anchor
-hung off the bow; Blackwater (2026-10-10) a bare-aluminium fighter plane on the
-sand, nose up a little, one wing down on the sand with a big roundel and the
-far wing rising behind, a red-and-white tail, a three-blade propeller, a yellow
-band aft, the open cockpit and a torn rear fuselage for its holes (redrawn that
-night so it reads as a plane at a glance: outlined pieces, a silver skin). Every hull has two big holes (the tug's are brass-rimmed
+hung off the bow; Blackwater (2026-10-12) a block shipwreck built of 4 px
+oak planks stepped to the bow, a spruce deck with fence posts, a stern cabin
+with a door and a window hole, a mast with a yard and a torn wool sail, a
+barrel and a chest on the deck, a ragged breach in the side for the second
+hole, kelp on the lower planks. Every hull has two big holes (the tug's are brass-rimmed
 portholes): IN FRONT, the fish pass behind the hull and show through them,
 swimming in and out; BEHIND it is a backdrop in the weeds. The octopus, crab
 and lobster den under its holes when there is no reef.
@@ -325,8 +325,9 @@ and then - anywhere from just under the surface to just above the sand since
 mask. His arm reaches forward, and every 23 s it goes up and waves. He wears
 the theme's suit: a yellow-and-black banded wetsuit with red fins in Original,
 turquoise with coral bands and violet fins in Quiet Lagoon, hot pink with lime
-bands and cyan fins in Tidepool Club, black neoprene with high-vis amber bands
-and fins and an aluminium tank in Blackwater. A resident like the snail: bought once,
+bands and cyan fins in Tidepool Club, and in Blackwater (2026-10-12) he is a
+block diver with a cube head and a pixel face behind a cyan mask, black
+neoprene with amber bands, yellow fins and a steel tank. A resident like the snail: bought once,
 never placed or sold.
 
 **The submarine.** The tenth thing (60, 2026-10-10 night) is a little sub

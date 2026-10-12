@@ -2,7 +2,7 @@
 
 Open **Settings → SETTINGS / THEMES** (the title button, in every theme). Tap Original, Quiet Lagoon, Tidepool Club or Blackwater. The selection applies immediately and is saved; Done returns to settings. The four tiles share the page above DONE (a 62 px pitch at most: 53 on the 1.8, 47 on the bowl).
 
-Original is the default for new tanks and existing saves. It keeps the original tank art, fonts, menus and character wheel, with a theme entry added to the settings heading. Quiet Lagoon implements the approved Living Lagoon direction with layered teal water, shaded naturalistic creatures, soft baked light shafts and dark-glass controls. Tidepool Club uses pale water, cream panels, green controls and bolder lettering. Blackwater (2026-10-10) is the realistic one: near-black water over dark volcanic sand, the creatures drawn as the real animals in vivid colours, a Mayan step pyramid and a fighter-plane wreck (its own section below). All four retain the live procedural creatures, their growth stages, animations and individual saved colours.
+Original is the default for new tanks and existing saves. It keeps the original tank art, fonts, menus and character wheel, with a theme entry added to the settings heading. Quiet Lagoon implements the approved Living Lagoon direction with layered teal water, shaded naturalistic creatures, soft baked light shafts and dark-glass controls. Tidepool Club uses pale water, cream panels, green controls and bolder lettering. Blackwater (2026-10-10; rebuilt in blocks 2026-10-12) is the block one: near-black water over dark gravel, every creature and decoration built of square blocks as a voxel game draws them - a stone-brick castle with towers, a torch either side of its gate and a banner, an oak shipwreck with a torn sail, a cube-headed diver, a stepped iron submarine - in bold multi-colour designs (its own section below). All four retain the live procedural creatures, their growth stages, animations and individual saved colours.
 
 Since 2026-10-10 the two new themes run about 20 % darker than their design studies
 (Quiet Lagoon's water, sand and panels scaled by 0.8; Tidepool Club's by 0.82 / 0.78 / 0.72
@@ -38,17 +38,17 @@ tinting the original creatures. `common/living_lagoon.inc` contains the ten shad
 food, bubbles, battery and menu treatments live alongside their Original paths in
 `common/render.c`. They need no additional runtime bitmap allocation.
 
-| Element | Quiet Lagoon | Tidepool Club | Blackwater (2026-10-10) |
+| Element | Quiet Lagoon | Tidepool Club | Blackwater (blocks since 2026-10-12) |
 |---|---|---|---|
-| Creatures | Shaded natural profiles, fin rays, scales, gills and shell detail | Rounder bodies, spots, bold fins and claws | The real animals: countershaded bodies with a specular band, translucent rayed fins, real eyes, scale lattices, gill covers, suckers, segmented shells, antennae; colours lifted to vivid |
+| Creatures | Shaded natural profiles, fin rays, scales, gills and shell detail | Rounder bodies, spots, bold fins and claws | Block creatures (2026-10-12): voxel-shaded cells in three or four bold colours each, flat plane fins, two-cell eyes, a box cross-section head-on |
 | Sword plant / weeds | Veined leaves and delicate stems | Scalloped leaves and fuller blades | Dark kelp greens (the lagoon's veined leaves in the dark palette) |
-| Castle | A French chateau (2026-10-10): a limestone facade with two pepper-pot corner towers under conical slate roofs, a main block with two rows of tall windows and a balustrade, a taller central pavilion with quoins, a hipped slate roof and a spire, dormers, chimneys, the grand arched entrance with a tall window and an oculus above it | A fat single pineapple castle (2026-10-10): one wide pineapple in a diamond skin with an eye in every cell, a swept crown of eleven leaves with a pennant in it, three pineapple-slice ring windows that are holes the fish pass behind, the arched gate with a drawbridge on two chains, a starfish on the mound | A sunken Mayan step pyramid in pale limestone blocks with dark joints (redrawn the same night to read at a glance): receding tiers each with a bright ledge, a lit central stair between dark ramps up to a temple house with a dark doorway and a roof comb, a bold carved band per tier, moss in the lower joints, lit voussoirs round the shared arched gate |
-| Shipwreck (2026-10-10) | An old sailing ship listing on the sand: the stern sunk and its ribs bared, the bow risen with a bowsprit, two holes in the side, a tilted broken mast with a yard and a rag of sail, a stay, a deckhouse, an anchor off the bow | A cheerful upright tug: cream topsides, a red boot stripe, a teal bottom, brass-rimmed porthole holes, a wheelhouse with lit windows, an orange funnel, a cyan pennant, a life ring, an anchor off the bow | A bare-aluminium WWII fighter on the sand, nose up a little, every piece outlined: the near wing down on the sand with a big blue-white-red roundel, the far wing rising behind, a fin with a red rudder and a white stripe, a three-blade propeller with yellow tips, a yellow band aft, a dark cowl mouth and a pale spinner; the cockpit (a pale frame ring) and a ragged gap aft are the two holes |
-| Submarine (2026-10-10 night) | A moss-green navy boat with brass fittings | A red-and-white toy with a cyan tower and gold propeller | A grey steel boat with a black waterline and rust (Original: the yellow sub with black trim) |
-| Frogman (2026-10-10) | Turquoise suit with coral bands, violet fins, a cream tank, a green mask | Hot pink suit with lime bands, cyan fins, an orange tank, a purple mask (Original: yellow with black bands, red fins) | Black neoprene, high-vis amber bands and fins, an aluminium tank, a black mask |
-| Coral / reef | The keeper's coral / tube / brain hues on a dark basalt rock (2026-10-10; the first cut pulled every piece toward the water's tone and read as twigs and slabs): a ridged brain, streaked tubes, deep rims | Thick finger coral, stacked sponges, dotted dome | Its own reef (redrawn the same night): a deep-red mesh sea fan on a stalk at the left, four tube sponges with white mouth rims, a big staghorn coral with ivory tips in the middle, an anemone with pale-tipped tentacles at the right, on mid-grey basalt with a mossy crown; the keeper's coral / tube / brain hues stay the inputs |
+| Castle | A French chateau (2026-10-10): a limestone facade with two pepper-pot corner towers under conical slate roofs, a main block with two rows of tall windows and a balustrade, a taller central pavilion with quoins, a hipped slate roof and a spire, dormers, chimneys, the grand arched entrance with a tall window and an oculus above it | A fat single pineapple castle (2026-10-10): one wide pineapple in a diamond skin with an eye in every cell, a swept crown of eleven leaves with a pennant in it, three pineapple-slice ring windows that are holes the fish pass behind, the arched gate with a drawbridge on two chains, a starfish on the mound | A block castle (2026-10-12): stone-brick curtain wall with merlons, cobblestone towers with arrow slits, a keep with lit windows and a cyan banner, a torch either side of the arched gate, mossy bricks at the foot |
+| Shipwreck (2026-10-10) | An old sailing ship listing on the sand: the stern sunk and its ribs bared, the bow risen with a bowsprit, two holes in the side, a tilted broken mast with a yard and a rag of sail, a stay, a deckhouse, an anchor off the bow | A cheerful upright tug: cream topsides, a red boot stripe, a teal bottom, brass-rimmed porthole holes, a wheelhouse with lit windows, an orange funnel, a cyan pennant, a life ring, an anchor off the bow | A block shipwreck (2026-10-12): an oak hull stepped to the bow, a spruce deck with fence posts, a stern cabin with a window hole, a mast with a torn wool sail, a barrel and a chest, a ragged breach, kelp |
+| Submarine (2026-10-10 night) | A moss-green navy boat with brass fittings | A red-and-white toy with a cyan tower and gold propeller | A block iron sub (2026-10-12): a stepped hull with a dark keel, rust blocks, square portholes, a block tower, a cross of a propeller |
+| Frogman (2026-10-10) | Turquoise suit with coral bands, violet fins, a cream tank, a green mask | Hot pink suit with lime bands, cyan fins, an orange tank, a purple mask (Original: yellow with black bands, red fins) | A block diver (2026-10-12): a cube head with a pixel face behind a cyan mask, black neoprene with amber bands, yellow fins, a steel tank |
+| Coral / reef | The keeper's coral / tube / brain hues on a dark basalt rock (2026-10-10; the first cut pulled every piece toward the water's tone and read as twigs and slabs): a ridged brain, streaked tubes, deep rims | Thick finger coral, stacked sponges, dotted dome | The same shapes sampled in 4 px blocks (2026-10-12): a basalt block rock, a red sea fan, the keeper's coral paled to ivory, vivid tubes, the anemone |
 | Snail / companions | Warm shaded shell whorls, soft shrimp, fine urchin spines | Warm striped shell, segmented shrimp, rounded urchin tips | The lagoon's shaded snail; the Original's pixel cherry shrimp (legs, antennae, tail fan) and fine-spined urchin |
-| Food / bubbles | Small flakes and pearl rings | Round tablets and outlined bubbles | Tan flakes with a lit edge and a crease; real bubbles - a thin rim, a dark glassy inside, the sun's window top-left |
+| Food / bubbles | Small flakes and pearl rings | Round tablets and outlined bubbles | An orange food cube with a lit top; hollow square bubbles with a white corner |
 | Battery / menus | Liquid gauge; the settings page is the one shared layout (2026-10-10) in the lagoon's dark-glass greens and its font | Four-cell gauge; the same shared settings layout in the club's cream and teal with its pill-shaped buttons | Liquid gauge; the shared layout in near-black panels with cyan controls, the lagoon's font |
 | Ink / electricity | Black clouds with a whisper of green, fine mint arcs | Black cloud lobes with a whisper of blue, gold zigzags | Black clouds, pale arcs |
 
@@ -111,9 +111,27 @@ deposited, ten depth bands, a net on the sand, a mirror line) for a few hours on
 Alvin had it removed the same night ("remove the moving water reflective light feature"). The
 water is now a plain dark gradient like the other themes'; the code is gone (commit history has it).
 
-**The look:** water 0x0a2434 → 0x02080c, dark volcanic sand with shell grit and the odd
-rounded pebble, cyan accents, amber gold, a 120-strength vignette. `theme_creature_color` lifts
-every saved creature colour so its brightest channel is ~240 and pushes the saturation a
-quarter: the keeper's hue, vivid. The creatures live in `common/blackwater.inc`, the pyramid
-in `common/blackwater_castle.inc`, the plane in `common/blackwater_wreck.inc`. The theme
-test adds a `night` shot for every theme.
+**The look (2026-10-12, Alvin: "make the blackwater theme characters and decorations like
+minecraft. redesign the castle to look like a castle ... give the creatures more colors and
+attractive"):** everything is built of square BLOCKS. The creatures (`common/blackwater.inc`)
+keep the other themes' skeletons, motion, yaw and live state but every shape is rasterised to
+a grid of cells that rides with the creature (2-5 px a cell with its size) and painted as
+voxels: a lit top face, a dark underside, shaded ends, a three-tone texture noise; fins are
+flat planes; a body turning to the glass becomes a box of cells that widens with the turn;
+eyes are the two-cell kind. Every creature wears three or four strong colours: the keeper's
+body, fin and accent plus a pale wash of the fin colour for the belly and the accent lifted
+toward white for the tips, bars, spots and bands - the firefly squid's spots and the
+angler's lure glow undimmed at night. The castle (`common/blackwater_castle.inc`) is a stone-
+brick curtain wall with crenellations between two cobblestone towers with arrow slits, a tall
+keep behind with lit windows and a cyan banner, the shared vaulted gate in a pale arch with a
+glowing torch either side, mossy bricks along the foot. The wreck
+(`common/blackwater_wreck.inc`) is an oak-plank shipwreck stepped to the bow: a spruce deck
+with fence posts, a stern cabin with a door and a window hole, a mast with a yard and a torn
+wool sail, a barrel, a chest, a ragged breach in the side, kelp on the lower planks. The
+frogman is a cube-headed block diver in black neoprene with amber bands; the submarine a
+stepped iron hull with square portholes and a cross of a propeller; bubbles are hollow
+squares, food an orange cube, the airstone three stone blocks, the sand a 2 px gravel grain
+with square pebbles; the reef cluster and the coral sample their shapes in 4 px blocks. Water
+0x0a2434 → 0x02080c, cyan accents, amber gold, a 120-strength vignette; `theme_creature_color`
+lifts every saved creature colour so its brightest channel is ~240 and pushes the saturation
+a quarter. The theme test adds a `night` shot for every theme.
