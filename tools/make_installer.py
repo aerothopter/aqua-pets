@@ -83,6 +83,19 @@ DIALOG_EDITS = [
     (':1e4:1500;this._info=await t.initialize(i)', 1, ':1e4:4e3;this._info=await t.initialize(i)'),
     # the Wi-Fi form says what Wi-Fi is for, and what the tank does not do with it (Strato, 2026-10-04)
     ('<div>Connect your device to the network to start using it.</div>', 1, '<div>' + WIFI_FORM_TEXT + '</div>'),
+    # a failed handshake is tried once more WITHOUT the reset dance (2026-10-12, Alvin's phone on the
+    # round 1.75: "failed to initialize" with BOOT held): esptool-js resets the board through DTR/RTS
+    # first; a board already sitting in the ROM's download mode (BOOT held through a reset) needs no
+    # reset, and over the Android WebUSB polyfill the reset can cost the link. The second try syncs as
+    # the board is. The status box shows which try failed and why.
+    ('try{await h.main(),await h.flashId()}catch(e){return console.error(e),n({state:"error",message:"Failed to initialize. '
+     'Try resetting your device or holding the BOOT button while clicking INSTALL.",details:{error:"failed_initialize",details:e}}),'
+     'await wa(l,h),void await l.disconnect()}', 1,
+     'try{try{await h.main()}catch(e){console.error("first try (with reset)",e);await l.disconnect().catch(()=>{});await new Promise(r=>setTimeout(r,300));'
+     'try{await h.main("no_reset")}catch(e2){throw new Error("with reset: "+(e.message||e)+"; without reset: "+(e2.message||e2))}}await h.flashId()}'
+     'catch(e){return console.error(e),n({state:"error",message:"Failed to initialize. '
+     'Try resetting your device or holding the BOOT button while clicking INSTALL.",details:{error:"failed_initialize",details:e}}),'
+     'await wa(l,h).catch(()=>{}),void await l.disconnect().catch(()=>{})}'),
 ]
 
 

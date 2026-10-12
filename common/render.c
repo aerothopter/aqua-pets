@@ -4581,7 +4581,7 @@ static void tools_draw(ctx_t *c, const tank_t *t) {
         rect_edge(c, bx, by, TOOL_BTN_W, TOOL_BTN_H, edge);
         if (held) rect_edge(c, bx + 1, by + 1, TOOL_BTN_W - 2, TOOL_BTN_H - 2, edge);
         const icon_t *ic = ICON[k];
-        blit_icon_scaled(c, bx + (TOOL_BTN_W - ic->w * 2) / 2, by + (TOOL_BTN_H - ic->h * 2) / 2, ic, 2, true);
+        blit_icon(c, bx + (TOOL_BTN_W - ic->w) / 2, by + (TOOL_BTN_H - ic->h) / 2, ic, 255);   /* 1x, as the card's icons (2026-10-12) */
     }
 }
 int render_tools_hit(float x, float y) {
