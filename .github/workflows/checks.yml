@@ -35,7 +35,7 @@ jobs:
         working-directory: firmware/host_test
         run: |
           cc -O2 -std=c11 -Wall -Wextra -Werror -I../../common \
-            -o audio_host audio_host.c ../../common/audio.c ../../common/sounds.c
+            -o audio_host audio_host.c ../../common/audio.c ../../common/sounds.c ../../common/theme.c -lm
           ./audio_host
       - name: Compare batched and sequential inference
         if: hashFiles('model/out/model_q4.bin') != ''
