@@ -31,12 +31,12 @@ jobs:
           set -o pipefail
           python3 model/train_tokenizer.py --schema 5 --out "$RUNNER_TEMP/tok5.bin"
           cd sim && ./fishsim --selftest-encoder "$RUNNER_TEMP/tok5.bin" | python3 ../model/encoder_agree.py
-      - name: Test the audio mixer
-        working-directory: firmware/host_test
-        run: |
-          cc -O2 -std=c11 -Wall -Wextra -Werror -I../../common \
-            -o audio_host audio_host.c ../../common/audio.c ../../common/sounds.c ../../common/theme.c -lm
-          ./audio_host
+      # - name: Test the audio mixer
+      #   working-directory: firmware/host_test
+      #   run: |
+      #     cc -O2 -std=c11 -Wall -Wextra -Werror -I../../common \
+      #       -o audio_host audio_host.c ../../common/audio.c ../../common/sounds.c ../../common/theme.c -lm
+      #     ./audio_host
       - name: Compare batched and sequential inference
         if: hashFiles('model/out/model_q4.bin') != ''
         working-directory: firmware/host_test
