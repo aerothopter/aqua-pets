@@ -5857,6 +5857,7 @@ static void set_arrow(ctx_t *c, int x, int y, bool right, bool live) {
         rect_fill(c, px, cy - hh, 1, 2 * hh + 1, rgb);
     }
 }
+#if !TANK_WORN                                              /* (the watch has SCREEN where ROTATION is) */
 /* ROTATION's picture: a padlock inside a turning arrow - shut when the way
  * up is locked, its shackle swung open while the picture follows the tank
  * (the two differ in shape, not in color alone) */
