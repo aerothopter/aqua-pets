@@ -630,6 +630,31 @@ The trained model
 (`model/out/model_q4.bin` + `tokenizer.bin`) ships in the repo, so the LLM
 brain works out of the box.
 
+On Windows, build in [MSYS2](https://www.msys2.org/)'s **UCRT64** shell
+(the Start menu's "MSYS2 UCRT64", not plain "MSYS2"):
+
+```bash
+winget install MSYS2.MSYS2                 # from PowerShell, once
+# then, in MSYS2 UCRT64:
+pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-SDL2 make git
+cd /c/path/to/aqua-pets
+git clone --depth 1 --branch v9.2.2 https://github.com/lvgl/lvgl.git sim/lvgl
+cd sim && make && ./fishsim.exe
+```
+
+The Makefile includes `sim/win_compat.h` on Windows (the few POSIX calls
+MinGW lacks) and builds a console app, so the selftests can print. For
+`make check`, add this line to `C:\msys64\etc\fstab` and reopen the shell:
+
+```
+C:/tmp /tmp ntfs binary,posix=0,noacl 0 0
+```
+
+The selftests write their scratch saves to `/tmp`, which the native
+`fishsim.exe` reads as `C:\tmp`, and they back those saves up with the
+shell's `cp`. Without that line, MSYS2's `/tmp` is a different folder,
+so the restore misses and the shop, sleep and tend tests fail.
+
 In the window, the mouse is your finger: tap the water surface or drag down
 from the top edge to feed, click a fish for its stats card (the shrimp for
 theirs), click the card

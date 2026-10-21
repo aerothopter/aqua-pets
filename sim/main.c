@@ -445,7 +445,11 @@ static int selftest_species_pop(void) {
 }
 
 static int selftest_pop(void) {
+#ifdef _WIN32   /* Windows would create C:\dev\null\ - but no folder may have '<' in its name */
+    setenv("AQUA_PETS_SAVE", "/aqua-pets<unwritable>/aqua-pets-selftest.sav", 1);
+#else
     setenv("AQUA_PETS_SAVE", "/dev/null/aqua-pets-selftest.sav", 1);
+#endif
     tank_init(&tank, 98);
     if (progression_save(&tank)) { printf("FAIL: an unwritable save reported success\n"); return 1; }
     setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest/nested/tank.sav", 1);   /* also checks parent creation */
