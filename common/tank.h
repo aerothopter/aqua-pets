@@ -19,6 +19,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "decor.h"
 
 #ifdef TANK_ROUND               /* the round 466 px glass (Waveshare 1.75C, 2026-10-01): the frame is the square around a bowl */
 #define TANK_W 466
@@ -443,7 +444,7 @@ typedef struct tank {
     int      n_fish;               /* live fish = fish[0..n_fish-1] */
     food_t   food[MAX_FOOD];
     bubble_t bubble[MAX_BUBBLE];
-    float    bubble_x, bubble_y;   /* bubble column anchor */
+    float    bubble_y;             /* bubble column anchor's height (its x is the airstone's: tank_bubble_x) */
     float    reef_x, reef_y;
     float    clock;                /* seconds since start */
     bool     night;                /* the tank light is off: fish rest, the palette dims */
@@ -562,41 +563,12 @@ typedef struct tank {
     float    urchin_rest;          /* seconds left of the rest */
     float    urchin_grazed_px;     /* grass it has eaten, lifetime, in the trim's px (VEG_PAY_PX:
                                     * the same length on every board; its card shows cm). Saved */
-    /* where the keeper put the decor (2026-09-16, the placement page): the
-     * sword plant's centre x along the floor (<= 0 = the default spot) and
-     * its depth layer (DECOR_Z_*). Both saved. */
-    float    plant_x;
-    uint8_t  plant_z;
-    /* the castle (2026-09-16): its centre x on the floor (<= 0 = the default
-     * spot) and its depth - BACK or FRONT only (see tank_decor_z_count). Both saved. */
-    float    castle_x;
-    uint8_t  castle_z;
-    /* the coral (2026-09-23): its centre x on the floor (<= 0 = the default
-     * spot), its depth (all three), and its colour as 0xRRGGBB (0 = the
-     * default, CORAL_PAL[0]) - the keeper picks it on the placement page. All saved. */
-    float    coral_x;
-    uint8_t  coral_z;
-    uint32_t coral_rgb;
-    float    coral_growth;         /* CORAL_START..CORAL_FULL: a stub to the full fan over ~CORAL_GROW_S,
-                                    * then the crown, awake or asleep alike (Strato, 2026-09-23:
-                                    * "something at a much different pace showing progression"). Saved. */
-    float    coral_acc;            /* awake seconds not yet applied: a frame's 1/60 s over 30 days is
-                                    * under float precision next to the growth, so it lands by the minute */
-    /* the reef cluster (2026-09-24, Strato's coral-cluster.png): a mature
-     * cluster on a rock - the branching coral, purple tube sponges, a brain
-     * coral, weed - bought big and still growing: its size first, then more
-     * and more swaying tentacles. Its centre x (<= 0 = the default), depth,
-     * colour SCHEME (CLUSTER_SCHEME_N preset looks) and growth. All saved. */
-    float    cluster_x;
-    uint8_t  cluster_z;
-    uint8_t  cluster_scheme;
-    float    cluster_growth;       /* CLUSTER_START..CLUSTER_FULL; 0..1 = it fills out, 1..FULL = the tentacles come */
-    float    cluster_acc;          /* awake seconds pooled, as coral_acc */
-    /* the shipwreck (2026-10-10, item 7): a small sunken boat on the floor with holes the
-     * creatures swim through, an anchor on its chain, a bobbing frogman trailing a mist of
-     * bubbles. Its centre x (<= 0 = the default) and depth, BACK or FRONT. Both saved. */
-    float    wreck_x;
-    uint8_t  wreck_z;
+    /* the decor (decor.h): every static piece, indexed by decor_kind_t - where the
+     * keeper put it (its centre x along the floor, <= 0 = the default spot) and
+     * its depth, and the coral's colour and growth, the cluster's look and growth.
+     * The plant's fronds are veg_h[3]; the airstone's x is the bubble column's.
+     * All saved (progression.c), the seagrass's and the airstone's depths aside. */
+    decor_t  decor[DK_COUNT];
     /* the frogman (2026-10-10, item 8; he hung from the wreck's stern before): a little diver
        who floats SIDEWAYS, horizontal, drifting across the water from glass to glass, turning
        at each end, easing to a new lane now and then, waving at times. His suit is the
@@ -963,6 +935,7 @@ void  tank_set_look(tank_t *t, int slot, uint32_t body, uint32_t accent);
  * column as a distance bucket and a bearing, never a position. */
 #define BUBBLE_X_DEFAULT (TANK_FX0 + TANK_FW * 0.8f)
 void  tank_set_bubble_x(tank_t *t, float x);
+static inline float tank_bubble_x(const tank_t *t) { return t->decor[DK_AIRSTONE].x; }
 
 /* ---- the shop (2026-09-15): sand dollars buy things for the tank ----
  * The items are bits in tank_t.sd_unlocks; progression.c sells them
@@ -1017,13 +990,11 @@ void  tank_coral_place(tank_t *t);
 void  tank_cluster_place(tank_t *t);
 /* placing the decor (2026-09-16, Strato: a bought piece "should allow the
  * player to place the piece wherever they like", with a depth choice): a
- * placeable item has a centre x along the floor - clamped inside the
- * visible window, DECOR_MARGIN from the glass - and a depth layer: BACK =
- * behind the fish and the grass, MIDDLE = woven with them (alternate fronds
- * in front, the beds' own look), FRONT = over everything. The plant is the
- * one placeable item so far; the snail goes where it likes. setup.c's
- * placement page and the shop's MOVE button drive these; the save keeps them. */
-enum { DECOR_Z_BACK = 0, DECOR_Z_MIDDLE = 1, DECOR_Z_FRONT = 2, DECOR_Z_N = 3 };
+ * movable piece (decor.h DF_MOVABLE) has a centre x along the floor - clamped
+ * inside the visible window, DECOR_MARGIN from the glass - and a depth
+ * (DECOR_Z_*, the ones its row offers). setup.c's placement page and the
+ * shop's MOVE button drive these by shop item (tank_decor_*); the save keeps
+ * them. The geometry each piece's row uses: */
 #if defined(TANK_ROUND) || defined(TANK_WATCH)
 #define DECOR_MARGIN    8                  /* the bowl's floor is short and its glass hides nothing (the watch's floor ends where its corners begin) */
 #else

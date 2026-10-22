@@ -396,8 +396,8 @@ void tank_set_bubble_x(tank_t *t, float x) {
     float lo = t->reef_x + 50, hi = TANK_FX1 - 30;
     if (x < lo) x = lo;
     if (x > hi) x = hi;
-    float dx = x - t->bubble_x;
-    t->bubble_x = x;
+    float dx = x - t->decor[DK_AIRSTONE].x;
+    t->decor[DK_AIRSTONE].x = x;
     for (int i = 0; i < MAX_BUBBLE; i++) if (t->bubble[i].column) t->bubble[i].x += dx;   /* the column moves as one */
 }
 
@@ -496,11 +496,12 @@ void tank_init(tank_t *t, uint32_t seed) {
     t->rng = seed ? seed : 0xC0FFEE;
     t->n_fish = 0;                 /* progression_boot restores or calls tank_new_population */
     for (int i = 0; i < MAX_FOOD; i++) t->food[i].alive = false;
-    t->bubble_x = BUBBLE_X_DEFAULT; t->bubble_y = TANK_BOT * 0.5f;   /* matches gen_traces.py; setup may move x */
+    decor_init(t);
+    t->decor[DK_AIRSTONE].x = BUBBLE_X_DEFAULT; t->bubble_y = TANK_BOT * 0.5f;   /* matches gen_traces.py; setup may move x */
     for (int i = 0; i < MAX_BUBBLE; i++) {
         bubble_t *b = &t->bubble[i];
         b->column = i < 10;
-        b->x = b->column ? t->bubble_x + tank_randf(t, -10, 10) : tank_randf(t, TANK_FX0 + 12, TANK_FX1 - 12);
+        b->x = b->column ? tank_bubble_x(t) + tank_randf(t, -10, 10) : tank_randf(t, TANK_FX0 + 12, TANK_FX1 - 12);
         b->y = tank_randf(t, 0, TANK_BOT);
         b->vy = tank_randf(t, 14, 30);
         b->wobble = tank_randf(t, 0, TAU);
@@ -543,11 +544,6 @@ void tank_init(tank_t *t, uint32_t seed) {
     t->snail_grazed = 0; t->snail_sleep_acc = 0;
     t->urchin_x = -1; t->urchin_bed = t->urchin_frond = -1; t->urchin_appetite = 0; t->urchin_chew = 0;
     t->urchin_to = -1; t->urchin_rest = 0; t->urchin_grazed_px = 0;
-    t->plant_x = 0; t->plant_z = DECOR_Z_MIDDLE;
-    t->castle_x = 0; t->castle_z = DECOR_Z_FRONT;
-    t->coral_x = 0; t->coral_z = DECOR_Z_FRONT; t->coral_rgb = 0; t->coral_growth = 0; t->coral_acc = 0;
-    t->cluster_x = 0; t->cluster_z = DECOR_Z_FRONT; t->cluster_scheme = 0; t->cluster_growth = 0; t->cluster_acc = 0;
-    t->wreck_x = 0; t->wreck_z = DECOR_Z_FRONT;
     t->frog_x = TANK_W / 2; t->frog_y = t->frog_lane = TANK_H * 0.36f; t->frog_yaw = 1; t->frog_dir = 1; t->frog_lane_t = 20;
     t->frog_toss = 0; t->frog_vx = t->frog_vy = 0;
     tank_sub_place(t);
@@ -857,10 +853,7 @@ bool tank_in_grass(const tank_t *t, float x, float y) {
     return false;
 }
 void tank_reef_spot(const tank_t *t, float *x, float *y) {
-    if (t->sd_unlocks & SD_ITEM_CLUSTER) {         /* the cluster stands ~75 px off the floor (more with its bloom): the
-                                                      orbit, REEF_ORBIT_UP above this, rides round its crown */
-        *x = tank_decor_x(t, 4); *y = TANK_BOT - 50;
-    } else { *x = t->reef_x; *y = t->reef_y; }
+    if (!decor_reef(t, x, y)) { *x = t->reef_x; *y = t->reef_y; }   /* the reef cluster once there is one (DF_REEF) */
 }
 
 /* the scissors: cut every frond whose spine the stroke segment (x0,y0)-(x1,y1)
@@ -1461,12 +1454,8 @@ static void shrimp_scatter(tank_t *t, float x, float y, float radius) {
     }
     if (any) t->shrimp_tt = fminf(t->shrimp_tt, 3.0f);                /* and regroup somewhere new */
 }
-void tank_plant_place(tank_t *t) {
-    tank_veg_set(t, 3, VEG_START);                          /* a young plant; it grows from here */
-}
-void tank_castle_place(tank_t *t) {
-    t->castle_x = 0; t->castle_z = DECOR_Z_FRONT;          /* the default spot, the fish swim through */
-}
+void tank_plant_place(tank_t *t)  { decor_place(t, DK_PLANT); }
+void tank_castle_place(tank_t *t) { decor_place(t, DK_CASTLE); }
 void tank_frogman_place(tank_t *t) {
     t->frog_x = TANK_W / 2; t->frog_y = t->frog_lane = TANK_H * 0.36f; t->frog_yaw = 1; t->frog_dir = 1; t->frog_lane_t = 20;
 }
@@ -1583,91 +1572,26 @@ static void frogman_tick(tank_t *t, float dt) {
     if (dodge) t->frog_lane = clampf(t->sub_y + (t->frog_y >= t->sub_y ? PASS_DY + 6 : -(PASS_DY + 6)), FROG_LANE_LO, FROG_LANE_HI);
     t->frog_y += (t->frog_lane - t->frog_y) * fminf(1, (dodge ? 0.9f : 0.15f) * dt);
 }
-void tank_wreck_place(tank_t *t) {
-    t->wreck_x = 0; t->wreck_z = DECOR_Z_FRONT;            /* the default spot, in front of the grass: the fish pass behind its holes */
-}
-void tank_coral_place(tank_t *t) {
-    t->coral_x = 0; t->coral_z = DECOR_Z_FRONT;            /* the default spot, in front of the reef bed's grass; the colour stays the keeper's */
-    t->coral_growth = CORAL_START;                          /* young: it grows from here */
-}
-uint32_t tank_coral_rgb(const tank_t *t) { return t->coral_rgb ? t->coral_rgb : CORAL_PAL[0]; }
-float    tank_coral_growth(const tank_t *t) { return t->coral_growth <= 0 ? CORAL_FULL : t->coral_growth > CORAL_FULL ? CORAL_FULL : t->coral_growth; }
-static void coral_grow(tank_t *t, float seconds) {          /* the same pace awake and asleep */
-    if (!(t->sd_unlocks & SD_ITEM_CORAL) || t->coral_growth <= 0 || t->coral_growth >= CORAL_FULL) return;
-    t->coral_growth = fminf(CORAL_FULL, t->coral_growth + seconds / CORAL_GROW_S);
-}
-void tank_cluster_place(tank_t *t) {
-    t->cluster_x = 0; t->cluster_z = DECOR_Z_FRONT;         /* the default spot; the look stays the keeper's */
-    t->cluster_growth = CLUSTER_START + 1e-4f;              /* > 0: growing (0 in a save = full, tank_cluster_growth) */
-}
-float tank_cluster_growth(const tank_t *t) { return t->cluster_growth <= 0 ? CLUSTER_FULL : t->cluster_growth > CLUSTER_FULL ? CLUSTER_FULL : t->cluster_growth; }
-int   tank_cluster_scheme(const tank_t *t) { return t->cluster_scheme < CLUSTER_SCHEME_N ? t->cluster_scheme : 0; }
-void  tank_cluster_set_scheme(tank_t *t, int i) { t->cluster_scheme = (uint8_t)(i < 0 ? 0 : i >= CLUSTER_SCHEME_N ? CLUSTER_SCHEME_N - 1 : i); }
-static void cluster_grow(tank_t *t, float seconds) {
-    if (!(t->sd_unlocks & SD_ITEM_CLUSTER) || t->cluster_growth <= 0 || t->cluster_growth >= CLUSTER_FULL) return;
-    t->cluster_growth = fminf(CLUSTER_FULL, t->cluster_growth + seconds / CLUSTER_GROW_S);
-}
-void     tank_coral_set_rgb(tank_t *t, uint32_t rgb) { t->coral_rgb = rgb & 0xffffff; }
-/* the decor's spot and layer (see tank.h): item 0 is the plant, item 2 the castle, item 3 the coral, item 4 the cluster, item 7 the shipwreck */
-bool  tank_decor_placeable(int item) { return item == 0 || item == 2 || item == 3 || item == 4 || item == SD_ITEM_WRECK_IDX; }
-float tank_decor_half_w(int item) { return item == 0 ? PLANT_HALF_W : item == 2 ? CASTLE_HALF_W : item == 3 ? CORAL_HALF_W : item == 4 ? CLUSTER_HALF_W : item == SD_ITEM_WRECK_IDX ? WRECK_HALF_W : 0; }
-/* only the plant weaves AMONG the fish; the castle and both corals are
- * BEHIND or IN FRONT (Strato, 2026-09-24: "remove the among option for
- * corals, it doesn't really make as much sense") */
-int   tank_decor_z_count(int item) { return item == 0 ? DECOR_Z_N : 2; }
-int   tank_decor_z_at(int item, int i) {
-    if (item != 0) return i <= 0 ? DECOR_Z_BACK : DECOR_Z_FRONT;
-    return i < 0 ? 0 : i >= DECOR_Z_N ? DECOR_Z_N - 1 : i;
-}
-int   tank_decor_z_index(int item, int z) { return item != 0 ? (z == DECOR_Z_BACK ? 0 : 1) : z; }
-float tank_decor_x(const tank_t *t, int item) {
-    if (item == 2) return t->castle_x > 0 ? t->castle_x : CASTLE_X_DEFAULT;
-    if (item == 3) return t->coral_x > 0 ? t->coral_x : CORAL_X_DEFAULT;
-    if (item == 4) return t->cluster_x > 0 ? t->cluster_x : CLUSTER_X_DEFAULT;
-    if (item == SD_ITEM_WRECK_IDX) return t->wreck_x > 0 ? t->wreck_x : WRECK_X_DEFAULT;
-    if (item != 0) return 0;
-    return t->plant_x > 0 ? t->plant_x : PLANT_X_DEFAULT;
-}
-int tank_decor_z(const tank_t *t, int item) { return item == 0 ? t->plant_z : item == 2 ? t->castle_z : item == 3 ? t->coral_z : item == 4 ? t->cluster_z : item == SD_ITEM_WRECK_IDX ? t->wreck_z : DECOR_Z_MIDDLE; }
-static float decor_top(const tank_t *t, int item) {         /* the piece's highest pixel */
-    if (item == 0) { float top; tank_veg_bed(t, 3, NULL, NULL, &top, NULL); return top; }
-    if (item == 2) return TANK_BOT - 16 - 146;
-    if (item == 3) return TANK_BOT - 14 + DECOR_SINK - 92;
-    if (item == SD_ITEM_WRECK_IDX) return TANK_BOT - 14 + DECOR_SINK - 84;
-    return TANK_BOT - 14 + DECOR_SINK - 120;
-}
-int tank_decor_hit(const tank_t *t, float x, float y) {
-    static const int order[5] = { 3, 0, 2, 4, SD_ITEM_WRECK_IDX };   /* the coral, the plant, the castle, the cluster, the wreck */
-    static const uint32_t bits[8] = { SD_ITEM_PLANT, 0, SD_ITEM_CASTLE, SD_ITEM_CORAL, SD_ITEM_CLUSTER, 0, 0, SD_ITEM_WRECK };
-    for (int k = 0; k < 5; k++) {
-        int item = order[k];
-        if (!(t->sd_unlocks & bits[item])) continue;
-        float cx = tank_decor_x(t, item), half = tank_decor_half_w(item) + 8;
-        if (x >= cx - half && x <= cx + half && y >= decor_top(t, item) - 8 && y <= TANK_BOT) return item;
-    }
-    return -1;
-}
-void tank_decor_reset(tank_t *t, int item) {
-    if (item == 0) { t->plant_x = 0; t->plant_z = DECOR_Z_MIDDLE; tank_veg_set(t, 3, VEG_START); }
-    if (item == 2) { t->castle_x = 0; t->castle_z = DECOR_Z_FRONT; }
-    if (item == 3) { t->coral_x = 0; t->coral_z = DECOR_Z_FRONT; t->coral_rgb = 0; t->coral_growth = 0; t->coral_acc = 0; }
-    if (item == 4) { t->cluster_x = 0; t->cluster_z = DECOR_Z_FRONT; t->cluster_scheme = 0; t->cluster_growth = 0; t->cluster_acc = 0; }
-    if (item == SD_ITEM_WRECK_IDX) { t->wreck_x = 0; t->wreck_z = DECOR_Z_FRONT; }
-}
-void tank_decor_set(tank_t *t, int item, float x, int z) {
-    if (!tank_decor_placeable(item)) return;
-    float half = tank_decor_half_w(item), lo = TANK_FX0 + DECOR_MARGIN + half, hi = TANK_FX1 - DECOR_MARGIN - half;
-    if (x < lo) x = lo;
-    if (x > hi) x = hi;
-    if (z < 0) z = 0;
-    if (z >= DECOR_Z_N) z = DECOR_Z_N - 1;
-    uint8_t z2 = (uint8_t)(z == DECOR_Z_BACK ? DECOR_Z_BACK : DECOR_Z_FRONT);   /* no AMONG for these */
-    if (item == 2) { t->castle_x = x; t->castle_z = z2; return; }
-    if (item == 3) { t->coral_x = x; t->coral_z = z2; return; }
-    if (item == 4) { t->cluster_x = x; t->cluster_z = z2; return; }
-    if (item == SD_ITEM_WRECK_IDX) { t->wreck_x = x; t->wreck_z = z2; return; }
-    t->plant_x = x; t->plant_z = (uint8_t)z;
-}
+void tank_wreck_place(tank_t *t)   { decor_place(t, DK_WRECK); }
+void tank_coral_place(tank_t *t)   { decor_place(t, DK_CORAL); }
+void tank_cluster_place(tank_t *t) { decor_place(t, DK_CLUSTER); }
+uint32_t tank_coral_rgb(const tank_t *t) { uint32_t c = t->decor[DK_CORAL].rgb; return c ? c : CORAL_PAL[0]; }
+float    tank_coral_growth(const tank_t *t) { float g = t->decor[DK_CORAL].growth; return g <= 0 ? CORAL_FULL : g > CORAL_FULL ? CORAL_FULL : g; }
+float tank_cluster_growth(const tank_t *t) { float g = t->decor[DK_CLUSTER].growth; return g <= 0 ? CLUSTER_FULL : g > CLUSTER_FULL ? CLUSTER_FULL : g; }
+int   tank_cluster_scheme(const tank_t *t) { return t->decor[DK_CLUSTER].variant < CLUSTER_SCHEME_N ? t->decor[DK_CLUSTER].variant : 0; }
+void  tank_cluster_set_scheme(tank_t *t, int i) { t->decor[DK_CLUSTER].variant = (uint8_t)(i < 0 ? 0 : i >= CLUSTER_SCHEME_N ? CLUSTER_SCHEME_N - 1 : i); }
+void     tank_coral_set_rgb(tank_t *t, uint32_t rgb) { t->decor[DK_CORAL].rgb = rgb & 0xffffff; }
+/* the decor by its shop index (the placement page, the shop, the platforms' hold): see decor.h */
+bool  tank_decor_placeable(int item) { int k = decor_kind_of_item(item); return k >= 0 && (DECOR[k].flags & DF_MOVABLE); }
+float tank_decor_half_w(int item) { int k = decor_kind_of_item(item); return k >= 0 ? DECOR[k].half_w : 0; }
+int   tank_decor_z_count(int item) { return decor_z_count(decor_kind_of_item(item)); }
+int   tank_decor_z_at(int item, int i) { return decor_z_at(decor_kind_of_item(item), i); }
+int   tank_decor_z_index(int item, int z) { return decor_z_index(decor_kind_of_item(item), z); }
+float tank_decor_x(const tank_t *t, int item) { return decor_x(t, decor_kind_of_item(item)); }
+int   tank_decor_z(const tank_t *t, int item) { return decor_z(t, decor_kind_of_item(item)); }
+int   tank_decor_hit(const tank_t *t, float x, float y) { int k = decor_hit(t, x, y); return k >= 0 ? DECOR[k].shop_item : -1; }
+void  tank_decor_reset(tank_t *t, int item) { decor_reset(t, decor_kind_of_item(item)); }
+void  tank_decor_set(tank_t *t, int item, float x, int z) { if (tank_decor_placeable(item)) decor_set(t, decor_kind_of_item(item), x, z); }
 
 void tank_touch_hold(tank_t *t, float x, float y) {
     tank_handled(t);
@@ -1957,8 +1881,7 @@ void tank_tick_sleep(tank_t *t, float seconds) {
     t->idle_s = 0;                                      /* the wake press is handling: lights up */
     for (int i = 0; i < MAX_FOOD; i++)                  /* overnight pellets go stale */
         if (t->food[i].alive && (t->food[i].age += seconds) > 45) t->food[i].alive = false;
-    coral_grow(t, seconds);
-    cluster_grow(t, seconds);
+    decor_grow_all(t, seconds);
     shrimp_sleep(t, seconds);
     /* the garden grows fastest in a dark, untended tank: waking to a taller
      * canopy and film on the glass is the morning chore. The night is lived
@@ -2053,51 +1976,33 @@ bool tank_fish_backward(const fish_t *f) {
     return f->species != SP_FISH && f->species != SP_CRAB && f->species != SP_SHARK && f->species < SP_COUNT && f->speed > 1 && cosf(f->heading) * f->facing < -0.1f;
 }
 bool tank_fish_jetting(const fish_t *f) { return (f->species == SP_OCTOPUS || f->species == SP_SQUID) && f->sp_mode == SPM_JET; }
-/* the ground a walker stands on: the sand line, and the reef cluster's rock -
- * a low dome of stones with the brain coral's hump on top (render.c CL_ROCKS
- * and CL_BRAIN: ~20 px of rock over 128 px, the brain 16 more over its middle
- * 36, at the cluster's size). The castle and the coral fan are walls and a
- * fan - a walker goes round their feet, on the floor. */
-float tank_ground_y(const tank_t *t, float x) {
-    float g = TANK_BOT - 16;
-    if (t->sd_unlocks & SD_ITEM_CLUSTER) {
-        float gr = tank_cluster_growth(t), s = gr >= 1 ? 1 : CLUSTER_SIZE_MIN + (1 - CLUSTER_SIZE_MIN) * gr;
-        float dx = fabsf(x - tank_decor_x(t, 4)), hw = 64 * s, bw = 18 * s;
-        if (dx < hw) { float u = dx / hw; g -= 20 * s * sqrtf(1 - u * u); }
-        if (dx < bw) { float v = dx / bw; g -= 16 * s * (1 - v * v); }
-    }
-    return g;
-}
+/* the ground a walker stands on: the sand line, raised by a piece it can
+ * climb (the reef cluster's rock: decor.c ground_cluster) */
+float tank_ground_y(const tank_t *t, float x) { return decor_ground(t, x, TANK_BOT - 16); }
 /* the floor a walker may use at height y: inside the glass by its half length */
 static void sp_floor_span(const fish_t *f, float y, float *lo, float *hi) {
     float hl = tank_body_half_len(f);
     *lo = fmaxf(tank_glass_x0(y), TANK_FX0) + hl + 4; *hi = fminf(tank_glass_x1(y), TANK_FX1) - hl - 4;
     if (*lo > *hi) *lo = *hi = TANK_W * 0.5f;
 }
-/* what an octopus sits on, for its camouflage (the renderer's own colours,
- * mirrored: the floor's middle pebble tone - render.c floor_rgb -, the
- * castle's stone - CASTLE_RGB CT_MID -, the cluster's look, the coral's) */
+/* what an octopus sits on, for its camouflage: a piece under it (decor.c's
+ * camo rows, the renderer's own colours mirrored), the grass, or the floor's
+ * middle pebble tone (render.c floor_rgb) */
 #define SP_FLOOR_RGB 0x22301f
-#define SP_STONE_RGB 0xa99b7b
 #define SP_GRASS_RGB 0x3f7a34
 static uint32_t sp_under_rgb(const tank_t *t, float x, float y) {
-    if ((t->sd_unlocks & SD_ITEM_CLUSTER) && fabsf(x - tank_decor_x(t, 4)) < CLUSTER_HALF_W) return CLUSTER_SCHEMES[tank_cluster_scheme(t)].coral;
-    if ((t->sd_unlocks & SD_ITEM_CASTLE) && fabsf(x - tank_decor_x(t, 2)) < CASTLE_HALF_W) return SP_STONE_RGB;
-    if ((t->sd_unlocks & SD_ITEM_CORAL) && fabsf(x - tank_decor_x(t, 3)) < CORAL_HALF_W) return tank_coral_rgb(t);
+    uint32_t rgb;
+    if (decor_camo(t, x, &rgb)) return rgb;
     if (tank_in_grass(t, x, y)) return SP_GRASS_RGB;
     return SP_FLOOR_RGB;
 }
-/* a den: in under the edge of the reef cluster's rock, at a castle tower's
- * foot, at the coral's - the first the keeper has placed - or the reef bed's
- * foot. The octopus, the crab and the lobster rest in one (two of a kind take
- * either side) */
+/* a den: at the first piece that digs one (decor.c's den rows: under the edge
+ * of the reef cluster's rock, a castle tower's foot, the wreck's holes, the
+ * coral's foot), or the reef bed's foot. The octopus, the crab and the lobster
+ * rest in one (two of a kind take either side) */
 static void sp_den(const tank_t *t, const fish_t *f, int idx, float *x, float *y) {
     float side = (idx & 1) ? 1.0f : -1.0f, x0;
-    if (t->sd_unlocks & SD_ITEM_CLUSTER)     x0 = tank_decor_x(t, 4) + side * (CLUSTER_HALF_W - 16);
-    else if (t->sd_unlocks & SD_ITEM_CASTLE) x0 = tank_decor_x(t, 2) + side * (CASTLE_HALF_W - 24);
-    else if (t->sd_unlocks & SD_ITEM_WRECK)  x0 = tank_decor_x(t, SD_ITEM_WRECK_IDX) + side * (WRECK_HALF_W - 20);   /* under the hull's holes */
-    else if (t->sd_unlocks & SD_ITEM_CORAL)  x0 = tank_decor_x(t, 3) + side * 14;
-    else                                     x0 = t->reef_x - 10 + side * 6;
+    if (!decor_den_x(t, side, &x0)) x0 = t->reef_x - 10 + side * 6;
     x0 += (f->species == SP_CRAB ? 10 : f->species == SP_LOBSTER ? -10 : 0) * side;   /* not on top of each other */
     float lo, hi; sp_floor_span(f, TANK_BOT - 20, &lo, &hi);
     *x = clampf(x0, lo, hi); *y = tank_ground_y(t, *x) - tank_walk_off(f);
@@ -2410,7 +2315,7 @@ static void sp_target(tank_t *t, int idx, goal_id_t goal, bool glance, target_t 
         float home = f->sp_x >= 0 ? f->sp_x : f->x;
         if (goal == GOAL_EXPLORE)            { tg->x = clampf(tg->x, home - 50, home + 50); tg->speed = 7; }   /* a short walk on its fins */
         else if (goal == GOAL_REST)          tg->x = home;
-        else if (goal == GOAL_VISIT_BUBBLES) { tg->x = t->bubble_x + ((idx & 1) ? 34 : -34); tg->y = TANK_BOT - 50; }
+        else if (goal == GOAL_VISIT_BUBBLES) { tg->x = tank_bubble_x(t) + ((idx & 1) ? 34 : -34); tg->y = TANK_BOT - 50; }
         else if (goal == GOAL_INSPECT_REEF)  { float rx, ry; tank_reef_spot(t, &rx, &ry); tg->x = rx + ((idx & 1) ? 46 : -46); tg->y = TANK_BOT - 45; }
         else if (goal == GOAL_DART_PLAY)     tg->speed = lerpf(65, 95, f->bold) * 0.4f;
         if (goal == GOAL_EXPLORE || goal == GOAL_REST) tg->y = tank_ground_y(t, tg->x) - tank_walk_off(f);
@@ -2434,7 +2339,7 @@ static void sp_target(tank_t *t, int idx, goal_id_t goal, bool glance, target_t 
         /* the floor's two: every goal is a spot on the ground */
         if (goal == GOAL_SEEK_FOOD) { int i = sp_floor_food(t, f); if (i >= 0) { tg->x = t->food[i].x - (hx - f->x); tg->valid = true; tg->speed = fmaxf(tg->speed, 8); } }
         else if (goal == GOAL_REST) sp_den(t, f, idx, &tg->x, &tg->y);
-        else if (goal == GOAL_VISIT_BUBBLES) tg->x = t->bubble_x + ((idx & 1) ? 26 : -26);
+        else if (goal == GOAL_VISIT_BUBBLES) tg->x = tank_bubble_x(t) + ((idx & 1) ? 26 : -26);
         else if (goal == GOAL_INSPECT_REEF) { float rx, ry; tank_reef_spot(t, &rx, &ry); tg->x = rx + 40 * sinf(t->clock * 0.1f + idx * 2.3f); }
         else if (goal == GOAL_DART_PLAY) tg->speed = fminf(tg->speed, f->species == SP_CRAB ? 60 : 20);
         tg->y = tank_ground_y(t, tg->x) - tank_walk_off(f);
@@ -2709,7 +2614,7 @@ static target_t target_for_goal(tank_t *t, int idx, goal_id_t goal, bool glance)
     case GOAL_VISIT_BUBBLES:
         /* each visitor keeps its own lane: a per-fish phase and radius, so
          * four fish orbit the column instead of stacking on one point */
-        tg.x = t->bubble_x + sinf(tm * 1.2f + f->wander + idx * 1.9f) * (26 + idx * 6);
+        tg.x = tank_bubble_x(t) + sinf(tm * 1.2f + f->wander + idx * 1.9f) * (26 + idx * 6);
         tg.y = t->bubble_y - 74 + cosf(tm * 0.8f + f->wander + idx * 1.3f) * (34 + idx * 6);
         tg.speed = 23;
         break;
@@ -2900,7 +2805,7 @@ static void update_fish(tank_t *t, int idx, float dt) {
         float dc = f->goal.id == GOAL_EXPLORE ? 0.08f : -0.025f;
         if (f->goal.id == GOAL_VISIT_BUBBLES || f->goal.id == GOAL_INSPECT_REEF) {
             bool bub = f->goal.id == GOAL_VISIT_BUBBLES;
-            float sx = t->bubble_x, sy = t->bubble_y - 74;
+            float sx = tank_bubble_x(t), sy = t->bubble_y - 74;
             if (!bub) { tank_reef_spot(t, &sx, &sy); sy -= REEF_ORBIT_UP; }
             bool at = tank_dist(f->x, f->y, sx, sy) < CURIOSITY_SPEND_RADIUS;
             if (at) dc = -CURIOSITY_SPEND_PER_S;
@@ -3339,10 +3244,7 @@ void tank_tick(tank_t *t, float dt, advisor_fn advise) {
 
     /* upkeep: the garden gets away from an idle keeper, slowly */
     veg_grow(t, dt / VEG_GROW_AWAKE_S);
-    t->coral_acc += dt;                                     /* by the minute: see tank_t.coral_acc */
-    if (t->coral_acc >= 60) { coral_grow(t, t->coral_acc); t->coral_acc = 0; }
-    t->cluster_acc += dt;
-    if (t->cluster_acc >= 60) { cluster_grow(t, t->cluster_acc); t->cluster_acc = 0; }
+    decor_tick(t, dt);                                      /* the coral's and the cluster's growth, by the minute */
     t->algae_acc += dt;
     if (t->algae_acc >= ALGAE_STEP_AWAKE_S) {
         t->algae_acc = 0;                                   /* one step per 4 min, never a backlog */
@@ -3362,7 +3264,7 @@ void tank_tick(tank_t *t, float dt, advisor_fn advise) {
         b->x += sinf(b->wobble) * dt * (b->column ? 9 : 4);
         if (b->y < -6) {
             b->y = TANK_BOT + tank_randf(t, 4, 24);
-            b->x = b->column ? t->bubble_x + tank_randf(t, -10, 10)
+            b->x = b->column ? tank_bubble_x(t) + tank_randf(t, -10, 10)
                              : tank_randf(t, TANK_FX0 + 12, TANK_FX1 - 12);
         }
     }

@@ -74,11 +74,11 @@ static int art_sheets(const tank_t *base,const char *prefix) {
             for(int b=0;b<VEG_BEDS_MAX;b++)for(int i=0;i<VEG_FRONDS_MAX;i++)a.veg_h[b][i]=which==3?.34f:VEG_NUB;
             tank_veg_sync(&a);
             const char *label;
-            if(which==0){a.sd_unlocks=SD_ITEM_CASTLE;tank_castle_place(&a);a.castle_x=TANK_W/2;label="castle";}
-            else if(which==1){a.sd_unlocks=SD_ITEM_CORAL;tank_coral_place(&a);a.coral_x=TANK_W/2;a.coral_growth=1;label="coral";}
-            else if(which==2){a.sd_unlocks=SD_ITEM_CLUSTER;tank_cluster_place(&a);a.cluster_x=TANK_W/2;a.cluster_growth=1;label="reef";}
+            if(which==0){a.sd_unlocks=SD_ITEM_CASTLE;tank_castle_place(&a);a.decor[DK_CASTLE].x=TANK_W/2;label="castle";}
+            else if(which==1){a.sd_unlocks=SD_ITEM_CORAL;tank_coral_place(&a);a.decor[DK_CORAL].x=TANK_W/2;a.decor[DK_CORAL].growth=1;label="coral";}
+            else if(which==2){a.sd_unlocks=SD_ITEM_CLUSTER;tank_cluster_place(&a);a.decor[DK_CLUSTER].x=TANK_W/2;a.decor[DK_CLUSTER].growth=1;label="reef";}
             else if(which==3){a.sd_unlocks=SD_ITEM_PLANT;tank_plant_place(&a);label="plants";}
-            else if(which==5){a.sd_unlocks=SD_ITEM_WRECK;tank_wreck_place(&a);a.wreck_x=TANK_W/2;label="wreck";}
+            else if(which==5){a.sd_unlocks=SD_ITEM_WRECK;tank_wreck_place(&a);a.decor[DK_WRECK].x=TANK_W/2;label="wreck";}
             else if(which==6){a.sd_unlocks=SD_ITEM_FROGMAN;tank_frogman_place(&a);a.frog_x=TANK_W/2;a.frog_y=TANK_H*.4f;a.clock=23.8f;label="frogman";}
             else if(which==7){a.sd_unlocks=SD_ITEM_SUB;tank_sub_place(&a);a.sub_x=TANK_W/2;a.sub_y=TANK_H*.3f;a.sub_stop=4;a.sub_peri=1;a.sub_look=1.2f;a.sub_v=0;label="submarine";}
             else{a.sd_unlocks=SD_ITEM_SNAIL|SD_ITEM_SHRIMP|SD_ITEM_URCHIN;tank_snail_place(&a);tank_shrimp_place(&a,3);tank_urchin_place(&a);a.snail_x=TANK_W/2;a.snail_y=SNAIL_FLOOR_Y;a.snail_front=true;a.urchin_x=TANK_W/2+48;label="companions";}
@@ -92,7 +92,7 @@ static int art_sheets(const tank_t *base,const char *prefix) {
                 /* the themed castle IN FRONT is baked with a mask (2026-10-10): a busy frame - fish in and
                    around the arch, pellets, bubbles - must come out pixel for pixel as the old per-rect
                    repaint drew it */
-                tank_t b=a; b.sd_unlocks=SD_ITEM_CASTLE; tank_castle_place(&b); b.castle_x=TANK_W/2; b.castle_z=DECOR_Z_FRONT;
+                tank_t b=a; b.sd_unlocks=SD_ITEM_CASTLE; tank_castle_place(&b); b.decor[DK_CASTLE].x=TANK_W/2; b.decor[DK_CASTLE].z=DECOR_Z_FRONT;
                 for(int f=0;f<6&&f<N_FISH_MAX;f++){ tank_make_fish(&b,f,f%2,.5f,.5f,STAGE_ADULT); b.fish[f].x=TANK_W/2-60+f*24; b.fish[f].y=TANK_BOT-30-(f%3)*40; b.fish[f].heading=f%2?3.1f:0; tank_fish_face(&b.fish[f]); }
                 b.n_fish=6; if(b.n_fish>1)tank_set_species(&b,1,SP_OCTOPUS,0);
                 static uint16_t masked[TANK_W*TANK_H], live[TANK_W*TANK_H];

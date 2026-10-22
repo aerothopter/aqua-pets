@@ -395,13 +395,14 @@ static void sd_tick(tank_t *t) {
 }
 int progression_sell_value(int item) { return item < 0 || item >= SD_ITEM_COUNT ? 0 : SD_ITEMS[item].price * SD_SELL_PCT / 100; }
 bool progression_sell(tank_t *t, int item) {
-    if (item < 0 || item >= SD_ITEM_COUNT || !tank_decor_placeable(item)) return false;   /* the snail stays */
+    int k = decor_kind_of_item(item);
+    if (item < 0 || item >= SD_ITEM_COUNT || k < 0 || !(DECOR[k].flags & DF_SELLABLE)) return false;   /* the snail stays */
     const sd_item_t *it = &SD_ITEMS[item];
     if (!(t->sd_unlocks & it->bit)) return false;
     t->sd_unlocks &= ~it->bit;
     int back = progression_sell_value(item);
     t->sd_balance += back; s_sd_pending += back;
-    tank_decor_reset(t, item);
+    decor_reset(t, k);
     mark_dirty(); progression_save(t);
     return true;
 }
@@ -480,14 +481,10 @@ bool progression_buy(tank_t *t, int item) {
     if ((sp <= 0 && (t->sd_unlocks & it->bit)) || t->sd_balance < it->price) return false;
     if (sp > 0 && !add_species(t, sp, 1)) return false;    /* one juvenile, by the reef - or no room */
     t->sd_balance -= it->price; t->sd_unlocks |= it->bit;
-    if (it->bit == SD_ITEM_PLANT) tank_plant_place(t);
+    decor_place(t, decor_kind_of_item(item));             /* a piece of decor arrives at its default spot */
     if (it->bit == SD_ITEM_SNAIL) tank_snail_place(t);
-    if (it->bit == SD_ITEM_CASTLE) tank_castle_place(t);
-    if (it->bit == SD_ITEM_CORAL) tank_coral_place(t);
-    if (it->bit == SD_ITEM_CLUSTER) tank_cluster_place(t);
     if (it->bit == SD_ITEM_SHRIMP) { tank_shrimp_place(t, SHRIMP_START); t->shrimp_food = 0; t->shrimp_cool = 0; }
     if (it->bit == SD_ITEM_URCHIN) tank_urchin_place(t);
-    if (it->bit == SD_ITEM_WRECK) tank_wreck_place(t);
     if (it->bit == SD_ITEM_FROGMAN) tank_frogman_place(t);
     if (it->bit == SD_ITEM_SUB) tank_sub_place(t);
     progression_save(t);                                   /* a purchase sticks at once */
@@ -907,13 +904,13 @@ static bool load_save(tank_t *t, int64_t *saved_unix) {
     if (sv.castle_x > 0) tank_decor_set(t, 2, sv.castle_x, sv.castle_z1 ? sv.castle_z1 - 1 : DECOR_Z_FRONT);
     if (sv.coral_x > 0) tank_decor_set(t, 3, sv.coral_x, sv.coral_z1 ? sv.coral_z1 - 1 : DECOR_Z_FRONT);   /* (an AMONG save reads as FRONT) */
     if (sv.coral_rgb) tank_coral_set_rgb(t, sv.coral_rgb);
-    t->coral_growth = sv.coral_growth > 0 ? sv.coral_growth : 0;   /* 0 = full (tank_coral_growth) */
+    t->decor[DK_CORAL].growth = sv.coral_growth > 0 ? sv.coral_growth : 0;   /* 0 = full (tank_coral_growth) */
     if (sv.cluster_x > 0) tank_decor_set(t, 4, sv.cluster_x, sv.cluster_z1 ? sv.cluster_z1 - 1 : DECOR_Z_FRONT);
     tank_cluster_set_scheme(t, sv.cluster_scheme);
     if (sv.wreck_x > 0) tank_decor_set(t, SD_ITEM_WRECK_IDX, sv.wreck_x, sv.wreck_z1 ? sv.wreck_z1 - 1 : DECOR_Z_FRONT);
     if (t->sd_unlocks & SD_ITEM_FROGMAN) tank_frogman_place(t);   /* (his motion is not saved) */
     if (t->sd_unlocks & SD_ITEM_SUB) tank_sub_place(t);
-    t->cluster_growth = sv.cluster_growth > 0 ? sv.cluster_growth : 0;
+    t->decor[DK_CLUSTER].growth = sv.cluster_growth > 0 ? sv.cluster_growth : 0;
     if (t->sd_unlocks & SD_ITEM_SHRIMP) {             /* the school back in the grass, its count and its progress */
         tank_shrimp_place(t, sv.shrimp_n >= SHRIMP_START ? sv.shrimp_n : SHRIMP_START);
         t->shrimp_food = sv.shrimp_food <= SHRIMP_PER_JOIN ? sv.shrimp_food : SHRIMP_PER_JOIN;
@@ -1001,7 +998,7 @@ void progression_tick(tank_t *t, float dt) {
 
         /* milestones: firsts the fish chose to do */
         if (f->goal.id == GOAL_DART_PLAY && f->goal_age > 1.0f) set_ms(f, MS_FIRST_DART);
-        if (f->goal.id == GOAL_VISIT_BUBBLES && tank_dist(f->x, f->y, t->bubble_x, t->bubble_y) < 90) set_ms(f, MS_FIRST_BUBBLES);
+        if (f->goal.id == GOAL_VISIT_BUBBLES && tank_dist(f->x, f->y, tank_bubble_x(t), t->bubble_y) < 90) set_ms(f, MS_FIRST_BUBBLES);
         if (f->goal.id == GOAL_INSPECT_REEF) {               /* its landmark: the reef cluster once there is one */
             float rx, ry; tank_reef_spot(t, &rx, &ry);
             if (tank_dist(f->x, f->y, rx, ry) < 90) {
@@ -1146,20 +1143,24 @@ bool progression_save(tank_t *t) {
     sv.snail_x = t->snail_x > 0 ? t->snail_x : 0; sv.snail_y = t->snail_y > 0 ? t->snail_y : 0;
     sv.snail_grazed = t->snail_grazed;
     for (int i = 0; i < VEG_FRONDS_MAX; i++) sv.veg_h3[i] = (t->sd_unlocks & SD_ITEM_PLANT) ? t->veg_h[3][i] : 0;
-    sv.plant_x = t->plant_x > 0 ? t->plant_x : 0; sv.plant_z1 = (uint8_t)(t->plant_z + 1);
-    sv.castle_x = t->castle_x > 0 ? t->castle_x : 0; sv.castle_z1 = (uint8_t)(t->castle_z + 1);
-    sv.coral_x = t->coral_x > 0 ? t->coral_x : 0; sv.coral_z1 = (uint8_t)(t->coral_z + 1); sv.coral_rgb = t->coral_rgb;
-    sv.coral_growth = t->coral_growth;
-    sv.cluster_x = t->cluster_x > 0 ? t->cluster_x : 0; sv.cluster_z1 = (uint8_t)(t->cluster_z + 1); sv.cluster_scheme = t->cluster_scheme;
-    sv.cluster_growth = t->cluster_growth;
-    sv.wreck_x = t->wreck_x > 0 ? t->wreck_x : 0; sv.wreck_z1 = (uint8_t)(t->wreck_z + 1);
+    {   /* the decor in the old layout's own fields: x 0 = the default spot, the depth + 1 */
+        const decor_t *pl = &t->decor[DK_PLANT], *ca = &t->decor[DK_CASTLE], *co = &t->decor[DK_CORAL],
+                      *cl = &t->decor[DK_CLUSTER], *wk = &t->decor[DK_WRECK];
+        sv.plant_x = pl->x > 0 ? pl->x : 0; sv.plant_z1 = (uint8_t)(pl->z + 1);
+        sv.castle_x = ca->x > 0 ? ca->x : 0; sv.castle_z1 = (uint8_t)(ca->z + 1);
+        sv.coral_x = co->x > 0 ? co->x : 0; sv.coral_z1 = (uint8_t)(co->z + 1); sv.coral_rgb = co->rgb;
+        sv.coral_growth = co->growth;
+        sv.cluster_x = cl->x > 0 ? cl->x : 0; sv.cluster_z1 = (uint8_t)(cl->z + 1); sv.cluster_scheme = cl->variant;
+        sv.cluster_growth = cl->growth;
+        sv.wreck_x = wk->x > 0 ? wk->x : 0; sv.wreck_z1 = (uint8_t)(wk->z + 1);
+    }
     sv.shrimp_n = (t->sd_unlocks & SD_ITEM_SHRIMP) ? t->shrimp_n : 0; sv.shrimp_food = t->shrimp_food;
     sv.shrimp_cool = t->shrimp_cool > 0 ? t->shrimp_cool : 0; sv.shrimp_eaten = t->shrimp_eaten;
     sv.urchin_x = (t->sd_unlocks & SD_ITEM_URCHIN) && t->urchin_x > 0 ? t->urchin_x : 0;
     sv.urchin_grazed_px = t->urchin_grazed_px > 0 ? t->urchin_grazed_px : 0;
     sv.setup_pending = s_setup_pending;
     sv.newborn_p1 = (uint8_t)(s_newborn >= 0 && s_newborn < t->n_fish ? s_newborn + 1 : 0);
-    sv.bubble_x = t->bubble_x;
+    sv.bubble_x = tank_bubble_x(t);
     for (int i = 0; i < t->n_fish; i++) {
         const fish_t *f = &t->fish[i]; sv_fish_t r = sv_fish(&sv, i); fish_save_t *s = r.f;
         if (strcmp(f->name, tank_roster_name(f->preset))) memcpy(r.name, f->name, FISH_NAME_MAX + 1);

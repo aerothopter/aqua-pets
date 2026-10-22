@@ -182,21 +182,21 @@ static void show_state(const tank_t *t) {
         ESP_LOGI(TAG, "bed %d %s (x from %.0f, pitch %.0f):%s", b, b == 3 ? "leaves" : "fronds", x0 + 6, f1 - f0, row);
     }
     if (t->sd_unlocks & SD_ITEM_PLANT)
-        ESP_LOGI(TAG, "plant placed: centre x %.0f (%s), depth %s", tank_decor_x(t, 0), t->plant_x > 0 ? "the keeper's" : "the default",
-                 t->plant_z == DECOR_Z_BACK ? "BEHIND the fish" : t->plant_z == DECOR_Z_FRONT ? "IN FRONT of the fish" : "AMONG the fish");
+        ESP_LOGI(TAG, "plant placed: centre x %.0f (%s), depth %s", tank_decor_x(t, 0), t->decor[DK_PLANT].x > 0 ? "the keeper's" : "the default",
+                 t->decor[DK_PLANT].z == DECOR_Z_BACK ? "BEHIND the fish" : t->decor[DK_PLANT].z == DECOR_Z_FRONT ? "IN FRONT of the fish" : "AMONG the fish");
     if (t->sd_unlocks & SD_ITEM_CASTLE)
-        ESP_LOGI(TAG, "castle placed: centre x %.0f (%s), %s", tank_decor_x(t, 2), t->castle_x > 0 ? "the keeper's" : "the default",
-                 t->castle_z == DECOR_Z_BACK ? "BEHIND the grass" : "IN FRONT of the grass (the fish swim through)");
+        ESP_LOGI(TAG, "castle placed: centre x %.0f (%s), %s", tank_decor_x(t, 2), t->decor[DK_CASTLE].x > 0 ? "the keeper's" : "the default",
+                 t->decor[DK_CASTLE].z == DECOR_Z_BACK ? "BEHIND the grass" : "IN FRONT of the grass (the fish swim through)");
     if (t->sd_unlocks & SD_ITEM_WRECK)
-        ESP_LOGI(TAG, "wreck placed: centre x %.0f (%s), %s", tank_decor_x(t, SD_ITEM_WRECK_IDX), t->wreck_x > 0 ? "the keeper's" : "the default",
-                 t->wreck_z == DECOR_Z_BACK ? "BEHIND the grass" : "IN FRONT of the grass (the fish pass behind its holes)");
+        ESP_LOGI(TAG, "wreck placed: centre x %.0f (%s), %s", tank_decor_x(t, SD_ITEM_WRECK_IDX), t->decor[DK_WRECK].x > 0 ? "the keeper's" : "the default",
+                 t->decor[DK_WRECK].z == DECOR_Z_BACK ? "BEHIND the grass" : "IN FRONT of the grass (the fish pass behind its holes)");
     if (t->sd_unlocks & SD_ITEM_CORAL)
-        ESP_LOGI(TAG, "coral placed: centre x %.0f (%s), %s, colour %06x, growth %.2f of %.2f (%s)", tank_decor_x(t, 3), t->coral_x > 0 ? "the keeper's" : "the default",
-                 t->coral_z == DECOR_Z_BACK ? "BEHIND" : t->coral_z == DECOR_Z_FRONT ? "IN FRONT" : "AMONG the grass", (unsigned)tank_coral_rgb(t),
+        ESP_LOGI(TAG, "coral placed: centre x %.0f (%s), %s, colour %06x, growth %.2f of %.2f (%s)", tank_decor_x(t, 3), t->decor[DK_CORAL].x > 0 ? "the keeper's" : "the default",
+                 t->decor[DK_CORAL].z == DECOR_Z_BACK ? "BEHIND" : t->decor[DK_CORAL].z == DECOR_Z_FRONT ? "IN FRONT" : "AMONG the grass", (unsigned)tank_coral_rgb(t),
                  tank_coral_growth(t), CORAL_FULL, tank_coral_growth(t) >= CORAL_FULL ? "the crown is out" : tank_coral_growth(t) >= 1 ? "the fan is complete, the crown coming" : "growing");
     if (t->sd_unlocks & SD_ITEM_CLUSTER)
-        ESP_LOGI(TAG, "reef cluster placed: centre x %.0f (%s), %s, look %s, growth %.2f of %.0f (%s)", tank_decor_x(t, 4), t->cluster_x > 0 ? "the keeper's" : "the default",
-                 t->cluster_z == DECOR_Z_BACK ? "BEHIND" : t->cluster_z == DECOR_Z_FRONT ? "IN FRONT" : "AMONG the grass", CLUSTER_SCHEMES[tank_cluster_scheme(t)].name,
+        ESP_LOGI(TAG, "reef cluster placed: centre x %.0f (%s), %s, look %s, growth %.2f of %.0f (%s)", tank_decor_x(t, 4), t->decor[DK_CLUSTER].x > 0 ? "the keeper's" : "the default",
+                 t->decor[DK_CLUSTER].z == DECOR_Z_BACK ? "BEHIND" : t->decor[DK_CLUSTER].z == DECOR_Z_FRONT ? "IN FRONT" : "AMONG the grass", CLUSTER_SCHEMES[tank_cluster_scheme(t)].name,
                  tank_cluster_growth(t), CLUSTER_FULL, tank_cluster_growth(t) >= CLUSTER_FULL ? "in full bloom" : tank_cluster_growth(t) >= 1 ? "full size, blooming" : "filling out");
     ESP_LOGI(TAG, "nursery bed %d (a bed >= %.2f) | parked real tank: %s", tank_nursery_bed(t), (double)VEG_NURSERY,
              nvs_has("bk") ? "YES (restore)" : "no (this IS the real tank)");
@@ -390,7 +390,7 @@ static void run(tank_t *t, char *line) {
         if (!(t->sd_unlocks & SD_ITEM_CORAL)) { ESP_LOGW(TAG, "no coral in the tank (`buy coral`)"); return; }
         if (!strcmp(argv[1], "grow") && argc > 2) {
             float g = (float)atof(argv[2]); if (g < CORAL_START) g = CORAL_START; if (g > CORAL_FULL) g = CORAL_FULL;
-            t->coral_growth = g; progression_save(t);
+            t->decor[DK_CORAL].growth = g; progression_save(t);
             ESP_LOGI(TAG, "coral growth %.2f (a month to 1.00, the crown by %.2f), saved", g, CORAL_FULL); return;
         }
         uint32_t rgb = strlen(argv[1]) >= 6 ? (uint32_t)strtoul(argv[1], NULL, 16) : CORAL_PAL[atoi(argv[1]) < 0 ? 0 : atoi(argv[1]) >= CORAL_N ? CORAL_N - 1 : atoi(argv[1])];
@@ -423,7 +423,7 @@ static void run(tank_t *t, char *line) {
         if (!strcmp(argv[1], "look") && argc > 2) { tank_cluster_set_scheme(t, atoi(argv[2])); progression_save(t); ESP_LOGI(TAG, "cluster look %s, saved", CLUSTER_SCHEMES[tank_cluster_scheme(t)].name); }
         else if (!strcmp(argv[1], "grow") && argc > 2) {
             float g = (float)atof(argv[2]); if (g < CLUSTER_START + 1e-4f) g = CLUSTER_START + 1e-4f; if (g > CLUSTER_FULL) g = CLUSTER_FULL;
-            t->cluster_growth = g; progression_save(t); ESP_LOGI(TAG, "cluster growth %.2f (1 = full size, %.0f = every tentacle), saved", g, CLUSTER_FULL); }
+            t->decor[DK_CLUSTER].growth = g; progression_save(t); ESP_LOGI(TAG, "cluster growth %.2f (1 = full size, %.0f = every tentacle), saved", g, CLUSTER_FULL); }
         else ESP_LOGW(TAG, "cluster look <0-2> | cluster grow <g>");
     } else if (!strcmp(c, "place")) {                /* place [plant|castle|coral|cluster] [x [behind|among|front]]: the piece's spot; no x = the page */
         int item = 0, a = 1;

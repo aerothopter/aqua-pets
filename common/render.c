@@ -10,6 +10,7 @@
 #include "setup.h"
 #include "version.h"
 #include <math.h>
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -1557,10 +1558,6 @@ static void veg_tint_fill(float dim) {
 /* final: the scene cache is live, so each frond span applies its own vignette
  * (see span_final) and needs no re-apply rect - a full canopy used to hand
  * the sweep three bed-sized boxes, the largest PSRAM traffic in the frame. */
-/* a bed's depth (2026-09-16): the grass beds are woven with the fish
- * (alternate fronds behind and in front); the plant is wherever the keeper
- * put it - all behind, woven, or all in front (tank_decor_z) */
-static int bed_z(const tank_t *t, int b) { return b == 3 ? tank_decor_z(t, 0) : DECOR_Z_MIDDLE; }
 /* a frond span - minus the castle's silhouette while the castle stands IN
  * FRONT of the grass (the pieces outside it are drawn; the mask and
  * g_veg_mask_cx live with the castle, below). Off the castle it is one span. */
@@ -1568,17 +1565,18 @@ static int bed_z(const tank_t *t, int b) { return b == 3 ? tank_decor_z(t, 0) : 
 #define CASTLE_ROWS 164
 static uint32_t g_castle_mask[CASTLE_ROWS + 12][224 / 32];
 static int      g_veg_mask_cx;
-/* the reef cluster and the coral IN FRONT (2026-10-03): baked into the scene
- * like the castle, so the grass leaves their pixels alone too - their masks
- * and these two live with the cluster, below (-1 = not baked in front) */
-static int      g_front_cl_x = -1, g_front_co_x = -1;   /* this frame's */
-static int      g_front_wk_x;                           /* the wreck's likewise (defined with the wreck, below) */
-static int      g_bake_cl_x = -1, g_bake_co_x = -1;     /* what the baked scene holds */
+/* the pieces IN FRONT with a mask the grass leaves alone (2026-10-03: the reef
+ * cluster and the coral, then the wreck): baked into the scene like the castle,
+ * so the grass leaves their pixels alone too - the masks live with the decor's
+ * passes, below (DECOR_DRAW) */
+static int      g_front_x[DK_COUNT];                    /* this frame's: the piece's centre x, -1 = not baked in front (render_tank) */
+static int      g_front_n;                              /* ... how many are (0 = none: nothing above is read) */
+static int      g_bake_x[DK_COUNT];                     /* what the baked scene holds, likewise (bake_scene) */
 static bool front_near(int x0, int x1, int y);
 static bool front_px(int x, int y);
 static void veg_span_front(ctx_t *c, int x0, int x1, int y, const src_t *s);   /* (scene cache only: always final) */
 static inline void veg_span(ctx_t *c, int x0, int x1, int y, const src_t *s, bool final) {
-    bool front = (g_front_cl_x >= 0 || g_front_co_x >= 0 || g_front_wk_x >= 0) && front_near(x0, x1, y);   /* (the wreck too, 2026-10-11: the grass grew over a wreck IN FRONT - its mask was in front_near and veg_span_front, not in this gate) */
+    bool front = g_front_n > 0 && front_near(x0, x1, y);
     if (g_veg_mask_cx >= 0 && y >= CASTLE_FY - CASTLE_ROWS && y < CASTLE_FY + 12 && x1 >= g_veg_mask_cx - 112 && x0 <= g_veg_mask_cx + 111) {
         const uint32_t *row = g_castle_mask[y - (CASTLE_FY - CASTLE_ROWS)];
         int run = -1;
@@ -1665,434 +1663,7 @@ static void draw_veg(ctx_t *c, const tank_t *t, int b, int seed, int layer, bool
 }
 
 
-/* ---- the castle (2026-09-16, from Strato's castle-v2 mockup) ----
- * A swim-through decoration drawn the way the fish and the fronds are -
- * spans and fills from a little geometry, no bitmap - so it sits in the same
- * water as everything else instead of a pixel-art sprite clashing with it.
- * Two layers: the KEEP (towers, battlements, the base, the dark courtyard
- * behind the arch) is static and bakes into the scene cache with the floor;
- * the GATE WALL (the curtain wall round the arch, its brick trim and jambs)
- * draws after the fish every frame, so a fish crossing the arch is tucked
- * behind the jambs and seen through the opening - it swims THROUGH. Stone
- * is a brick-course pattern from a position hash (the pebbled floor's
- * trick), golden-lit from the upper left like the mockup, mossed toward the
- * base, and pre-tinted with the water of its row like the fronds - the gate
- * a touch less than the keep, so the keep reads farther back. Geometry is
- * in px about the centre x on the floor line; ~176 x 150 px, the arch
- * opening 52 x 50 (an adult fish is ~37 x 22). */
-/* CASTLE_FY (the floor line the keep stands on) and CASTLE_ROWS (rows above
- * it the palette covers) are defined with veg_span above */
-#define CASTLE_ARCH_R 26                     /* the opening's half-width (and the vault's radius) */
-#define CASTLE_ARCH_S 24                     /* the spring line: straight jambs below, the vault above */
-#define CASTLE_TRIM   5                      /* the brick trim's width */
-enum { CT_LIGHT, CT_MID, CT_MIDDK, CT_DARK, CT_MORTAR, CT_MOSS_A, CT_MOSS_B,
-       CT_BRICK_L, CT_BRICK, CT_BRICK_D, CT_ROOF_L, CT_ROOF, CT_ROOF_D, CT_INSIDE, CT_N };
-static const uint32_t CASTLE_RGB[CT_N] = {
-    0xd9c58c, 0xa99b7b, 0x87795f, 0x5d5446, 0x6a6151, 0x7aa33c, 0x527f2e,
-    0xe08a58, 0xc25f38, 0x8b3d24, 0xe4cd8a, 0xc4a95e, 0x8f7a42, 0x061219 };
-/* [keep | gate][tone][row], row 0 = CASTLE_FY - CASTLE_ROWS */
-static uint16_t g_castle_row[2][CT_N][CASTLE_ROWS + 12];
-static float    g_castle_dim = -1;
-/* the castle's silhouette, one bit per pixel in local coords (x - cx + 112,
- * 0..223; row 0 = CASTLE_FY - CASTLE_ROWS): every pixel castle_put writes
- * sets its bit, so the first full draw fills it. While the castle stands IN
- * FRONT of the grass, frond spans skip the pixels inside it (veg_span). */
-#define CASTLE_MASK_W 224
-static void castle_tint_fill(float dim) {
-    if (g_castle_dim == dim) return;
-    for (int r = 0; r < CASTLE_ROWS + 12; r++) {
-        int y = CASTLE_FY - CASTLE_ROWS + r;
-        uint32_t w = water_rgb(y < 0 ? 0 : y >= TANK_H ? TANK_H - 1 : y);
-        for (int k = 0; k < CT_N; k++) {
-            g_castle_row[0][k][r] = rgb565(mix(w, CASTLE_RGB[k], k == CT_INSIDE ? 0.6f : 0.70f), dim);
-            g_castle_row[1][k][r] = rgb565(mix(w, CASTLE_RGB[k], k == CT_INSIDE ? 0.6f : 0.82f), dim);
-        }
-    }
-    g_castle_dim = dim;
-}
-static inline uint32_t chash(int a, int b) {
-    uint32_t h = (uint32_t)a * 73856093u ^ (uint32_t)b * 19349663u;
-    h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
-    return h;
-}
-/* moss creeps up from the base: 4 px cells, a chance that fades with height,
- * feathered per pixel so the patches have ragged edges */
-static inline int castle_moss(int lx, int y, int extra_pct) {
-    int d = CASTLE_FY - y;
-    int pct = (d < 36 ? 26 - d * 26 / 36 : 0) + extra_pct;
-    if (pct <= 0) return -1;
-    uint32_t h = chash((lx + 4096) >> 2, y >> 2);
-    if ((int)(h % 100) >= pct) return -1;
-    if ((chash(lx, y) & 7) == 0) return -1;
-    return (h >> 8) & 1 ? CT_MOSS_A : CT_MOSS_B;
-}
-/* a pixel's tone. mode 0 = WALL (5 px brick courses, 9 px bricks), 1 = ROOF
- * (4 px tile courses), 2 = RUBBLE (the base: no courses, mossy), 3 = the
- * brick JAMBS (courses), 4 = INSIDE. u = 0..1 across the element: the left
- * fifth catches the light, the right fifth falls into shadow. */
-static int castle_tone(int mode, int lx, int y, float u) {
-    if (mode == 4) return CT_INSIDE;
-    int d = CASTLE_FY - y;
-    int lit = u < 0.22f ? -1 : u > 0.78f ? 1 : 0;
-    if (mode == 2) {
-        int m = castle_moss(lx, y, 18); if (m >= 0) return m;
-        static const int8_t pick[8] = { CT_MIDDK, CT_DARK, CT_DARK, CT_MIDDK, CT_MID, CT_DARK, CT_MIDDK, CT_DARK };
-        int t = pick[chash(lx >> 1, y) & 7] + (lit < 0 ? -1 : 0);
-        return t < CT_MID ? CT_MID : t;
-    }
-    int pitch = mode == 1 ? 4 : 5, len = mode == 1 ? 6 : 9;
-    int course = d / pitch;
-    if (d % pitch == 0) return mode == 3 ? CT_BRICK_D : mode == 1 ? CT_ROOF_D : CT_MORTAR;
-    int bx = lx + 4096 + ((course & 1) ? len / 2 : 0);
-    if (bx % len == 0) return mode == 3 ? CT_BRICK_D : mode == 1 ? CT_ROOF_D : CT_MORTAR;
-    if (mode == 3) {
-        static const int8_t pick[4] = { CT_BRICK, CT_BRICK, CT_BRICK_L, CT_BRICK_D };
-        int t = pick[chash(course, bx / len) & 3] + lit;
-        return t < CT_BRICK_L ? CT_BRICK_L : t > CT_BRICK_D ? CT_BRICK_D : t;
-    }
-    if (mode == 1) {
-        static const int8_t pick[4] = { CT_ROOF, CT_ROOF, CT_ROOF_L, CT_ROOF_D };
-        int t = pick[chash(course, bx / len) & 3] + lit;
-        return t < CT_ROOF_L ? CT_ROOF_L : t > CT_ROOF_D ? CT_ROOF_D : t;
-    }
-    int m = castle_moss(lx, y, 0); if (m >= 0) return m;
-    static const int8_t pick[8] = { CT_MID, CT_MID, CT_MID, CT_MIDDK, CT_MID, CT_MIDDK, CT_LIGHT, CT_MIDDK };
-    int t = pick[chash(course, bx / len) & 7] + lit;
-    return t < CT_LIGHT ? CT_LIGHT : t > CT_DARK ? CT_DARK : t;
-}
-typedef struct { ctx_t *c; int cx; int layer; bool final; } cst_t;
-static inline void rec_px(int x, int y);
-static inline void castle_put(const cst_t *k, int x, int y, uint16_t v) {
-    ctx_t *c = k->c;
-    if (!CTX_IN(c, x, y)) return;
-    rec_px(x, y);                            /* a themed castle baked IN FRONT: its mask (2026-10-10) */
-    { int lx = x - k->cx + CASTLE_MASK_W / 2, r = y - (CASTLE_FY - CASTLE_ROWS);
-      if ((unsigned)lx < CASTLE_MASK_W && (unsigned)r < CASTLE_ROWS + 12) g_castle_mask[r][lx >> 5] |= 1u << (lx & 31); }
-    if ((g_front_cl_x >= 0 || g_front_co_x >= 0) && front_px(x, y)) return;   /* a piece baked IN FRONT stands over the castle: the front row's repaint leaves it */
-    uint16_t *p = &CTX_PX(c, x, y);
-    *p = v;
-    if (k->final) {                          /* vignetted here, and untagged: the sweep must not darken it again */
-        int a = g_vig ? g_vig[y * TANK_W + x] : vig_alpha(x, y);
-        if (a) px_darken(p, a);
-        if (g_dirty) g_dirty[y * DIRTY_WORDS_PER_ROW + (x >> 5)] &= ~(1u << (x & 31));
-    } else dirty_px(x, y);
-}
-/* one row of an element: local x lx0..lx1 on tank row y; ux0..ux1 = the
- * element's full width on that row, for the lighting */
-static void castle_span(const cst_t *k, int lx0, int lx1, int y, int mode, float ux0, float ux1) {
-    int r = y - (CASTLE_FY - CASTLE_ROWS);
-    if (r < 0 || r >= CASTLE_ROWS + 12) return;
-    const ctx_t *c = k->c;                       /* clip to the window first: tones cost */
-    if ((unsigned)(y - c->oy) >= (unsigned)c->h) return;
-    if (k->cx + lx0 < c->ox) lx0 = c->ox - k->cx;
-    if (k->cx + lx1 > c->ox + c->w - 1) lx1 = c->ox + c->w - 1 - k->cx;
-    float uw = ux1 > ux0 ? ux1 - ux0 : 1;
-    for (int lx = lx0; lx <= lx1; lx++)
-        castle_put(k, k->cx + lx, y, g_castle_row[k->layer][castle_tone(mode, lx, y, (lx - ux0) / uw)][r]);
-}
-static void castle_rect(const cst_t *k, int lx0, int lx1, int ytop, int ybot, int mode) {
-    for (int y = ytop; y <= ybot; y++) castle_span(k, lx0, lx1, y, mode, (float)lx0, (float)lx1);
-}
-/* a conical roof: half_base wide at ybase, a point at yapex, plus an eave
- * a pixel wider than the tower */
-static void castle_cone(const cst_t *k, int lxc, int half_base, int ybase, int yapex) {
-    for (int y = yapex; y <= ybase; y++) {
-        float t = (y - yapex) / (float)(ybase - yapex);
-        int half = (int)(half_base * t + 0.5f);
-        castle_span(k, lxc - half, lxc + half, y, 1, (float)(lxc - half), (float)(lxc + half));
-    }
-}
-/* merlons along a top edge: 7 wide, 7 tall, on a 12 px pitch */
-static void castle_merlons(const cst_t *k, int lx0, int lx1, int ytop) {
-    for (int x = lx0; x + 6 <= lx1; x += 12) castle_rect(k, x, x + 6, ytop - 7, ytop - 1, 0);
-}
-/* an arched window: w wide, from ybot up to ytop, the vault a half-disc */
-static void castle_window(const cst_t *k, int lxc, int w, int ytop, int ybot) {
-    float r = w / 2.0f;
-    for (int y = ytop; y <= ybot; y++) {
-        float dy = (ytop + r) - y;
-        float half = dy > 0 ? r * ell_half(dy / r) : r;
-        castle_span(k, (int)(lxc - half + 0.5f), (int)(lxc + half - 0.5f), y, 4, 0, 1);
-    }
-}
-/* the gate: the arch's brick trim (a ring of voussoirs over the vault, jambs
- * down the sides) and the opening. A static tone map for the ring: the
- * voussoir index needs an angle, and the gate redraws every frame. */
-static int8_t g_ring[CASTLE_ARCH_R + CASTLE_TRIM + 1][2 * (CASTLE_ARCH_R + CASTLE_TRIM) + 1];
-static bool   g_ring_filled = false;
-static void castle_ring_fill(void) {
-    if (g_ring_filled) return;
-    int R = CASTLE_ARCH_R + CASTLE_TRIM;
-    for (int j = 0; j <= R; j++)
-        for (int i = 0; i <= 2 * R; i++) {
-            float dx = i - R, dy = (float)j;                 /* dy up from the spring line */
-            float d = sqrtf(dx * dx + dy * dy);
-            int8_t t = -1;
-            if (d >= CASTLE_ARCH_R && d < R + 0.5f) {
-                float ang = atan2f(dy, dx) / 3.14159265f * 9;   /* 9 voussoirs across the half-turn */
-                int v = (int)ang; float fr = ang - v;
-                t = fr < 0.14f ? CT_BRICK_D : (chash(v, 3) & 3) == 0 ? CT_BRICK_L : (chash(v, 3) & 3) == 1 ? CT_BRICK_D : CT_BRICK;
-                if (v < 3 && t == CT_BRICK) t = CT_BRICK_L;    /* the lit side */
-                if (v > 5 && t == CT_BRICK) t = CT_BRICK_D;
-            }
-            g_ring[j][i] = t;
-        }
-    g_ring_filled = true;
-}
-static void castle_gate_trim(const cst_t *k) {
-    int R = CASTLE_ARCH_R + CASTLE_TRIM, ys = CASTLE_FY - CASTLE_ARCH_S;
-    castle_ring_fill();
-    for (int j = 0; j <= R; j++) {
-        int y = ys - j, r = y - (CASTLE_FY - CASTLE_ROWS);
-        if (r < 0) continue;
-        for (int i = 0; i <= 2 * R; i++)
-            if (g_ring[j][i] >= 0) castle_put(k, k->cx + i - R, y, g_castle_row[k->layer][g_ring[j][i]][r]);
-    }
-    castle_rect(k, -R, -CASTLE_ARCH_R - 1, ys + 1, CASTLE_FY, 3);
-    castle_rect(k,  CASTLE_ARCH_R + 1, R,  ys + 1, CASTLE_FY, 3);
-}
-static void castle_opening(const cst_t *k) {
-    int ys = CASTLE_FY - CASTLE_ARCH_S;
-    for (int y = CASTLE_FY; y >= ys - CASTLE_ARCH_R; y--) {
-        float half = y > ys ? CASTLE_ARCH_R : CASTLE_ARCH_R * ell_half((ys - y) / (float)CASTLE_ARCH_R);
-        if (half < 1) continue;
-        castle_span(k, (int)(-half + 0.5f), (int)(half - 0.5f), y, 4, 0, 1);
-    }
-}
-/* the gate wall: the curtain between the left tower and the right, minus the
- * opening. Drawn in the keep pass (baked) and again after the fish. */
-#define CASTLE_GATE_X0 (-34)
-#define CASTLE_GATE_X1  55
-#define CASTLE_WALL_TOP (CASTLE_FY - 58)
-static void castle_gate_wall(const cst_t *k) {
-    int ys = CASTLE_FY - CASTLE_ARCH_S, R = CASTLE_ARCH_R + CASTLE_TRIM;
-    for (int y = CASTLE_WALL_TOP; y <= CASTLE_FY; y++) {
-        float half = y > ys ? R : (ys - y) < R ? R * ell_half((ys - y) / (float)R) : 0;
-        int h = (int)half;
-        if (h < 1) castle_span(k, CASTLE_GATE_X0, CASTLE_GATE_X1, y, 0, -44, 44);
-        else {
-            castle_span(k, CASTLE_GATE_X0, -h - 1, y, 0, -44, 44);
-            castle_span(k, h + 1, CASTLE_GATE_X1, y, 0, -44, 44);
-        }
-    }
-    castle_merlons(k, -44, 44, CASTLE_WALL_TOP);
-    castle_gate_trim(k);
-}
-/* the FRONT ROW: the gate wall and the three towers flush with it. Drawn in
- * the keep pass (baked) and again over the fish, clipped to their rects. */
-static void castle_front_row(const cst_t *k) {
-    int FY = CASTLE_FY;
-    castle_gate_wall(k);
-    /* the left tower, pointed */
-    castle_rect(k, -62, -34, FY - 78, FY, 0);
-    castle_cone(k, -48, 18, FY - 78, FY - 108);
-    castle_window(k, -48, 7, FY - 62, FY - 48);
-    /* the short far-left tower */
-    castle_rect(k, -86, -60, FY - 46, FY, 0);
-    castle_cone(k, -73, 17, FY - 46, FY - 72);
-    castle_window(k, -73, 6, FY - 30, FY - 19);
-    /* the open far-right tower, crenellated */
-    castle_rect(k, 56, 86, FY - 70, FY, 0);
-    castle_merlons(k, 56, 86, FY - 70);
-    castle_window(k, 71, 7, FY - 44, FY - 30);
-}
-/* the whole castle (front = 0: the keep, then the front row over it - the
- * scene bake), or the front row alone (front = 1: over the fish) */
-/* A quiet rounded ruin / a sculpted sandcastle. Same footprint and swim-through arch. */
-/* Limestone ruin: relief, joints and moss are baked through the same depth mask. */
-/* the Quiet Lagoon's castle (2026-10-10, the third design: "a chateau, a French castle"): a
-   symmetrical limestone facade - a plinth, two round pepper-pot corner towers with conical
-   slate roofs and finials, a main block with two rows of tall windows and a balustrade, a
-   taller central pavilion with quoins, a steep hipped slate roof and a spire, dormers in the
-   mansard, chimneys, the grand arched entrance (the same opening every castle has, the fish
-   swim through it) with a tall window and an oculus above it. Pale stone greened a little by
-   the water, lit from the left. The same geometry rule as the other castles: every solid
-   pixel is painted in both passes, the opening's dark only behind the fish (!front). */
-static void draw_lagoon_castle(ctx_t *c,int cx,int front,bool final) {
-    cst_t k={c,cx,front,final};
-    for(int y=CASTLE_FY-160;y<=CASTLE_FY+3;y++) {
-        if(y<c->oy||y>=c->oy+c->h)continue;
-        int h=CASTLE_FY-y;
-        int left=c->ox-cx;if(left< -90)left=-90;
-        int right=c->ox+c->w-1-cx;if(right>90)right=90;
-        for(int x=left;x<=right;x++) {
-            unsigned noise=((unsigned)(x+100)*1237u+(unsigned)(h+40)*719u)^((unsigned)(x+130)*(unsigned)(h+17));
-            int ax=abs(x);
-            bool plinth=h>=-3&&h<6&&ax<90;
-            /* the corner towers: cylinders, conical roofs, finials */
-            int tx=ax-74; bool tower=abs(tx)<15&&h>=6&&h<92;
-            int troof_w=15-(h-92)*15/38; bool troof=h>=92&&h<130&&abs(tx)<troof_w;
-            bool tfinial=h>=130&&h<137&&abs(tx)<=(h<134?1:0);
-            bool tslit=tower&&abs(tx)<=1&&((h>=30&&h<44)||(h>=60&&h<74));
-            /* the main block, its mansard, balustrade, dormers and chimneys */
-            bool block=ax<62&&h>=6&&h<84;
-            bool balus=ax<62&&ax>=30&&h>=84&&h<89&&(h>=88||h<85||((ax/4)&1));
-            int mroof_w=62-(h-89)*18/16; bool mansard=h>=89&&h<105&&ax<mroof_w&&ax>=30;
-            bool ridge=h>=105&&h<108&&ax<44&&ax>=30;
-            bool dormer=((ax>=38&&ax<48))&&h>=89&&h<100, dormer_roof=((ax>=36&&ax<50))&&h>=100&&h<104&&(ax-36)<=(104-h)*7/2&&(49-ax)<=(104-h)*7/2;
-            bool dormer_win=ax>=40&&ax<46&&h>=91&&h<98;
-            bool chimney=ax>=52&&ax<58&&h>=100&&h<116, chimney_cap=ax>=51&&ax<59&&h>=116&&h<118;
-            /* the central pavilion: quoins, a hipped roof, a spire */
-            bool pav=ax<31&&h>=6&&h<104;
-            bool quoin=pav&&ax>=27&&((h/6)&1)==((ax>=29)?0:1);
-            int proof_w=31-(h-104)*28/36; bool proof=h>=104&&h<140&&ax<proof_w;
-            bool spire=h>=140&&h<152&&ax<=(h<148?1:0), spire_ball=h>=147&&h<150&&ax<=1;
-            /* the windows: two rows on the block, a tall one and an oculus on the pavilion */
-            bool win=false, sill=false;
-            { int wx=ax; bool col=(wx>=36&&wx<44)||(wx>=48&&wx<56); if(block&&col&&((h>=20&&h<38)||(h>=52&&h<70)))win=true; if(block&&col&&(h==19||h==51))sill=true; }
-            if(pav&&ax<6&&h>=58&&h<80)win=true;
-            if(pav&&ax<=6&&h==57)sill=true;
-            { int oy=h-92; if(pav&&ax*ax+oy*oy<5*5)win=true; }
-            bool win_bar=win&&((h>=20&&h<38&&(h==29||ax==40||ax==52))||(h>=52&&h<70&&(h==61||ax==40||ax==52))||(h>=58&&h<80&&ax<6&&(h==69||ax==0)));
-            /* the entrance: the opening, its stone ring and keystone */
-            bool opening=ax<26&&h>=0&&(h<24||x*x+(h-24)*(h-24)<26*26);
-            bool ring=!opening&&ax<30&&h>=0&&(h<24||x*x+(h-24)*(h-24)<30*30);
-            bool keystone=ring&&ax<3&&h>=47;
-            if(opening){if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x173e3e,.5f),c->dim));continue;}
-            if(!(plinth||tower||troof||tfinial||block||balus||mansard||ridge||dormer||dormer_roof||chimney||chimney_cap||pav||proof||spire))continue;
-            uint32_t rgb;
-            float lit=x<0?1:0.55f;                                              /* the sun from the left */
-            uint32_t stone=mix(0xd9d3b6,0x9fa78c,lit<1?0.45f:0.f), slate=mix(0x5c6a74,0x3b474f,lit<1?0.5f:0.f);
-            if(win) rgb=win_bar?0xc9c4a4:mix(0x1f3a40,0x6f9aa0,((noise%5)/6.f)+0.1f);
-            else if(sill) rgb=0xb9b398;
-            else if(tfinial||spire_ball) rgb=0xd6b286;
-            else if(spire) rgb=0x4b575f;
-            else if(troof||proof||dormer_roof) { rgb=slate; if(((x+h)%6==0)||((x-h)%6==0)) rgb=mix(rgb,0x2c353b,0.6f); if(troof&&abs(tx)>=troof_w-1) rgb=0x2c353b; if(proof&&ax>=proof_w-1) rgb=0x2c353b; }
-            else if(mansard||ridge) { rgb=slate; if((h%4)==0) rgb=mix(rgb,0x2c353b,0.5f); if(ridge) rgb=0x3b474f; }
-            else if(chimney||chimney_cap) rgb=chimney_cap?0x8c8470:mix(0xb9a98a,0x8c7a5c,(noise%3)/3.f);
-            else if(balus) rgb=0xc9c4a4;
-            else if(keystone) rgb=0xb9b398;
-            else if(ring) rgb=((h/5)&1)?0xc4bea0:0xb0aa8c;
-            else if(quoin) rgb=0xc9c4a4;
-            else if(dormer) rgb=dormer_win?0x2a4448:0xcfc9ab;
-            else if(plinth) rgb=mix(0x8f9a84,0x6f7a66,(noise%3)/3.f);
-            else {                                                              /* the walls: stone courses, a little moss low down */
-                rgb=stone;
-                if((h%8)==0||(((x+100+(h/8%2)*7)%14)==0)) rgb=mix(rgb,0x8c907a,0.5f);
-                if(noise%17==0) rgb=mix(rgb,0xf0ead0,0.4f);
-                if(h<16&&noise%5<2) rgb=mix(rgb,0x4f7757,0.5f);
-                if(tower&&abs(tx)>=13) rgb=mix(rgb,0x7a826c,0.5f);                /* the towers' rounded shade */
-                if(tslit) rgb=0x1f3a40;
-            }
-            castle_put(&k,cx+x,y,rgb565(rgb,c->dim));
-        }
-    }
-}
-/* the Tidepool Club's castle (2026-10-10, the sixth design: "a fat single pineapple castle"):
-   ONE big, fat pineapple - a wide fruit in a diamond skin with an eye in every cell, a swept
-   crown of eleven leaves with a pennant on a stick in the middle of it; three pineapple-slice
-   rings for windows (yellow rings, the water through their holes - the fish pass behind);
-   the same arched opening every castle has for the gate, a wooden drawbridge on two chains
-   lying on the sand before it; a starfish on the mound. */
-static inline bool pa_window(int x, int h) {
-    int a = x + 36, ah = h - 66, b = x - 36, bh = h - 66, t = x, th = h - 98;
-    return a * a + ah * ah < 49 || b * b + bh * bh < 49 || t * t + th * th < 36;
-}
-static inline bool pa_ring(int x, int h) {
-    int a = x + 36, ah = h - 66, b = x - 36, bh = h - 66, t = x, th = h - 98;
-    int ra = a * a + ah * ah, rb = b * b + bh * bh, rt = t * t + th * th;
-    return (ra >= 49 && ra < 121) || (rb >= 49 && rb < 121) || (rt >= 36 && rt < 100);
-}
-static bool pa_leaf(int x, int h, int px, int top, int n, int tall, int *which) {
-    for (int i = 0; i < n; i++) { int o = i - n / 2, lx = px + o * (tall / 5); int ao = o < 0 ? -o : o;
-        int lh = top + tall - ao * (tall / (n / 2 + 1)); int w = 5 - (h - top) * 5 / (lh - top + 1);
-        int sway = o * ((h - top) / 6);
-        if (h >= top && h < lh && abs(x - lx - sway) <= w) { *which = i; return true; } }
-    return false;
-}
-#include "blackwater_castle.inc"
-static void draw_theme_castle(ctx_t *c,int cx,int front,bool final) {
-    if(theme_active()==THEME_QUIET_LAGOON){draw_lagoon_castle(c,cx,front,final);return;}
-    if(theme_active()==THEME_BLACKWATER){draw_blackwater_castle(c,cx,front,final);return;}
-    cst_t k={c,cx,front,final};
-    for(int y=CASTLE_FY-162;y<=CASTLE_FY+5;y++) {
-        if(y<c->oy || y>=c->oy+c->h)continue;
-        int h=CASTLE_FY-y;
-        int left=c->ox-cx;if(left< -92)left=-92;                               /* only the clip's columns (a drag, the live path) */
-        int right=c->ox+c->w-1-cx;if(right>92)right=92;
-        for(int x=left;x<=right;x++) {
-            unsigned noise=((unsigned)(x+100)*1237u+(unsigned)(h+40)*719u)^((unsigned)(x+130)*(unsigned)(h+17));
-            int ax=abs(x);
-            bool mound=h>=-3&&h<9&&x*x+(h-2)*(h-2)*25<8464;
-            /* the fruit: fat - 150 wide, 118 tall */
-            float ex=x/75.f, ey=(h-60)/59.f; float e2=ex*ex+ey*ey;
-            bool fruit=h>=3&&e2<1.0f, fedge=fruit&&e2>0.84f;
-            int li=0; bool leaf=h>=112&&pa_leaf(x,h,0,112,11,50,&li);
-            bool stick=ax<=0&&h>=140&&h<160, flag=x>0&&x<=14&&h>=150&&h<160&&(x<=(160-h)*2+2);
-            /* the gate, the windows (holes), their rings */
-            bool opening=ax<26&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<26*26);
-            bool gate_frame=!opening&&ax<30&&h>=0&&(h<24 || x*x+(h-24)*(h-24)<30*30)&&fruit;
-            bool hole=opening||(fruit&&pa_window(x,h));
-            bool ring=fruit&&!hole&&pa_ring(x,h);
-            /* the drawbridge on the sand before the gate, its two chains up to the fruit */
-            bool bridge=x>=-62&&x<-24&&h>=0&&h<4, bridge_slat=bridge&&((x+62)%6)==0;
-            bool chain=false;
-            for(int cxi=0;cxi<2;cxi++){ int x0=cxi?-30:-58, y0=4, x1=cxi?-32:-52, y1=cxi?54:40; float u=(h-y0)/(float)(y1-y0);
-                if(h>=y0&&h<=y1&&x==(int)(x0+(x1-x0)*u+0.5f)&&(h%3)!=2)chain=true; }
-            bool star=false;
-            if(h>=0&&h<14&&ax>=76) { float sx=x-84, sh=h-6; float r=sqrtf(sx*sx+sh*sh); if(r<1||r<3.2f+3.8f*fabsf(cosf(atan2f(sh,sx)*2.5f)))star=r<7.5f; }
-            if(hole){ if(!front)castle_put(&k,cx+x,y,rgb565(mix(water_rgb(y),0x4a3a26,.55f),c->dim)); continue; }
-            if(!(mound||fruit||leaf||bridge||chain||stick||flag||star))continue;
-            uint32_t rgb;
-            if(flag) rgb=((h-150)/3)&1?0xe0473a:0xfff6d9;
-            else if(stick) rgb=0x8a5a3a;
-            else if(leaf) rgb=(li+(h/7))%2 ? 0x55a862 : 0x3b8048;
-            else if(star) rgb=(noise%5==0)?0xf0a050:0xe8702e;
-            else if(chain) rgb=0x565a5d;
-            else if(bridge) rgb=bridge_slat?0x6a4428:((h==3)?0xa8865a:0x8a5a3a);
-            else if(fruit) {
-                if(ring) { int band=((x+h)&3); rgb=band==0?0xf0c040:band==1?0xffe27a:0xf6cf55; }   /* a pineapple slice: a yellow ring */
-                else if(gate_frame) rgb=((h/4)%2)?0x8a5a3a:0x9c6a44;
-                else {
-                    int u=(x+h)/10, v=(x-h)/10; bool seam=((x+h)%10==0)||((x-h)%10==0);
-                    rgb = seam ? 0xc0702e : ((u+v)&1) ? 0xf2b45a : 0xe69a44;
-                    if(!seam&&((x+h)%10==5)&&((x-h)%10==5)) rgb=0x8a4a20;                 /* the eye in every cell */
-                    if(((u*7+v*13)&3)==0&&!seam) rgb=mix(rgb,0xfff0b0,.3f);
-                    if(x<-20&&!seam) rgb=mix(rgb,0xfff0b0,.12f);                           /* lit from the left */
-                    if(fedge) rgb=mix(rgb,0x8a4a20,.45f);
-                }
-            }
-            else rgb=mix(0xdcc39b,0xc0a67c,(noise%4)/4.f);
-            castle_put(&k,cx+x,y,rgb565(rgb,c->dim));
-        }
-    }
-}
-static void draw_castle(ctx_t *c, int cx, int front, bool final) {
-    if(theme_active()){draw_theme_castle(c,cx,front,final);return;}
-    castle_tint_fill(c->dim);
-    cst_t k = { c, cx, 1, final };
-    if (front) { castle_front_row(&k); return; }
-    k.layer = 0;
-    int FY = CASTLE_FY;
-    /* the base: a low rubble mound the towers stand on */
-    for (int y = FY - 9; y <= FY + 6; y++) {
-        float w = ell_half((y - (FY - 1)) / 8.0f);
-        if (w <= 0) continue;
-        int half = (int)(92 * w);
-        castle_span(&k, -half, half, y, 2, (float)-half, (float)half);
-    }
-    /* the rear tower, tallest, right of centre: behind the wall */
-    castle_rect(&k, 24, 54, FY - 108, FY, 0);
-    castle_cone(&k, 39, 19, FY - 108, FY - 142);
-    castle_window(&k, 39, 7, FY - 92, FY - 78);
-    /* the curtain wall behind the gate's opening, then the courtyard's dark */
-    castle_rect(&k, -44, 44, CASTLE_WALL_TOP, FY, 0);
-    castle_opening(&k);
-    k.layer = 1;
-    castle_front_row(&k);
-}
-/* the front row over a rect of the frame (a fish's box): only what the rect
- * covers is recomputed */
-static void draw_castle_front_rect(ctx_t *c, int cx, int x0, int y0, int x1, int y1) {
-    if (x1 < cx - 92 || x0 > cx + 92 || y1 < CASTLE_FY - CASTLE_ROWS || y0 > CASTLE_FY) return;
-    if (x0 < c->ox) x0 = c->ox;
-    if (y0 < c->oy) y0 = c->oy;
-    if (x1 > c->ox + c->w - 1) x1 = c->ox + c->w - 1;
-    if (y1 > c->oy + c->h - 1) y1 = c->oy + c->h - 1;
-    if (x0 > x1 || y0 > y1) return;
-    ctx_t cc = { c->fb + (y0 - c->oy) * c->stride + (x0 - c->ox), c->stride, c->dim, x0, y0, x1 - x0 + 1, y1 - y0 + 1 };
-    draw_castle(&cc, cx, 1, true);
-}
+#include "decor_castle.inc"   /* the castle (2026-09-16) */
 
 /* ---- the coral, procedural (2026-09-23; Strato's coral-single.png: a
  * branching orange fan in chunky pixel art - rounded branches, a dark red
@@ -2159,255 +1730,7 @@ static inline void rec_px(int x, int y) {
     int lx = x - g_rec_x0, r = y - g_rec_y0;
     if ((unsigned)lx < (unsigned)g_rec_w && (unsigned)r < (unsigned)g_rec_rows) g_rec[r * g_rec_wpr + (lx >> 5)] |= 1u << (lx & 31);
 }
-typedef struct { float x0, y0, x1, y1, r; uint8_t tip; float g0, g1; } coral_seg_t;
-/* cell coordinates, x from the left edge, y UP from the base row. g0..g1 is
- * the segment's GROWTH window (tank_coral_growth, 2026-09-23): absent below
- * g0, reaching out along its line until g1 - a child branch's window opens
- * where its parent's closes, so the fan comes in trunk first, low branches,
- * then the crown over the month. */
-static const coral_seg_t CORAL_SEGS[] = {
-    { 16, 0, 17, 20, 3.0f, 0, 0.00f, 0.30f },   /* the trunk: thick, like the art's */
-    { 17, 20, 18, 33, 2.7f, 0, 0.30f, 0.60f },
-    { 18, 33, 18, 41, 2.3f, 1, 0.60f, 0.85f },  /* its tip */
-    { 16, 7, 6, 15, 2.5f, 0, 0.12f, 0.40f },    /* left, low */
-    { 6, 15, 3, 22, 2.2f, 1, 0.40f, 0.62f },
-    { 17, 12, 26, 18, 2.4f, 0, 0.20f, 0.48f },  /* right, low */
-    { 26, 18, 29, 25, 2.1f, 1, 0.48f, 0.70f },
-    { 17, 20, 9, 28, 2.4f, 0, 0.36f, 0.62f },   /* left, mid */
-    { 9, 28, 7, 35, 2.1f, 1, 0.62f, 0.82f },
-    { 18, 26, 25, 33, 2.3f, 0, 0.45f, 0.72f },  /* right, mid */
-    { 25, 33, 27, 40, 2.0f, 1, 0.72f, 0.92f },
-    { 18, 31, 12, 39, 2.2f, 1, 0.62f, 1.00f },  /* left, high: the last to finish */
-    { 17, 3, 22, 7, 1.9f, 1, 0.05f, 0.20f },    /* a nub */
-};
-#define CORAL_NSEG ((int)(sizeof CORAL_SEGS / sizeof CORAL_SEGS[0]))
-/* signed distance to the skeleton AT growth g, in cells; *tip = within a
- * lit cap (a finished tip's, or the reaching end of a branch still growing) */
-#define CORAL_Y_SCALE 0.88f                                  /* the fan tops out ~76 px up (Strato: a modest height, never the grass's) */
-#define CORAL_TOP_X   18.0f                                  /* the crown's root: the trunk tip's end, in cells */
-#define CORAL_TOP_Y   (41.0f * CORAL_Y_SCALE)
-static float coral_sd(float px, float py, float g, bool *tip) {
-    if(theme_active()) {
-        bool club=theme_active()==THEME_TIDEPOOL_CLUB;
-        float scale=.2f+.8f*fminf(fmaxf(g,0),1), best=1e9f;
-        px=16+(px-16)/scale;py/=scale;*tip=false;
-        for(int i=0;i<7;i++) {
-            float ex=i==0?18:16+(i%2?1:-1)*(6+(i/2)*3);
-            float ey=i==0?CORAL_TOP_Y:32-(i/2)*6;
-            float sx=16,sy=i==0?0:5+(i/2)*4;
-            float dx=ex-sx,dy=ey-sy,u=fminf(1,fmaxf(0,((px-sx)*dx+(py-sy)*dy)/(dx*dx+dy*dy)));
-            float bend=club?0:1.8f*sinf(u*3.14159f)*(i%2?1:-1);
-            float ax=px-sx-dx*u-bend,ay=py-sy-dy*u;
-            float r=club?2.2f+u*.6f:1.05f+(1-u)*.5f;
-            float d=sqrtf(ax*ax+ay*ay)-r;if(d<best)best=d;
-            if((px-ex)*(px-ex)+(py-ey)*(py-ey)<(r+1)*(r+1))*tip=true;
-        }
-        return best*scale;
-    }
-    float best = 1e9f; *tip = false;
-    if (g > 1) g = 1;
-    float thin = 0.72f + 0.28f * g;                          /* a young coral is slimmer all over */
-    for (int i = 0; i < CORAL_NSEG; i++) {
-        const coral_seg_t *s = &CORAL_SEGS[i];
-        float f = (g - s->g0) / (s->g1 - s->g0);             /* how far along its line it has reached */
-        if (f <= 0) continue;
-        if (f > 1) f = 1;
-        float sy0 = s->y0 * CORAL_Y_SCALE, sy1 = s->y1 * CORAL_Y_SCALE;
-        float x1 = s->x0 + (s->x1 - s->x0) * f, y1 = sy0 + (sy1 - sy0) * f;
-        float r = s->r * thin * (0.75f + 0.25f * f);
-        float dx = x1 - s->x0, dy = y1 - sy0, len2 = dx * dx + dy * dy;
-        float u = len2 > 1e-6f ? ((px - s->x0) * dx + (py - sy0) * dy) / len2 : 0;
-        if (u < 0) u = 0;
-        if (u > 1) u = 1;
-        float ex = px - (s->x0 + dx * u), ey = py - (sy0 + dy * u);
-        float d = sqrtf(ex * ex + ey * ey) - r;
-        if (d < best) best = d;
-        if (s->tip || f < 1) {                               /* the lit cap: the last r + 1 cells of a tip */
-            float tx = px - x1, ty = py - y1;
-            if (tx * tx + ty * ty <= (r + 0.6f) * (r + 0.6f)) *tip = true;
-        }
-    }
-    return best;
-}
-/* the distance grids are int8 eighths of a cell (the sign and the few
- * thresholds are all the classing needs): internal RAM is tight on the
- * board - the float grids of 2026-09-24 morning cost the display driver its
- * semaphore and the tank booted black */
-static inline int8_t sd_q(float d) { d *= 8; return (int8_t)(d < -127 ? -127 : d > 127 ? 127 : d); }
-static void coral_build(float g) {
-    int8_t  (*sd)[CORAL_CW] = ds()->co_sd;
-    uint8_t (*tp)[(CORAL_CW + 7) / 8] = ds()->co_tp;
-    g_coral_cells = 0;
-    for (int j = 0; j < CORAL_CH; j++)
-        for (int i = 0; i < CORAL_CW; i++) {
-            bool tip; sd[j][i] = sd_q(coral_sd(i + 0.5f, (CORAL_CH - 1 - j) + 0.5f, g, &tip));
-            if (tip) tp[j][i >> 3] |= (uint8_t)(1 << (i & 7)); else tp[j][i >> 3] &= (uint8_t)~(1 << (i & 7));
-        }
-    for (int j = 0; j < CORAL_CH; j++)
-        for (int i = 0; i < CORAL_CW; i++) {
-            int d = sd[j][i];
-            bool tip = (tp[j][i >> 3] >> (i & 7)) & 1;
-            uint8_t t = CO_NONE;
-            if (d < 0) {
-                /* the light comes from the upper left (the art's): an edge cell
-                   with open water above or to its left is LIT, one with open
-                   water below or to its right is the dark rim - the outline
-                   that keeps the branches apart */
-                bool out_l = i == 0 || sd[j][i - 1] >= 0, out_u = j == 0 || sd[j - 1][i] >= 0;
-                bool out_r = i == CORAL_CW - 1 || sd[j][i + 1] >= 0, out_d = j == CORAL_CH - 1 || sd[j + 1][i] >= 0;
-                bool edge = out_l || out_u || out_r || out_d;
-                if (tip) t = (out_r || out_d) && !(out_l || out_u) ? CO_RIM : CO_TIP;
-                else if (edge) t = (out_r || out_d) ? CO_RIM : CO_LIT;
-                else {
-                    uint32_t h = chash(i, j) % 100;
-                    t = theme_active()==THEME_TIDEPOOL_CLUB ? CO_BODY : h < 22 ? CO_SHADE : h < 28 ? CO_LIT : CO_BODY;
-                }
-            }
-            ds()->co_sprite[j][i] = t;
-            g_coral_cells += t != CO_NONE;
-        }
-}
-int render_coral_cells(float growth) {                       /* the selftest: how much coral there is at a growth */
-    coral_build(growth); g_coral_q = -1;
-    return g_coral_cells;
-}
-static void coral_tint_fill(uint32_t rgb, float dim) {
-    if (g_coral_rgb == rgb && g_coral_dim == dim) return;
-    uint32_t saved_rgb=rgb;
-    if(theme_active())rgb=mix(rgb,theme_active()==THEME_TIDEPOOL_CLUB?0xefad91:0xbd8c65,theme_active()==THEME_QUIET_LAGOON?.65f:.4f);
-    uint32_t tone[CO_N];
-    tone[CO_NONE]  = 0;
-    tone[CO_RIM]   = mix(rgb, 0x30060e, 0.58f);
-    tone[CO_BODY]  = rgb;
-    tone[CO_SHADE] = mix(rgb, 0x000000, 0.24f);
-    tone[CO_LIT]   = mix(rgb, 0xfff0b0, 0.36f);
-    tone[CO_TIP]   = mix(rgb, 0xffe8a0, 0.58f);
-    for (int r = 0; r < CORAL_H; r++) {
-        int y = CORAL_FY - CORAL_H + r;
-        uint32_t w = water_rgb(y < 0 ? 0 : y >= TANK_H ? TANK_H - 1 : y);
-        for (int k = 1; k < CO_N; k++) ds()->co_row[k][r] = rgb565(mix(w, tone[k], k == CO_TIP ? 0.94f : 0.90f), dim);   /* a light haze: the art's colour stays saturated */
-    }
-    g_coral_rgb = saved_rgb; g_coral_dim = dim;
-}
-/* the crown (2026-09-23, Strato: "after it's fully grown it should sprout a
- * ring of delicate tentacles out of the top"): CORAL_TENT one-pixel
- * filaments fanning up and out from the trunk's tip once growth passes 1,
- * reaching CORAL_TENT_L px at CORAL_FULL, each swaying on its own phase with
- * the tank clock and ending in a bright bead. Drawn every frame over the
- * body (dynamic: the caller's rect covers the vignette), so the crown moves
- * while the fan stands still. Returns its bounding box through the pointers. */
-#define CORAL_TENT   9
-#define CORAL_TENT_L 15.0f
-/* a fan of n one-pixel tentacles from (ox, oy), angles a0..a1 (screen
- * radians: -pi/2 is straight up), each `len` px, swaying on the tank clock
- * with its own phase (seed), a bright bead at the end; the bounding box
- * through the pointers (x1 < x0 = nothing drawn). The coral's crown and the
- * cluster's bloom both use it (2026-09-24). */
-static void draw_crown(ctx_t *c, float ox, float oy, int n_t, float a0, float a1, float len, uint32_t pale,
-                       int seed, float clock, int *bx0, int *by0, int *bx1, int *by1) {
-    *bx0 = *by0 = 1 << 20; *bx1 = *by1 = -1;
-    if (n_t < 1) return;
-    uint32_t bead = mix(pale, 0xffffff, 0.55f);
-    for (int k = 0; k < n_t; k++) {
-        float a = n_t == 1 ? (a0 + a1) * 0.5f : a0 + (a1 - a0) * k / (n_t - 1);
-        float sway = 0.22f * fast_sin(clock * 1.3f + (k + seed) * 0.9f);
-        float lx = ox, ly = oy;
-        int n = (int)(len + 0.5f);
-        for (int i = 1; i <= n; i++) {
-            float s = (float)i / n;
-            float ang = a + sway * s + (k - (n_t - 1) * 0.5f) * 0.05f * s;   /* the outer ones curl outward */
-            float x = ox + cosf(ang) * len * s, y = oy + sinf(ang) * len * s;
-            int ix = (int)(x + 0.5f), iy = (int)(y + 0.5f);
-            if (ix == (int)(lx + 0.5f) && iy == (int)(ly + 0.5f)) continue;
-            px_blend(c, ix, iy, i == n ? bead : pale, i == n ? 255 : 190);
-            if (ix < *bx0) *bx0 = ix;
-            if (ix > *bx1) *bx1 = ix;
-            if (iy < *by0) *by0 = iy;
-            if (iy > *by1) *by1 = iy;
-            lx = x; ly = y;
-        }
-    }
-    if (*bx1 >= *bx0) { *bx0 -= 1; *by0 -= 1; *bx1 += 1; *by1 += 1; }
-}
-static void draw_coral_crown(ctx_t *c, int cx, uint32_t rgb, float growth, float clock,
-                             int *bx0, int *by0, int *bx1, int *by1) {
-    float phase = (growth - 1.0f) / (CORAL_FULL - 1.0f);
-    *bx0 = *by0 = 1 << 20; *bx1 = *by1 = -1;
-    if (phase <= 0) return;
-    if (phase > 1) phase = 1;
-    float ox = cx - CORAL_W / 2 + CORAL_TOP_X * CORAL_CELL + 1, oy = CORAL_FY - CORAL_TOP_Y * CORAL_CELL - 1;
-    float len = CORAL_TENT_L * (0.35f + 0.65f * phase);
-    /* a fan from ~29 deg left of up to 29 deg right, past the horizontal */
-    draw_crown(c, ox, oy, CORAL_TENT, -3.14159f * 0.16f, -3.14159f * 0.84f, len, mix(rgb, 0xffffff, 0.55f), 0, clock, bx0, by0, bx1, by1);
-}
-/* a low mound of floor stones round a piece's base (2026-09-24): the same
- * pebble tones and position hash as the floor, an ellipse half_w wide whose
- * crest sits 6 px above the base line and whose skirt runs 3 px below it,
- * drawn AFTER the piece so its bottom rows are buried - the coral's trunk
- * and the cluster's rock grow out of the floor instead of standing on it.
- * final: vignetted and untagged here (the scene-cache path). */
-static void draw_floor_mound(ctx_t *c, int cx, int half_w, int rise, bool final) {
-    const int fl = TANK_BOT - 14;                                          /* the floor line: the pebbles' highest top */
-    for (int y = fl - rise; y <= fl + 4; y++) {
-        if (y < 0 || y >= TANK_H) continue;
-        float w = ell_half((y - (fl + 2)) / (float)(rise + 2));           /* an ellipse whose crest is `rise` px above the floor line */
-        if (w <= 0) continue;
-        int half = (int)(half_w * w);
-        for (int x = cx - half; x <= cx + half; x++) {
-            if (!CTX_IN(c, x, y)) continue;
-            uint32_t h2 = (uint32_t)((x * 73856093u) ^ (y * 19349663u));
-            uint32_t tone = (h2 >> 4) % 16;
-            uint32_t col = tone < 2 ? 0x2e3b2c : tone < 5 ? 0x22301f : tone < 8 ? 0x1a2418 : 0x101a12;
-            float up = (float)(fl - y) / rise;                           /* 0 at the floor line, 1 at the crest */
-            if (up > 0) col = mix(col, 0x56684f, 0.25f + 0.40f * up);   /* the hump rises into the light; its skirt is the floor */
-            if (up > 0.15f && (chash(x, y) & 15) == 0) col = 0x6e7f66;   /* a few lit grains */
-            if(theme_active()==THEME_QUIET_LAGOON) {
-                col=mix(0x798471,0x9d9d88,clamp01(up)*.55f);
-                if((h2%37)==0)col=mix(col,0xb4b298,.2f);
-            }
-            uint16_t *p = &CTX_PX(c, x, y);
-            *p = rgb565(col, c->dim);
-            rec_px(x, y);
-            if (final) {
-                int a = g_vig ? g_vig[y * TANK_W + x] : vig_alpha(x, y);
-                if (a) px_darken(p, a);
-                if (g_dirty) g_dirty[y * DIRTY_WORDS_PER_ROW + (x >> 5)] &= ~(1u << (x & 31));
-            }
-        }
-    }
-}
-/* the coral at centre x (its base on the floor), in the keeper's colour.
- * final: vignetted here and untagged (the scene-cache path); otherwise the
- * frame's own sweep does it */
-static void draw_coral(ctx_t *c, int cx, uint32_t rgb, float growth, bool final) {
-    if (growth > 1) growth = 1;
-    int q = (int)(growth * (CORAL_Q - 0.01f));
-    if (q != g_coral_q) { coral_build(growth); g_coral_q = q; }
-    coral_tint_fill(rgb, c->dim);
-    int x0 = cx - CORAL_W / 2, y0 = CORAL_FY - CORAL_H;
-    for (int j = 0; j < CORAL_CH; j++)
-        for (int i = 0; i < CORAL_CW; i++) {
-            uint8_t t = ds()->co_sprite[j][i];
-            if (!t) continue;
-            for (int dy = 0; dy < CORAL_CELL; dy++) {
-                int y = y0 + j * CORAL_CELL + dy;
-                uint16_t v = ds()->co_row[t][j * CORAL_CELL + dy];
-                for (int dx = 0; dx < CORAL_CELL; dx++) {
-                    int x = x0 + i * CORAL_CELL + dx;
-                    if (!CTX_IN(c, x, y)) continue;
-                    uint16_t *p = &CTX_PX(c, x, y);
-                    *p = v;
-                    rec_px(x, y);
-                    if (final) {
-                        int a = g_vig ? g_vig[y * TANK_W + x] : vig_alpha(x, y);
-                        if (a) px_darken(p, a);
-                        if (g_dirty) g_dirty[y * DIRTY_WORDS_PER_ROW + (x >> 5)] &= ~(1u << (x & 31));
-                    }
-                }
-            }
-        }
-    draw_floor_mound(c, cx, CORAL_HALF_W - 4, 9, final);              /* anchored: the trunk grows out of a hump of stones */
-}
+#include "decor_coral.inc"   /* the coral (2026-09-23): its sizes, its state and its scratch are above */
 
 /* ---- the snail, procedural (2026-09-16; Strato: "explore doing the same
  * for the snail so the aesthetic matches") ----
@@ -2730,647 +2053,22 @@ static void draw_urchin(ctx_t *c, const tank_t *t) {
     }
 }
 
-/* where the castle stands this frame: its centre x (-1 = not bought), its
+/* where a piece stands this frame: its centre x (-1 = not in the tank), its
  * depth, and whether the keeper is dragging it on the placement page (then
  * it is drawn live over a scene baked WITHOUT it, instead of a rebake per
  * frame) */
-static bool castle_state(const tank_t *t, int *cx, int *z, bool *placing) {
-    if (!(t->sd_unlocks & SD_ITEM_CASTLE)) { *cx = -1; *z = DECOR_Z_FRONT; *placing = false; return false; }
-    *cx = (int)tank_decor_x(t, 2); *z = tank_decor_z(t, 2);
-    *placing = setup_is_place() && setup_item() == 2;
+static bool decor_state(const tank_t *t, int k, int *cx, int *z, bool *placing) {
+    if (!decor_owned(t, k)) { *cx = -1; *z = DECOR_Z_FRONT; *placing = false; return false; }
+    *cx = (int)decor_x(t, k); *z = decor_z(t, k);
+    *placing = setup_is_place() && setup_item() == DECOR[k].shop_item;
     return true;
 }
-static int g_scene_castle_x = -2, g_scene_castle_z = -1;   /* what the baked scene holds (-1 = no castle) */
-static int g_scene_wk_x = -2, g_scene_wk_z = -1;           /* the shipwreck in the scene (-1 = none) */
-static int g_bake_wk_x = -1; static int g_front_wk_x = -1;   /* baked IN FRONT (its mask filled) / this frame's (declared with the grass, above) */
-static int g_bake_ca_x = -1;                               /* a themed castle baked IN FRONT with its mask (2026-10-10) */
 static bool g_castle_live;                                 /* tests: the old per-rect repaint instead of the mask */
 void render_debug_castle_live(bool on) { g_castle_live = on; }
-static bool wreck_state(const tank_t *t, int *cx, int *z, bool *placing) {
-    if (!(t->sd_unlocks & SD_ITEM_WRECK)) { *cx = -1; *z = DECOR_Z_FRONT; *placing = false; return false; }
-    *cx = (int)tank_decor_x(t, SD_ITEM_WRECK_IDX); *z = tank_decor_z(t, SD_ITEM_WRECK_IDX);
-    *placing = setup_is_place() && setup_item() == SD_ITEM_WRECK_IDX;
-    return true;
-}
-/* the coral likewise (2026-09-23): BEHIND it is baked into the scene; AMONG
- * and IN FRONT it is drawn every frame (a 60 x 92 sprite - cheap) */
-static bool coral_state(const tank_t *t, int *cx, int *z, bool *placing) {
-    if (!(t->sd_unlocks & SD_ITEM_CORAL)) { *cx = -1; *z = DECOR_Z_MIDDLE; *placing = false; return false; }
-    *cx = (int)tank_decor_x(t, 3); *z = tank_decor_z(t, 3);
-    *placing = setup_is_place() && setup_item() == 3;
-    return true;
-}
 
-/* ---- the reef cluster, procedural (2026-09-24; Strato's coral-cluster.png:
- * a branching coral, three purple tube sponges, a cyan brain coral and green
- * weed on a pile of grey stones). The same idiom as the coral, bigger: a
- * CL_CW x CL_CH grid of 2 px cells, five ELEMENTS drawn in painter's order
- * (rock, weed, the coral, the tubes, the brain, weed in front), each classed
- * by its own signed distance - rim below / right, lit above / left, a deep
- * variant per element (moss on the rock, the coral's tips, the tube mouths,
- * the brain's grooves, the weed's tips) - into one tone sprite. The size is
- * the growth's first phase: CLUSTER_SIZE_MIN of full on the day it is bought
- * (it must look mature at once), full at 1. The look is a scheme (three
- * presets: the coral / the tubes / the brain each), tinted per row. */
-#define CL_CELL 2
-#define CL_W    (CL_CW * CL_CELL)
-#define CL_FY   (TANK_BOT - 14 + DECOR_SINK)
-#define CL_Q    64                                           /* sprite rebuilds over the size phase */
-enum { CLE_ROCK, CLE_WEED, CLE_CORAL, CLE_TUBE, CLE_BRAIN, CLE_N };
-enum { CLV_BODY, CLV_LIT, CLV_RIM, CLV_SHADE, CLV_DEEP, CLV_N };
-#define CL_TONE(e, v) (1 + (e) * CLV_N + (v))
-static int      g_cl_q = -1, g_cl_cells;
-static int      g_cl_scheme = -1; static float g_cl_dim = -1;
-/* geometry in unscaled cells: x from the left, y UP from the base row; the
- * size scales it about (36, 0) */
-#define CL_CX 36.0f
-typedef struct { float x0, y0, x1, y1, r; } cl_cap_t;
-static const cl_cap_t CL_ROCKS[] = {                         /* stones, as capsules (a circle = a zero-length one) */
-    { 8, 3, 8, 3, 6 }, { 20, 4, 20, 4, 7 }, { 33, 3, 33, 3, 6 }, { 46, 4, 46, 4, 7 }, { 58, 3, 58, 3, 6 }, { 66, 4, 66, 4, 5 },
-    { 14, 7, 14, 7, 4 }, { 40, 7, 40, 7, 4 }, { 52, 8, 52, 8, 4 }, { 4, 6, 70, 6, 2.5f },
-};
-static const cl_cap_t CL_TUBES[] = {                         /* back to front */
-    { 45, 5, 44, 22, 4.5f }, { 61, 4, 63, 27, 5.0f }, { 52, 4, 53, 34, 5.5f }, { 58, 3, 59, 13, 3.5f },
-};
-static const cl_cap_t CL_BRAIN[] = {
-    { 35, 9, 35, 9, 7 }, { 28, 7, 28, 7, 5.5f }, { 42, 7, 42, 7, 5.5f }, { 35, 14, 35, 14, 5 }, { 31, 12, 31, 12, 4 }, { 39, 12, 39, 12, 4 },
-};
-static const cl_cap_t CL_WEED_BACK[] = {
-    { 13, 3, 11, 11, 1.1f }, { 14, 3, 15, 12, 1.1f }, { 12, 3, 9, 9, 1.0f },
-    { 30, 3, 29, 10, 1.1f }, { 31, 3, 33, 11, 1.0f },
-    { 47, 3, 48, 12, 1.1f }, { 46, 3, 44, 10, 1.0f },
-    { 66, 3, 68, 11, 1.1f }, { 65, 3, 63, 9, 1.0f }, { 67, 3, 67, 12, 1.0f },
-};
-static const cl_cap_t CL_WEED_FRONT[] = {
-    { 21, 2, 19, 9, 1.1f }, { 22, 2, 24, 8, 1.0f }, { 41, 2, 43, 8, 1.0f }, { 40, 2, 39, 7, 1.0f }, { 56, 2, 57, 8, 1.0f },
-};
-/* Blackwater's reef (redrawn 2026-10-10 so each piece reads at tank scale against the near-black
- * water; the first cut reused the shared geometry and came out a few small blobs): the pieces are
- * spread across the rock and kept apart - a mesh SEA FAN at the far left behind, four TUBE sponges
- * in front of it, a big pale BRANCHING CORAL in the middle reaching 45 cells up, an ANEMONE (the
- * brain's slot: a column with nine tentacles) on the rock at the right. Same unscaled cells. */
-static const cl_cap_t CL_BW_ROCKS[] = {                      /* fewer, chunkier stones */
-    { 10, 3, 10, 3, 7 }, { 26, 3, 26, 3, 8 }, { 44, 3, 44, 3, 8 }, { 61, 3, 61, 3, 7 },
-    { 18, 7, 18, 7, 4.5f }, { 36, 7, 36, 7, 4.5f }, { 54, 7, 54, 7, 4.5f }, { 4, 5, 69, 5, 3 },
-};
-static const cl_cap_t CL_BW_TUBES[] = {                      /* back to front */
-    { 22, 4, 21, 22, 3.4f }, { 27, 4, 28, 30, 4.0f }, { 32, 3, 33, 16, 2.8f }, { 18, 3, 17, 14, 2.6f },
-};
-static const cl_cap_t CL_BW_CORAL[] = {                      /* the staghorn: a trunk, three limbs, seven tips */
-    { 44, 4, 43, 18, 2.6f }, { 43, 14, 35, 26, 2.0f }, { 35, 26, 30, 38, 1.6f }, { 35, 24, 38, 35, 1.4f },
-    { 43, 18, 46, 32, 2.2f }, { 46, 32, 42, 45, 1.6f }, { 46, 30, 52, 40, 1.5f }, { 43, 15, 53, 23, 1.9f },
-    { 53, 23, 59, 31, 1.5f }, { 52, 22, 50, 29, 1.2f }, { 45, 9, 50, 13, 1.3f },
-};
-static const uint8_t CL_BW_CORAL_TIP[] = { 0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1 };
-#define CL_BW_ANEM_X 61.0f                                   /* the anemone's column, and its tentacles from the top of it */
-#define CL_BW_ANEM_Y 9.0f
-static const cl_cap_t CL_BW_ANEM[] = {
-    { 61, 12, 51.3f, 15.6f, 1.3f }, { 61, 12, 52.0f, 19.3f, 1.3f }, { 61, 12, 54.1f, 22.8f, 1.3f }, { 61, 12, 57.9f, 24.6f, 1.3f },
-    { 61, 12, 61.0f, 26.0f, 1.3f }, { 61, 12, 64.1f, 24.6f, 1.3f }, { 61, 12, 67.9f, 22.8f, 1.3f }, { 61, 12, 70.0f, 19.3f, 1.3f },
-    { 61, 12, 70.7f, 15.6f, 1.3f },
-};
-#define CL_BW_FAN_X 9.0f                                     /* the sea fan's root and radius */
-#define CL_BW_FAN_Y 6.0f
-#define CL_BW_FAN_R 15.0f
-#define CL_CORAL_X  24.0f                                    /* the branching coral's base, and its scale */
-#define CL_CORAL_Y  5.0f
-#define CL_CORAL_SX 0.95f
-#define CL_CORAL_SY 0.85f
-static inline float cl_cap_sd(float px, float py, const cl_cap_t *k, float rs) {
-    float dx = k->x1 - k->x0, dy = k->y1 - k->y0, len2 = dx * dx + dy * dy;
-    float u = len2 > 1e-6f ? ((px - k->x0) * dx + (py - k->y0) * dy) / len2 : 0;
-    if (u < 0) u = 0;
-    if (u > 1) u = 1;
-    float ex = px - (k->x0 + dx * u), ey = py - (k->y0 + dy * u);
-    return sqrtf(ex * ex + ey * ey) - k->r * rs;
-}
-/* an element's signed distance at an unscaled point; *deep = the element's
- * deep variant here (a tube's mouth, a brain groove, the coral's tip cap) */
-static float cl_sd(int e, int pass, float px, float py, bool *deep) {
-    float best = 1e9f; *deep = false;
-    bool bw = theme_active() == THEME_BLACKWATER;
-    if (e == CLE_ROCK) {
-        const cl_cap_t *rk = bw ? CL_BW_ROCKS : CL_ROCKS; int n = bw ? (int)(sizeof CL_BW_ROCKS / sizeof rk[0]) : (int)(sizeof CL_ROCKS / sizeof rk[0]);
-        for (int i = 0; i < n; i++) { float d = cl_cap_sd(px, py, &rk[i], 1); if (d < best) best = d; }
-        *deep = best < -1.5f && py > 4 && (chash((int)(px * 0.7f), (int)(py * 0.7f)) % 100) < 22;   /* moss between the stones */
-    } else if (e == CLE_WEED && bw) {
-        if (pass) return best;                                   /* no tufts in front: the pieces stay apart */
-        /* the sea fan: a half-disc of radial ribs and arcs on a short stalk; the holes of the mesh are outside */
-        float dx = px - CL_BW_FAN_X, dy = py - CL_BW_FAN_Y, rr = sqrtf(dx * dx + dy * dy);
-        float fan = fmaxf(rr - CL_BW_FAN_R, fmaxf(fabsf(dx) - 0.95f * dy, 2.5f - rr));
-        float k = dy > 0.5f ? dx / dy * 4.0f : 0, arc = rr / 3.6f;                 /* radial ribs a quarter of slope apart, arcs every 3.6 cells */
-        bool rib = fabsf(k - floorf(k + 0.5f)) * dy < 2.2f || fabsf(arc - floorf(arc + 0.5f)) < 0.16f;
-        if (fan < 0 && !rib) fan = 0.5f;
-        static const cl_cap_t stalk = { CL_BW_FAN_X, 2, CL_BW_FAN_X, CL_BW_FAN_Y + 1, 1.4f };
-        float st = cl_cap_sd(px, py, &stalk, 1);
-        *deep = st < 0 || (fan < 0 && rr > CL_BW_FAN_R - 1.6f);   /* the stalk and the fan's outer edge, brighter */
-        best = fminf(fan, st);
-    } else if (e == CLE_WEED) {
-        const cl_cap_t *w = pass ? CL_WEED_FRONT : CL_WEED_BACK; int n = pass ? (int)(sizeof CL_WEED_FRONT / sizeof w[0]) : (int)(sizeof CL_WEED_BACK / sizeof w[0]);
-        for (int i = 0; i < n; i++) { float d = cl_cap_sd(px, py, &w[i], 1); if (d < best) best = d;
-            float tx = px - w[i].x1, ty = py - w[i].y1; if (tx * tx + ty * ty < 2.2f) *deep = true; }
-    } else if (e == CLE_CORAL && bw) {
-        for (int i = 0; i < (int)(sizeof CL_BW_CORAL / sizeof CL_BW_CORAL[0]); i++) {
-            const cl_cap_t *k = &CL_BW_CORAL[i];
-            float d = cl_cap_sd(px, py, k, 1); if (d < best) best = d;
-            float tx = px - k->x1, ty = py - k->y1;
-            if (CL_BW_CORAL_TIP[i] && tx * tx + ty * ty < (k->r + 0.8f) * (k->r + 0.8f)) *deep = true;   /* the lit tip caps */
-        }
-    } else if (e == CLE_CORAL) {
-        float qx = (px - CL_CORAL_X) / CL_CORAL_SX + 16.0f, qy = (py - CL_CORAL_Y) / CL_CORAL_SY;   /* into the coral's own cells */
-        bool tip; best = coral_sd(qx, qy, 1.0f, &tip) * CL_CORAL_SY; *deep = tip;
-    } else if (e == CLE_BRAIN && bw) {
-        /* the anemone: a squat column, nine tentacles fanned from its top, their tips lit */
-        float ax = px - CL_BW_ANEM_X, ay = (py - CL_BW_ANEM_Y) / 0.8f;
-        best = sqrtf(ax * ax + ay * ay) - 5.5f;
-        for (int i = 0; i < (int)(sizeof CL_BW_ANEM / sizeof CL_BW_ANEM[0]); i++) {
-            const cl_cap_t *k = &CL_BW_ANEM[i];
-            float d = cl_cap_sd(px, py, k, 1); if (d < best) best = d;
-            float tx = px - k->x1, ty = py - k->y1;
-            if (tx * tx + ty * ty < (k->r + 0.9f) * (k->r + 0.9f)) *deep = true;
-        }
-    } else if (e == CLE_TUBE) {
-        const cl_cap_t *k = bw ? &CL_BW_TUBES[pass] : &CL_TUBES[pass];
-        best = cl_cap_sd(px, py, k, 1);
-        if(theme_active()) {
-            float height=(py-k->y0)/(k->y1-k->y0), center=k->x0+(k->x1-k->x0)*fminf(1,fmaxf(0,height));
-            float width=theme_active()==THEME_TIDEPOOL_CLUB ? k->r*(.75f+.25f*cosf(height*TAU*3)) : k->r*(.45f+.55f*fmaxf(0,height));
-            best=fmaxf(fabsf(px-center)-width,fmaxf(k->y0-py,py-k->y1-1));
-        }
-        float mx = (px - k->x1) / (k->r - 1.3f), my = (py - k->y1) / 1.7f;
-        *deep = mx * mx + my * my < 1;                           /* the mouth */
-    } else if (e == CLE_BRAIN) {
-        float second = 1e9f;                                     /* the lobes: the seam where two meet is a groove */
-        for (int i = 0; i < (int)(sizeof CL_BRAIN / sizeof CL_BRAIN[0]); i++) {
-            float d = cl_cap_sd(px, py, &CL_BRAIN[i], 1);
-            if (d < best) { second = best; best = d; } else if (d < second) second = d;
-        }
-        float v = fast_sin(px * 1.3f + py * 0.9f) + 0.6f * fast_sin(py * 2.1f - px * 0.5f);
-        if(theme_active()) {
-            float ax=(px-35)/12,ay=(py-9)/9;best=(sqrtf(ax*ax+ay*ay)-1)*9;
-            *deep=theme_active()==THEME_TIDEPOOL_CLUB ? ((int)px%5==0&&(int)py%5<2) : (v>.8f&&best<-.5f);
-            return best;
-        }
-        *deep = best < -0.8f && ((second < 0.5f && second > -1.2f) || v > 0.95f);   /* the seams, and a few winding grooves */
-    }
-    return best;
-}
-/* one element pass over the sprite: classed by its own distance field and
- * painted over what is there */
-static void cl_paint(int e, int pass, float s) {
-    int8_t  (*sd)[CL_CW] = ds()->cl_sd;                         /* eighths of a cell; the deep flags as bits (see sd_q) */
-    uint8_t (*dp)[(CL_CW + 7) / 8] = ds()->cl_dp;
-    for (int j = 0; j < CL_CH; j++)
-        for (int i = 0; i < CL_CW; i++) {
-            float px = CL_CX + (i + 0.5f - CL_CX) / s, py = (CL_CH - 1 - j + 0.5f) / s;   /* unscale the query */
-            bool deep; sd[j][i] = sd_q(cl_sd(e, pass, px, py, &deep) * s);
-            if (deep) dp[j][i >> 3] |= (uint8_t)(1 << (i & 7)); else dp[j][i >> 3] &= (uint8_t)~(1 << (i & 7));
-        }
-    for (int j = 0; j < CL_CH; j++)
-        for (int i = 0; i < CL_CW; i++) {
-            int d = sd[j][i];
-            if (d >= 0) continue;
-            bool deep = (dp[j][i >> 3] >> (i & 7)) & 1;
-            bool out_l = i == 0 || sd[j][i - 1] >= 0, out_u = j == 0 || sd[j - 1][i] >= 0;
-            bool out_r = i == CL_CW - 1 || sd[j][i + 1] >= 0, out_d = j == CL_CH - 1 || sd[j + 1][i] >= 0;
-            int v;
-            bool bw = theme_active() == THEME_BLACKWATER;
-            if (bw && e == CLE_WEED) v = deep ? CLV_LIT : CLV_BODY;   /* the sea fan's mesh: no rims, the stalk and the outer edge lit */
-            else if (deep && e != CLE_ROCK) v = CLV_DEEP;
-            else if (out_r || out_d) v = CLV_RIM;
-            else if (out_l || out_u) v = CLV_LIT;
-            else if (deep) v = CLV_DEEP;                        /* the rock's moss: never on its edge */
-            else if (bw) {                                      /* Blackwater's surfaces: the anemone's dark column, ribbed tubes, a plain pale coral */
-                uint32_t h = chash(i + 97 * e, j) % 100;
-                float py = (CL_CH - 1 - j + 0.5f) / s;
-                v = e == CLE_BRAIN ? (py < 13.5f ? CLV_SHADE : CLV_BODY)
-                  : e == CLE_TUBE  ? (i % 4 == 0 ? CLV_SHADE : h < 8 ? CLV_LIT : CLV_BODY)
-                  : e == CLE_CORAL ? (h < 8 ? CLV_LIT : CLV_BODY)
-                  : h < 18 ? CLV_SHADE : h < 26 ? CLV_LIT : CLV_BODY;
-            }
-            else if (theme_active()==THEME_QUIET_LAGOON) {   /* the lagoon's surfaces (2026-10-10): the brain's ridges, the tubes' streaks, the rock's speckle */
-                uint32_t h = chash(i + 97 * e, j) % 100;
-                v = e == CLE_BRAIN ? (((i * 2 + j * 3 + (i * j) % 4) % 7) < 2 ? CLV_SHADE : h < 12 ? CLV_LIT : CLV_BODY)
-                  : e == CLE_TUBE  ? (i % 3 == 1 ? CLV_SHADE : h < 10 ? CLV_LIT : CLV_BODY)
-                  : e == CLE_CORAL ? (h < 10 ? CLV_LIT : CLV_BODY)
-                  : h < 22 ? CLV_SHADE : h < 30 ? CLV_LIT : CLV_BODY;
-            }
-            else { uint32_t h = chash(i + 97 * e, j) % 100; v = theme_active()==THEME_TIDEPOOL_CLUB?CLV_BODY:h < 20 ? CLV_SHADE : h < 26 ? CLV_LIT : CLV_BODY; }
-            if (e == CLE_TUBE && deep && (out_u || out_l)) v = bw ? CLV_LIT : CLV_RIM;   /* the mouth's far lip (Blackwater: a bright rim) */
-            ds()->cl_sprite[j][i] = (uint8_t)CL_TONE(e, v);
-        }
-}
-static void cl_build(float g) {
-    if (g > 1) g = 1;
-    if (g < 0) g = 0;
-    float s = CLUSTER_SIZE_MIN + (1.0f - CLUSTER_SIZE_MIN) * g;
-    memset(ds()->cl_sprite, 0, sizeof ds()->cl_sprite);
-    cl_paint(CLE_ROCK, 0, s);
-    cl_paint(CLE_WEED, 0, s);
-    cl_paint(CLE_CORAL, 0, s);
-    for (int k = 0; k < 4; k++) cl_paint(CLE_TUBE, k, s);
-    cl_paint(CLE_BRAIN, 0, s);
-    cl_paint(CLE_WEED, 1, s);
-    g_cl_cells = 0;
-    for (int j = 0; j < CL_CH; j++) for (int i = 0; i < CL_CW; i++) g_cl_cells += ds()->cl_sprite[j][i] != 0;
-}
-int render_cluster_cells(float growth) { cl_build(growth); g_cl_q = -1; return g_cl_cells; }
-static void cl_tint_fill(int scheme, float dim) {
-    if (g_cl_scheme == scheme && g_cl_dim == dim) return;
-    const cluster_scheme_t *sc = &CLUSTER_SCHEMES[scheme];
-    uint32_t base[CLE_N] = { 0x9a9284, 0x8fc63a, sc->coral, sc->tube, sc->brain };
-    uint32_t tone[CL_TONES]; tone[0] = 0;
-    for (int e = 0; e < CLE_N; e++) {
-        uint32_t c = base[e];
-        if(theme_active()==THEME_QUIET_LAGOON) {
-            /* the lagoon's reef (redesigned 2026-10-10; it was every element pulled 92 % toward tones a hair
-               from the water and sand, and read as a bare twig and grey slabs): a dark basalt rock with a
-               mossy crown, the keeper's coral / tube / brain hues kept (softened a quarter toward the
-               lagoon's green-grey, no more), deep shaded rims so each piece has a silhouette */
-            static const uint32_t quiet[CLE_N]={0x4e5a52,0x5f9a62,0x9fb6a0,0x9fb6a0,0x9fb6a0};
-            c = e==CLE_ROCK||e==CLE_WEED ? quiet[e] : mix(c,quiet[e],.25f);
-            tone[CL_TONE(e, CLV_BODY)]  = c;
-            tone[CL_TONE(e, CLV_LIT)]   = mix(c, 0xf4f0d0, e == CLE_ROCK ? 0.26f : 0.40f);
-            tone[CL_TONE(e, CLV_RIM)]   = mix(c, 0x0e1a18, 0.62f);
-            tone[CL_TONE(e, CLV_SHADE)] = mix(c, 0x0e1a18, 0.32f);
-            tone[CL_TONE(e, CLV_DEEP)]  = e == CLE_ROCK ? 0x5f8a4a : e == CLE_CORAL ? mix(c, 0xfff0c0, 0.55f)
-                                        : e == CLE_TUBE ? mix(c, 0x0a1012, 0.72f) : e == CLE_BRAIN ? mix(c, 0x0e1a18, 0.50f) : mix(c, 0xe8ff80, 0.40f);
-            continue;
-        }
-        if(theme_active()==THEME_BLACKWATER) {
-            /* Blackwater's reef (redrawn 2026-10-10): a mid-grey basalt rock with a lit crown and moss, a deep red
-               sea fan (the weed's slot), the keeper's coral hue paled more than half toward ivory so the big
-               branching coral stands out against the dark water, the tubes vivid with bright mouth rims and
-               near-black mouths, the anemone (the brain's slot) vivid with pale tentacle tips over a dark column */
-            static const uint32_t bw[CLE_N]={0x4e5258,0xc23c30,0,0,0};
-            c = e==CLE_ROCK||e==CLE_WEED ? bw[e] : e==CLE_CORAL ? mix(theme_creature_color(c,0),0xfff4e6,0.55f) : theme_creature_color(c,0);
-            tone[CL_TONE(e, CLV_BODY)]  = c;
-            tone[CL_TONE(e, CLV_LIT)]   = mix(c, 0xffffff, e == CLE_ROCK ? 0.42f : e == CLE_TUBE ? 0.65f : 0.5f);
-            tone[CL_TONE(e, CLV_RIM)]   = mix(c, 0x050608, e == CLE_CORAL ? 0.6f : 0.68f);
-            tone[CL_TONE(e, CLV_SHADE)] = e == CLE_BRAIN ? mix(c, 0x2a1c1c, 0.6f) : mix(c, 0x050608, 0.36f);
-            tone[CL_TONE(e, CLV_DEEP)]  = e == CLE_ROCK ? 0x3f7a30 : e == CLE_CORAL ? 0xfff8f0
-                                        : e == CLE_TUBE ? mix(c, 0x050608, 0.82f) : mix(c, 0xffffff, 0.6f);
-            continue;
-        }
-        if(theme_active()) {
-            static const uint32_t club[CLE_N]={0xe5c89b,0x79a86a,0xe99d7f,0xbb9fb2,0xe4bc70};
-            c=mix(c,club[e],.7f);
-        }
-        tone[CL_TONE(e, CLV_BODY)]  = c;
-        tone[CL_TONE(e, CLV_LIT)]   = mix(c, 0xfff0b0, e == CLE_ROCK ? 0.22f : 0.36f);
-        tone[CL_TONE(e, CLV_RIM)]   = mix(c, e == CLE_ROCK ? 0x2a2620 : 0x20060e, 0.55f);
-        tone[CL_TONE(e, CLV_SHADE)] = mix(c, 0x000000, 0.24f);
-        tone[CL_TONE(e, CLV_DEEP)]  = e == CLE_ROCK ? 0x6f9a3a : e == CLE_CORAL ? mix(c, 0xffe8a0, 0.58f)
-                                    : e == CLE_TUBE ? mix(c, 0x100418, 0.65f) : e == CLE_BRAIN ? mix(c, 0x0a3040, 0.45f) : mix(c, 0xe8ff80, 0.40f);
-    }
-    for (int r = 0; r < CL_H; r++) {
-        int y = CL_FY - CL_H + r;
-        uint32_t w = water_rgb(y < 0 ? 0 : y >= TANK_H ? TANK_H - 1 : y);
-        for (int k = 1; k < CL_TONES; k++) ds()->cl_row[k][r] = rgb565(mix(w, tone[k], 0.90f), dim);
-    }
-    g_cl_scheme = scheme; g_cl_dim = dim;
-}
-static void draw_cluster(ctx_t *c, int cx, int scheme, float growth, bool final) {
-    if (growth > 1) growth = 1;
-    int q = (int)(growth * (CL_Q - 0.01f));
-    if (q != g_cl_q) { cl_build(growth); g_cl_q = q; }
-    cl_tint_fill(scheme, c->dim);
-    int x0 = cx - CL_W / 2, y0 = CL_FY - CL_H;
-    for (int j = 0; j < CL_CH; j++)
-        for (int i = 0; i < CL_CW; i++) {
-            uint8_t t = ds()->cl_sprite[j][i];
-            if (!t) continue;
-            for (int dy = 0; dy < CL_CELL; dy++) {
-                int y = y0 + j * CL_CELL + dy;
-                uint16_t v = ds()->cl_row[t][j * CL_CELL + dy];
-                for (int dx = 0; dx < CL_CELL; dx++) {
-                    int x = x0 + i * CL_CELL + dx;
-                    if (!CTX_IN(c, x, y)) continue;
-                    uint16_t *p = &CTX_PX(c, x, y);
-                    *p = v;
-                    rec_px(x, y);
-                    if (final) {
-                        int a = g_vig ? g_vig[y * TANK_W + x] : vig_alpha(x, y);
-                        if (a) px_darken(p, a);
-                        if (g_dirty) g_dirty[y * DIRTY_WORDS_PER_ROW + (x >> 5)] &= ~(1u << (x & 31));
-                    }
-                }
-            }
-        }
-    draw_floor_mound(c, cx, CLUSTER_HALF_W - 2, 6, final);            /* anchored: the rock sits in a low hump of the floor's stones */
-}
-/* the bloom (growth 1 -> CLUSTER_FULL): more and more tentacles, dealt one
- * at a time round the hosts - the four tube mouths, the coral's seven tips,
- * the brain's top - up to CL_TENT_MAX, each host's fan widening as it fills.
- * Per frame, swaying (draw_crown); the bounding box for the caller's rect. */
-#define CL_TENT_MAX 48
-#define CL_HOSTS    12
-static void draw_cluster_crown(ctx_t *c, int cx, int scheme, float growth, float clock, int *bx0, int *by0, int *bx1, int *by1) {
-    *bx0 = *by0 = 1 << 20; *bx1 = *by1 = -1;
-    float phase = (growth - 1.0f) / (CLUSTER_FULL - 1.0f);
-    if (phase <= 0) return;
-    if (phase > 1) phase = 1;
-    int total = (int)(phase * CL_TENT_MAX + 0.5f);
-    if (total < 1) return;
-    const cluster_scheme_t *sc = &CLUSTER_SCHEMES[scheme];
-    float s = 1.0f;                                          /* full size by the time it blooms */
-    float x0 = cx - CL_W / 2;
-    for (int k = 0; k < CL_HOSTS; k++) {
-        int n = total / CL_HOSTS + (k < total % CL_HOSTS ? 1 : 0);
-        if (!n) continue;
-        float hx, hy, len; uint32_t rgb;
-        if (theme_active() == THEME_BLACKWATER) {            /* its own hosts: the four tubes, the staghorn's seven tips, the anemone's top */
-            if (k < 4) { const cl_cap_t *t = &CL_BW_TUBES[k]; hx = t->x1; hy = t->y1 + 0.5f; len = 11 + t->r; rgb = sc->tube; }
-            else if (k < 11) {
-                int ti = 0; const cl_cap_t *sg = NULL;
-                for (int i = 0; i < (int)(sizeof CL_BW_CORAL / sizeof CL_BW_CORAL[0]) && !sg; i++) if (CL_BW_CORAL_TIP[i] && ti++ == k - 4) sg = &CL_BW_CORAL[i];
-                if (!sg) continue;
-                hx = sg->x1; hy = sg->y1; len = 9; rgb = sc->coral;
-            } else { hx = CL_BW_ANEM_X; hy = 22; len = 8; rgb = sc->brain; }
-        }
-        else if (k < 4) { const cl_cap_t *t = &CL_TUBES[k]; hx = t->x1; hy = t->y1 + 0.5f; len = 11 + t->r; rgb = sc->tube; }
-        else if (k < 11) {                                   /* the coral's tips, in CORAL_SEGS order */
-            int ti = 0; const coral_seg_t *sg = NULL;
-            for (int i = 0; i < CORAL_NSEG && !sg; i++) if (CORAL_SEGS[i].tip && ti++ == k - 4) sg = &CORAL_SEGS[i];
-            if (!sg) continue;
-            hx = CL_CORAL_X + (sg->x1 - 16.0f) * CL_CORAL_SX; hy = CL_CORAL_Y + sg->y1 * CORAL_Y_SCALE * CL_CORAL_SY; len = 9; rgb = sc->coral;
-        } else { hx = 35; hy = 20; len = 8; rgb = sc->brain; }
-        float ox = x0 + (CL_CX + (hx - CL_CX) * s) * CL_CELL + 1, oy = CL_FY - hy * s * CL_CELL - 1;
-        float spread = 0.30f + 0.08f * n;                    /* radians each side of up, widening as the fan fills */
-        int qx0, qy0, qx1, qy1;
-        draw_crown(c, ox, oy, n, -1.5708f - spread, -1.5708f + spread, len, mix(rgb, 0xffffff, 0.55f), k * 7, clock, &qx0, &qy0, &qx1, &qy1);
-        if (qx1 >= qx0) { if (qx0 < *bx0) *bx0 = qx0; if (qy0 < *by0) *by0 = qy0; if (qx1 > *bx1) *bx1 = qx1; if (qy1 > *by1) *by1 = qy1; }
-    }
-}
+#include "decor_cluster.inc"   /* the reef cluster (2026-09-24) */
 
-static bool cluster_state(const tank_t *t, int *cx, int *z, bool *placing) {
-    if (!(t->sd_unlocks & SD_ITEM_CLUSTER)) { *cx = -1; *z = DECOR_Z_MIDDLE; *placing = false; return false; }
-    *cx = (int)tank_decor_x(t, 4); *z = tank_decor_z(t, 4);
-    *placing = setup_is_place() && setup_item() == 4;
-    return true;
-}
-/* ---- the shipwreck (2026-10-10, item 7) ---- a small boat lying on the sand, its deck tilted
- * up toward the bow on the right: planked hull with two big holes, a gunwale and rail posts,
- * a stub of a cabin with a porthole, a broken mast with a yard and a rag of sail, an anchor
- * on the sand before the bow with its chain up to the prow. Geometry in local coordinates:
- * x from the centre, h up from WK_FY. layer -1 = all of it, 0 = only the dark inside (what
- * shows through the holes: baked, never in the front mask), 1 = the solid pieces (the mask). */
-static inline void wk_put(ctx_t *c, int x, int y, uint32_t rgb, bool final) {
-    if (!CTX_IN(c, x, y)) return;
-    uint16_t *p = &CTX_PX(c, x, y);
-    *p = rgb565(rgb, c->dim);
-    rec_px(x, y);
-    if (final) {
-        int a = g_vig ? g_vig[y * TANK_W + x] : vig_alpha(x, y);
-        if (a) px_darken(p, a);
-        if (g_dirty) g_dirty[y * DIRTY_WORDS_PER_ROW + (x >> 5)] &= ~(1u << (x & 31));
-    } else dirty_px(x, y);
-}
-/* the same with its own dim (Blackwater's lanterns and lit planks, 2026-10-12: they stay lit at night) */
-static inline void wk_put_d(ctx_t *c, int x, int y, uint32_t rgb, float dim, bool final) {
-    if (!CTX_IN(c, x, y)) return;
-    uint16_t *p = &CTX_PX(c, x, y);
-    *p = rgb565(rgb, dim);
-    rec_px(x, y);
-    if (final) {
-        int a = g_vig ? g_vig[y * TANK_W + x] : vig_alpha(x, y);
-        if (a) px_darken(p, a);
-        if (g_dirty) g_dirty[y * DIRTY_WORDS_PER_ROW + (x >> 5)] &= ~(1u << (x & 31));
-    } else dirty_px(x, y);
-}
-static inline float wk_deck(int x) { return 30 + x * 0.12f; }                    /* the deck line, tilted up to the bow */
-static inline float wk_keel(int x) { return (x * x) / (50.0f * 50.0f) * 12; }     /* the keel's curve up to either end */
-static inline bool wk_hole(int x, int h) {                                       /* the two big holes in the hull side */
-    int ax = x + 22, ah = h - 14, bx = x - 18, bh = h - 12;
-    return ax * ax * 64 + ah * ah * 100 < 100 * 64 || bx * bx * 64 + bh * bh * 81 < 64 * 81;
-}
-static uint32_t wk_wood(uint32_t rgb) {                                          /* the themes' weathering */
-    return theme_active() == THEME_QUIET_LAGOON ? mix(rgb, 0x5d6f62, 0.35f) : theme_active() == THEME_TIDEPOOL_CLUB ? mix(rgb, 0xb08a5c, 0.4f) : rgb;
-}
-static void draw_wreck_original(ctx_t *c, int cx, bool final, int layer) {
-    for (int h = -2; h <= WK_H; h++) {
-        int y = WK_FY - h;
-        if (y < c->oy || y >= c->oy + c->h) continue;
-        for (int x = -WK_W / 2; x < WK_W / 2; x++) {
-            int X = cx + x;
-            if (X < c->ox || X >= c->ox + c->w) continue;
-            unsigned noise = ((unsigned)(x + 100) * 1237u + (unsigned)(h + 40) * 719u) ^ ((unsigned)(x + 130) * (unsigned)(h + 17));
-            float deck = wk_deck(x), keel = wk_keel(x);
-            bool body = x > -50 && x < 50 && h >= keel && h < deck;
-            bool stern = x >= -54 && x <= -46 && h >= wk_keel(-50) - 2 && h < wk_deck(-50) + 4;
-            bool prow = x >= 46 && x <= 54 && h >= wk_keel(50) - 2 && h < wk_deck(50) + 10;
-            bool hull = body || stern || prow;
-            if (layer == 0) { if (body && h < deck - 1) wk_put(c, X, y, mix(water_rgb(y), 0x0b1517, 0.78f), final); continue; }
-            bool hole = body && wk_hole(x, h);
-            if (hull && hole) { if (layer < 0) wk_put(c, X, y, mix(water_rgb(y), 0x0b1517, 0.78f), final); continue; }
-            uint32_t rgb = 0; bool on = false;
-            if (hull) {
-                on = true;
-                float down = deck - h;                                           /* planks counted from the deck down */
-                bool seam = ((int)down % 6) == 0, joint = ((x + 64 + ((int)(down / 6) & 1) * 9) % 18) == 0;
-                rgb = (noise % 7 < 2) ? 0x7d5f42 : 0x6f5238;
-                if (down < 2.5f) rgb = 0x4a3524;                                  /* the gunwale */
-                else if (seam || joint) rgb = 0x3e2d1e;
-                if (h < keel + 9) rgb = mix(rgb, 0x4a6b45, 0.45f);                  /* algae along the keel */
-                if (stern || prow) rgb = mix(rgb, 0x2f2218, 0.35f);
-                /* a ring of broken plank ends round each hole */
-                if (body && (wk_hole(x - 1, h) || wk_hole(x + 1, h) || wk_hole(x, h - 1) || wk_hole(x, h + 1))) rgb = 0x2a1c12;
-                rgb = wk_wood(rgb);
-            }
-            /* the rail: posts every 16 px and the rail they carry */
-            bool post = x > -44 && x < 44 && ((x + 40) % 16 == 0 || (x + 40) % 16 == 1) && h >= deck && h < deck + 7;
-            bool rail = x > -45 && x < 45 && h >= deck + 6 && h < deck + 8;
-            if (post || rail) { on = true; rgb = wk_wood(0x4a3524); }
-            /* the cabin, aft of the mast, with a porthole */
-            bool cabin = x >= 8 && x <= 30 && h >= deck && h < deck + 11;
-            if (cabin) { on = true; int px = x - 19, ph = (int)(h - deck) - 5;
-                rgb = px * px + ph * ph < 7 ? 0x9fd8e2 : px * px + ph * ph < 12 ? 0x3e2d1e : (((int)(h - deck)) % 5 == 0 ? 0x3e2d1e : 0x6a4d35);
-                rgb = px * px + ph * ph < 7 ? rgb : wk_wood(rgb); }
-            /* the mast, broken jagged at its top, its yard, the rag of sail */
-            float top = deck + 44 + ((x + 3) * 5 % 4);
-            bool mast = x >= -3 && x <= 1 && h >= deck && h < top;
-            bool yard = x >= -17 && x <= 13 && h >= deck + 30 && h < deck + 32;
-            bool sail = x >= -15 && x <= -3 && h < deck + 30 && h >= deck + 30 - (x + 15) * 1.1f - ((noise % 5) > 3 ? 3 : 0) && ((noise % 23) != 0);
-            if (mast || yard) { on = true; rgb = wk_wood(mast && ((h - (int)deck) % 9 == 0) ? 0x3e2d1e : 0x5a4330); }
-            else if (sail) { on = true; rgb = (noise % 11 < 2) ? 0xb3a68a : 0xcfc4a6; }
-            /* the anchor on the sand before the bow, its chain up to the prow */
-            int axl = x - 58;
-            bool shank = axl >= -1 && axl <= 1 && h >= 2 && h < 27;
-            bool stock = h >= 22 && h < 25 && axl >= -6 && axl <= 6;
-            bool arms = h >= 1 && h < 6 && axl >= -7 && axl <= 7 && !(h >= 4 && axl >= -3 && axl <= 3);
-            bool fluke = (axl <= -6 || axl >= 6) && axl >= -7 && axl <= 7 && h >= 5 && h < 11;
-            bool ring = h >= 27 && h < 33 && axl >= -3 && axl <= 3 && !(h >= 28 && h < 32 && axl >= -2 && axl <= 2);
-            if (shank || stock || arms || fluke || ring) { on = true; rgb = (noise % 5 == 0) ? 0x6f5a46 : (axl < 0 ? 0x565a5d : 0x3a3d40); }
-            /* the chain: from the ring (58, 33) to the prow's top (50, 46), a link every third pixel */
-            { float u = (h - 33) / 13.0f; int lx = (int)(58 - 8 * u + 0.5f);
-              if (h >= 33 && h <= 46 && (x == lx) && (h % 3) != 2) { on = true; rgb = 0x5a5d5f; } }
-            if (!on) continue;
-            if (noise % 29 == 0) rgb = mix(rgb, 0xffffff, 0.12f);
-            wk_put(c, X, y, rgb, final);
-        }
-    }
-    draw_floor_mound(c, cx, WRECK_HALF_W - 8, 5, final);
-}
-/* Quiet Lagoon's wreck (redesigned 2026-10-10, the capsized dinghy "didn't look like a
- * shipwreck"): an old sailing ship LISTING on the sand - the stern sunk low, the bow risen,
- * the planks gone from the stern quarter so its RIBS show (the water behind them: the fish
- * pass behind those gaps too), two big holes in the side, a tilted mast broken off short
- * with its yard and a rag of sail, a stay down to the bowsprit, a little deckhouse aft of the
- * mast with a porthole, an anchor on the sand off the bow with its chain up to the stem.
- * Weathered grey-green wood, moss along the keel. Same layers as the Original. */
-static inline float wkl_deck(int x) { return 20 + x * 0.20f; }
-static inline float wkl_keel(int x) { float u = (x + 4) / 56.0f; u *= u; return u * u * 10; }
-static inline bool wkl_hole(int x, int h) {
-    int ax = x + 24, ah = h - 8, bx = x - 14, bh = h - 12;
-    return ax * ax * 25 + ah * ah * 121 < 121 * 25 || bx * bx * 36 + bh * bh * 81 < 81 * 36;
-}
-static inline bool wkl_ribgap(int x, int h) {                                      /* the stern quarter: planks gone between the ribs */
-    return x > -50 && x < -34 && h >= wkl_keel(x) + 4 && h < wkl_deck(x) - 2 && ((x + 50) % 5) >= 2;
-}
-static void draw_wreck_lagoon(ctx_t *c, int cx, bool final, int layer) {
-    for (int h = -2; h <= WK_H; h++) {
-        int y = WK_FY - h;
-        if (y < c->oy || y >= c->oy + c->h) continue;
-        for (int x = -WK_W / 2; x < WK_W / 2; x++) {
-            int X = cx + x;
-            if (X < c->ox || X >= c->ox + c->w) continue;
-            unsigned noise = ((unsigned)(x + 100) * 1237u + (unsigned)(h + 40) * 719u) ^ ((unsigned)(x + 130) * (unsigned)(h + 17));
-            float deck = wkl_deck(x), keel = wkl_keel(x);
-            bool body = x > -56 && x < 54 && h >= keel && h < deck;
-            bool stern = x >= -60 && x <= -54 && h >= wkl_keel(-56) - 1 && h < wkl_deck(-56) + 5;
-            float dbow = wkl_deck(54);
-            bool stem = x >= 50 && x <= 54 + (h > dbow ? (int)((h - dbow) / 3) : 0) && h >= wkl_keel(50) - 1 && h < dbow + 14;
-            bool sprit = x >= 54 && x < 64 && h >= dbow + 11 + (x - 54) * 0.6f && h < dbow + 13 + (x - 54) * 0.6f;
-            bool hull = body || stern || stem;
-            if (layer == 0) { if (body && h < deck - 1) wk_put(c, X, y, mix(water_rgb(y), 0x0b1517, 0.78f), final); continue; }
-            bool gap = body && (wkl_hole(x, h) || wkl_ribgap(x, h));
-            if (gap) { if (layer < 0) wk_put(c, X, y, mix(water_rgb(y), 0x0b1517, 0.78f), final); continue; }
-            uint32_t rgb = 0; bool on = false;
-            if (hull) {
-                on = true;
-                float down = deck - h;
-                int plank = (int)(down / 5);
-                bool seam = ((int)down % 5) == 0, joint = ((x + 64 + (plank & 1) * 9) % 18) == 0;
-                rgb = (plank & 1) ? 0x6f7d6a : 0x5f6d5c; if (noise % 7 == 0) rgb = 0x7a8874;
-                if (down < 2.5f) rgb = 0x3a4a3d;                                   /* the gunwale */
-                else if (seam || joint) rgb = 0x3c4a3f;
-                if (h < keel + 8) rgb = mix(rgb, 0x4f7a4a, 0.5f);                    /* moss along the keel */
-                if (noise % 23 == 0) rgb = mix(rgb, 0x6a9a62, 0.5f);                 /* algae streaks */
-                if (stern || stem) rgb = mix(rgb, 0x2f3a31, 0.35f);
-                if (body && x > -50 && x < -34 && !wkl_ribgap(x, h) && h >= keel + 4 && h < deck - 2) rgb = (noise % 5 == 0) ? 0x55634f : 0x4a5648;   /* the ribs */
-                if (body && (wkl_hole(x - 1, h) || wkl_hole(x + 1, h) || wkl_hole(x, h - 1) || wkl_hole(x, h + 1))) rgb = 0x2f3a31;
-            }
-            if (sprit) { on = true; rgb = 0x5c5a48; }
-            /* the rail posts along the deck */
-            bool post = x > -50 && x < 48 && ((x + 50) % 14 == 0 || (x + 50) % 14 == 1) && h >= deck && h < deck + 5;
-            if (post) { on = true; rgb = 0x3a4a3d; }
-            /* the deckhouse aft of the mast, a porthole in it */
-            bool house = x >= 18 && x <= 38 && h >= deck && h < deck + 9;
-            if (house) { on = true; int px = x - 28, ph = (int)(h - deck) - 4;
-                rgb = px * px + ph * ph < 5 ? 0xc4e6d1 : px * px + ph * ph < 9 ? 0x3c4a3f : ((int)(h - deck) % 4 == 0 ? 0x3c4a3f : 0x66755f); }
-            /* the mast, leaning aft, broken off short; its yard; the rag of sail hanging from it */
-            float d0 = wkl_deck(0), mx = -2 - (h - d0) * 0.22f; int dm = x - (int)(mx + 0.5f);
-            float top = d0 + 48 + ((x + 3) * 5 % 4);
-            bool mast = dm >= -1 && dm <= 1 && h >= d0 && h < top;
-            bool yard = h >= d0 + 30 && h < d0 + 32 && dm >= -17 && dm <= 11;
-            bool sail = dm >= -16 && dm <= -2 && h < d0 + 30 && h >= d0 + 30 - (dm + 16) * 1.3f - ((noise % 5) > 3 ? 3 : 0) && ((noise % 19) != 0) && h > d0 + 8;
-            if (mast || yard) { on = true; rgb = mast && ((h - (int)d0) % 9 == 0) ? 0x3f3d30 : 0x5c5a48; }
-            else if (sail) { on = true; rgb = (noise % 11 < 2) ? 0xa3a28c : 0xb9b7a0; }
-            /* the stay: a rope from the mast's top down to the bowsprit's end */
-            { float x0 = -2 - 46 * 0.22f, y0 = d0 + 47, x1 = 62, y1 = dbow + 17; float u = (x - x0) / (x1 - x0);
-              if (u >= 0 && u <= 1 && h == (int)(y0 + (y1 - y0) * u + 0.5f) && (x % 2) == 0) { on = true; rgb = 0x8a7a5a; } }
-            /* the anchor on the sand off the bow, its chain up to the stem */
-            int axl = x - 59;
-            bool shank = axl >= -1 && axl <= 1 && h >= 2 && h < 24;
-            bool stock = h >= 19 && h < 22 && axl >= -5 && axl <= 5;
-            bool arms = h >= 1 && h < 6 && axl >= -5 && axl <= 5 && !(h >= 4 && axl >= -2 && axl <= 2);
-            bool fluke = (axl <= -4 || axl >= 4) && axl >= -5 && axl <= 5 && h >= 5 && h < 10;
-            bool ring = h >= 24 && h < 29 && axl >= -2 && axl <= 2 && !(h >= 25 && h < 28 && axl >= -1 && axl <= 1);
-            if (shank || stock || arms || fluke || ring) { on = true; rgb = (noise % 5 == 0) ? 0x6f6a5a : (axl < 0 ? 0x565a5d : 0x3a3d40); }
-            { float u = (h - 29) / (dbow + 12 - 29); int lx = (int)(59 - 5 * u + 0.5f);
-              if (h >= 29 && h <= dbow + 12 && x == lx && (h % 3) != 2) { on = true; rgb = 0x5a5d5f; } }
-            if (!on) continue;
-            if (noise % 29 == 0) rgb = mix(rgb, 0xffffff, 0.10f);
-            wk_put(c, X, y, rgb, final);
-        }
-    }
-    draw_floor_mound(c, cx, WRECK_HALF_W - 8, 5, final);
-}
-/* Tidepool Club's wreck (2026-10-10): a cheerful little TUGBOAT sitting upright on the sand -
- * a beamy cream hull with a red band and a teal bottom, two big brass-rimmed portholes (the
- * holes), a wheelhouse with lit windows and a red roof, an orange funnel with a white stripe,
- * a mast flying a cyan pennant, a life ring on the side, an anchor hung off the bow. */
-#define WKC_DECK 26
-static inline float wkc_keel(int x) { int a = x < 0 ? -x : x; return a > 38 ? ((a - 38) / 10.0f) * ((a - 38) / 10.0f) * 14 : 0; }
-static inline bool wkc_hole(int x, int h) { int ax = x + 18, ah = h - 13, bx = x - 16, bh = h - 13; return ax * ax + ah * ah < 64 || bx * bx + bh * bh < 64; }
-static inline bool wkc_rim(int x, int h) { int ax = x + 18, ah = h - 13, bx = x - 16, bh = h - 13; int ra = ax * ax + ah * ah, rb = bx * bx + bh * bh; return (ra >= 64 && ra < 110) || (rb >= 64 && rb < 110); }
-static void draw_wreck_club(ctx_t *c, int cx, bool final, int layer) {
-    for (int h = -2; h <= WKC_DECK + 44; h++) {
-        int y = WK_FY - h;
-        if (y < c->oy || y >= c->oy + c->h) continue;
-        for (int x = -WK_W / 2; x < WK_W / 2; x++) {
-            int X = cx + x;
-            if (X < c->ox || X >= c->ox + c->w) continue;
-            unsigned noise = ((unsigned)(x + 100) * 1237u + (unsigned)(h + 40) * 719u) ^ ((unsigned)(x + 130) * (unsigned)(h + 17));
-            bool body = x > -48 && x < 48 && h >= wkc_keel(x) && h < WKC_DECK;
-            if (layer == 0) { if (body && h < WKC_DECK - 1) wk_put(c, X, y, mix(water_rgb(y), 0x12141c, 0.75f), final); continue; }
-            bool hole = body && wkc_hole(x, h);
-            if (hole) { if (layer < 0) wk_put(c, X, y, mix(water_rgb(y), 0x12141c, 0.75f), final); continue; }
-            uint32_t rgb = 0; bool on = false;
-            if (body) {
-                on = true;
-                int down = WKC_DECK - h;
-                rgb = (noise % 9 == 0) ? 0xe4d6b4 : 0xefe3c3;                       /* cream topsides */
-                if (h < 11) rgb = (noise % 7 == 0) ? 0x25756d : 0x2e8f85;             /* the teal bottom */
-                else if (h < 14) rgb = 0xd8402c;                                      /* the red boot stripe */
-                if (down <= 2) rgb = 0x5a3b28;                                        /* the gunwale */
-                if (noise % 41 == 0) rgb = mix(rgb, 0xb06a3a, 0.35f);                 /* a rust stain here and there */
-                if (wkc_rim(x, h)) rgb = ((x + h) & 1) ? 0xd8c27a : 0xb89a52;         /* the brass rims */
-                if (x <= -46 || x >= 46) rgb = mix(rgb, 0x5a3b28, 0.3f);
-            }
-            /* the wheelhouse, its windows and roof */
-            bool house = x >= -8 && x <= 18 && h >= WKC_DECK && h < WKC_DECK + 20;
-            if (house) { on = true; int hh = h - WKC_DECK;
-                bool win = hh >= 8 && hh < 15 && ((x >= -4 && x <= 2) || (x >= 8 && x <= 14));
-                rgb = win ? (hh < 11 ? 0xffe9a8 : 0xffd889) : (hh < 2 || hh >= 18 || x <= -7 || x >= 17) ? 0xd8402c : (noise % 11 == 0) ? 0xf0e4ca : 0xf8efd8;
-                if (win && (x == -1 || x == 11)) rgb = 0xd8402c; }
-            bool roof = x >= -11 && x <= 21 && h >= WKC_DECK + 20 && h < WKC_DECK + 23;
-            if (roof) { on = true; rgb = h == WKC_DECK + 22 ? 0xe8623f : 0xb8321e; }
-            /* the funnel, orange with a white stripe and a black top */
-            bool funnel = x >= 24 && x <= 32 && h >= WKC_DECK && h < WKC_DECK + 28;
-            if (funnel) { on = true; int fh = h - WKC_DECK; rgb = fh >= 24 ? 0x2b2b2b : (fh >= 17 && fh < 21) ? 0xfff6d9 : (x <= 25 ? 0xc98a34 : 0xe8a845); }
-            /* the mast and its pennant */
-            bool mast = x >= -30 && x <= -28 && h >= WKC_DECK && h < WKC_DECK + 40;
-            bool flag = x > -28 && x <= -14 && h >= WKC_DECK + 33 && h < WKC_DECK + 40 && (x + 28) <= (WKC_DECK + 40 - h) * 2 + 1 && (noise % 23 != 0);
-            if (mast) { on = true; rgb = (h % 7 == 0) ? 0x6a4428 : 0x8a5c3a; }
-            else if (flag) { on = true; rgb = ((x + 28) / 4 % 2) ? 0x33c7e0 : 0x5fd8ea; }
-            /* the life ring on the side, white and orange quarters */
-            { int rx = x - 38, rh = h - 19; int r2 = rx * rx + rh * rh;
-              if (r2 >= 12 && r2 < 42) { on = true; rgb = (rx * rh > 0) ? 0xfff6d9 : 0xe8702e; } }
-            /* the anchor hung off the bow, its chain up to the gunwale */
-            { int axl = x - 56;
-              bool shank = axl >= -1 && axl <= 1 && h >= 4 && h < 26;
-              bool stock = h >= 21 && h < 24 && axl >= -5 && axl <= 5;
-              bool arms = h >= 3 && h < 8 && axl >= -7 && axl <= 7 && !(h >= 6 && axl >= -3 && axl <= 3);
-              bool fluke = (axl <= -6 || axl >= 6) && axl >= -7 && axl <= 7 && h >= 7 && h < 12;
-              bool ring = h >= 26 && h < 31 && axl >= -3 && axl <= 3 && !(h >= 27 && h < 30 && axl >= -2 && axl <= 2);
-              if (shank || stock || arms || fluke || ring) { on = true; rgb = (noise % 5 == 0) ? 0x6f6a5a : (axl < 0 ? 0x565a5d : 0x3a3d40); }
-              { float u = (h - 31) / 8.0f; int lx = (int)(56 - 8 * u + 0.5f);
-                if (h >= 31 && h <= 39 && x == lx && (h % 3) != 2) { on = true; rgb = 0x5a5d5f; } } }
-            if (!on) continue;
-            if (noise % 29 == 0) rgb = mix(rgb, 0xffffff, 0.12f);
-            wk_put(c, X, y, rgb, final);
-        }
-    }
-    draw_floor_mound(c, cx, WRECK_HALF_W - 8, 5, final);
-}
-#include "blackwater_wreck.inc"
-static void draw_wreck(ctx_t *c, int cx, bool final, int layer) {
-    if (theme_active() == THEME_QUIET_LAGOON) draw_wreck_lagoon(c, cx, final, layer);
-    else if (theme_active() == THEME_BLACKWATER) draw_wreck_blackwater(c, cx, final, layer);
-    else if (theme_active() == THEME_TIDEPOOL_CLUB) draw_wreck_club(c, cx, final, layer);
-    else draw_wreck_original(c, cx, final, layer);
-}
+#include "decor_wreck.inc"   /* the shipwreck (2026-10-10, item 7) */
 /* ---- the frogman (2026-10-10, item 8; he hung from the wreck's stern that morning) ----
  * A little diver floating SIDEWAYS: horizontal, face forward, air tank on his back (the
  * top), flippers kicking behind him, drifting across the water (tank.c: frog_x, frog_yaw -
@@ -3552,23 +2250,41 @@ static void draw_submarine(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *b
  * already vignetted (front_restore). The picture is the same to the pixel.
  * Not while a placement page is up: a dragged piece is drawn live, the old
  * way. */
+/* the masks of the pieces baked IN FRONT: row 0 is the piece's top row (y0),
+ * bit 0 its left edge (its centre x - w / 2), wpr words a row, in the decor
+ * scratch at `off`. The grass leaves a `grass` piece's pixels alone (the
+ * castle's front row has its own silhouette for that, g_castle_mask). */
+typedef struct { int8_t k; bool grass; short w, rows, y0; size_t off; } fmask_t;
+static const fmask_t FMASK[] = {
+    { DK_CASTLE,  false, CASTLE_MASK_W, CASTLE_ROWS + 12, CASTLE_FY - CASTLE_ROWS, offsetof(decor_scratch_t, ca_mask) },
+    { DK_CLUSTER, true,  CL_W,          CL_H + 1,         CL_FY - CL_H,            offsetof(decor_scratch_t, cl_mask) },
+    { DK_WRECK,   true,  WK_W,          WK_H + 1,         WK_FY - WK_H,            offsetof(decor_scratch_t, wk_mask) },
+    { DK_CORAL,   true,  CORAL_W,       CORAL_H + 1,      CORAL_FY - CORAL_H,      offsetof(decor_scratch_t, co_mask) } };
+#define FMASK_N ((int)(sizeof FMASK / sizeof FMASK[0]))
+static inline int fmask_wpr(const fmask_t *m) { return (m->w + 31) / 32; }
+static inline uint32_t *fmask_bits(const fmask_t *m) { return (uint32_t *)((char *)ds() + m->off); }
+static const fmask_t *fmask_of(int k) {
+    for (int i = 0; i < FMASK_N; i++) if (FMASK[i].k == k) return &FMASK[i];
+    return NULL;
+}
+/* this frame's row of a grass-respecting mask at tank row y, NULL = none there */
+static const uint32_t *fmask_row(const fmask_t *m, int y, int *x0) {
+    int fx = g_front_x[m->k];
+    if (!m->grass || fx < 0 || (unsigned)(y - m->y0) >= (unsigned)m->rows) return NULL;
+    *x0 = fx - m->w / 2;
+    return fmask_bits(m) + (y - m->y0) * fmask_wpr(m);
+}
 static bool front_near(int x0, int x1, int y) {
-    if (g_front_cl_x >= 0 && y >= CL_FY - CL_H && y <= CL_FY && x1 >= g_front_cl_x - CL_W / 2 && x0 < g_front_cl_x + CL_W / 2) return true;
-    if (g_front_wk_x >= 0 && y >= WK_FY - WK_H && y <= WK_FY && x1 >= g_front_wk_x - WK_W / 2 && x0 < g_front_wk_x + WK_W / 2) return true;
-    return g_front_co_x >= 0 && y >= CORAL_FY - CORAL_H && y <= CORAL_FY && x1 >= g_front_co_x - CORAL_W / 2 && x0 < g_front_co_x + CORAL_W / 2;
+    for (int i = 0; i < FMASK_N; i++) {
+        int mx0; if (fmask_row(&FMASK[i], y, &mx0) && x1 >= mx0 && x0 < mx0 + FMASK[i].w) return true;
+    }
+    return false;
 }
 static bool front_px(int x, int y) {
-    if (g_front_cl_x >= 0) {
-        int l = x - (g_front_cl_x - CL_W / 2), r = y - (CL_FY - CL_H);
-        if ((unsigned)l < (unsigned)CL_W && (unsigned)r <= (unsigned)CL_H && ((ds()->cl_mask[r][l >> 5] >> (l & 31)) & 1)) return true;
-    }
-    if (g_front_co_x >= 0) {
-        int l = x - (g_front_co_x - CORAL_W / 2), r = y - (CORAL_FY - CORAL_H);
-        if ((unsigned)l < (unsigned)CORAL_W && (unsigned)r <= (unsigned)CORAL_H && ((ds()->co_mask[r][l >> 5] >> (l & 31)) & 1)) return true;
-    }
-    if (g_front_wk_x >= 0) {
-        int l = x - (g_front_wk_x - WK_W / 2), r = y - (WK_FY - WK_H);
-        if ((unsigned)l < (unsigned)WK_W && (unsigned)r <= (unsigned)WK_H && ((ds()->wk_mask[r][l >> 5] >> (l & 31)) & 1)) return true;
+    for (int i = 0; i < FMASK_N; i++) {
+        int mx0; const uint32_t *row = fmask_row(&FMASK[i], y, &mx0);
+        int l = x - mx0;
+        if (row && (unsigned)l < (unsigned)FMASK[i].w && ((row[l >> 5] >> (l & 31)) & 1)) return true;
     }
     return false;
 }
@@ -3594,13 +2310,11 @@ static void veg_span_front(ctx_t *c, int x0, int x1, int y, const src_t *s) {
     if (x1 > c->ox + c->w - 1) x1 = c->ox + c->w - 1;
     if (x0 > x1) return;
     int n = x1 - x0 + 1;
-    const uint32_t *lrow = NULL, *krow = NULL, *wrow = NULL; int lx0 = 0, kx0 = 0, wx0 = 0;
-    if (g_front_cl_x >= 0 && y >= CL_FY - CL_H && y <= CL_FY) { lrow = ds()->cl_mask[y - (CL_FY - CL_H)]; lx0 = g_front_cl_x - CL_W / 2; }
-    if (g_front_co_x >= 0 && y >= CORAL_FY - CORAL_H && y <= CORAL_FY) { krow = ds()->co_mask[y - (CORAL_FY - CORAL_H)]; kx0 = g_front_co_x - CORAL_W / 2; }
-    if (g_front_wk_x >= 0 && y >= WK_FY - WK_H && y <= WK_FY) { wrow = ds()->wk_mask[y - (WK_FY - WK_H)]; wx0 = g_front_wk_x - WK_W / 2; }
+    const uint32_t *row[FMASK_N]; int rx0[FMASK_N];
+    for (int i = 0; i < FMASK_N; i++) row[i] = fmask_row(&FMASK[i], y, &rx0[i]);
     if (n <= 32) {                              /* the usual frond: one look at the whole span */
-        uint32_t m = (lrow ? row_bits(lrow, (CL_W + 31) / 32, x0 - lx0, n) : 0) | (krow ? row_bits(krow, (CORAL_W + 31) / 32, x0 - kx0, n) : 0)
-                   | (wrow ? row_bits(wrow, (WK_W + 31) / 32, x0 - wx0, n) : 0);
+        uint32_t m = 0;
+        for (int i = 0; i < FMASK_N; i++) if (row[i]) m |= row_bits(row[i], fmask_wpr(&FMASK[i]), x0 - rx0[i], n);
         if (!m) { span_final(c, f0, f1, y, s, 255); return; }
         if (m == (n < 32 ? (1u << n) - 1 : 0xffffffffu)) return;
         int a = vig_alpha((x0 + x1) >> 1, y);
@@ -3611,10 +2325,12 @@ static void veg_span_front(ctx_t *c, int x0, int x1, int y, const src_t *s) {
     int a = vig_alpha((x0 + x1) >> 1, y);
     uint16_t *p = &CTX_PX(c, x0, y);
     for (int x = x0; x <= x1; x++, p++) {
-        int l = x - lx0, k = x - kx0, wv = x - wx0;
-        if ((lrow && (unsigned)l < (unsigned)CL_W && ((lrow[l >> 5] >> (l & 31)) & 1))
-         || (krow && (unsigned)k < (unsigned)CORAL_W && ((krow[k >> 5] >> (k & 31)) & 1))
-         || (wrow && (unsigned)wv < (unsigned)WK_W && ((wrow[wv >> 5] >> (wv & 31)) & 1))) continue;
+        bool covered = false;
+        for (int i = 0; i < FMASK_N && !covered; i++) {
+            int l = x - rx0[i];
+            covered = row[i] && (unsigned)l < (unsigned)FMASK[i].w && ((row[i][l >> 5] >> (l & 31)) & 1);
+        }
+        if (covered) continue;
         *p = s->v; if (a) px_darken(p, a);
     }
 }
@@ -3642,8 +2358,6 @@ static void front_restore(uint16_t *fb, const uint32_t *mask, int wpr, int rows,
     }
 }
 static bool g_scene_front;                                   /* the baked scene holds the pieces IN FRONT */
-static int g_scene_coral_x = -2, g_scene_coral_z = -1, g_scene_coral_q = -1; static uint32_t g_scene_coral_rgb;
-static int g_scene_cl_x = -2, g_scene_cl_z = -1, g_scene_cl_q = -1, g_scene_cl_scheme = -1;
 
 /* the floor's colour at (x,y), from a position hash so it is stable every
  * frame. The rectangle: a 14 px strip of speckled stones in four tones. The
@@ -3729,6 +2443,203 @@ static uint32_t blackwater_water(int x,int y,uint32_t water) {
     if(c%4200==0){int fx=(x&3)-2,fy=(y&3)-2;if(fx*fx+fy*fy<=2)return mix(col,0xa8d8ea,fx==0&&fy==0?.4f:.14f);}
     return col;
 }
+/* ---- the decor's passes (decor.h, 2026-10-21): what each piece paints, and when ----
+ * A piece with a body in the static scene is baked there - BEHIND, whole; IN
+ * FRONT, whole too, with its solid pixels recorded into its mask (FMASK) to
+ * come back over the creatures. Without the scene cache, or dragged on the
+ * placement page, it is drawn live. Every frame then has a back pass before
+ * the creatures (pass BACK: the pieces BEHIND, whole; pass MIDDLE: the woven
+ * ones' back halves) and a front pass after them (MIDDLE: the front halves;
+ * FRONT: the pieces IN FRONT, whole). Each piece answers for itself in each
+ * pass; the PAINT_* orders are the painter's. */
+typedef struct { short x0, y0, x1, y1; } drect_t;
+typedef struct { drect_t *r; int n, cap; bool on; } dyn_t;            /* the frame's dynamic rects (render_tank's) */
+static void dyn_add(dyn_t *d, int x0, int y0, int x1, int y1) {
+    if (!d->on || d->n >= d->cap) return;
+    d->r[d->n].x0 = (short)x0; d->r[d->n].y0 = (short)y0; d->r[d->n].x1 = (short)x1; d->r[d->n].y1 = (short)y1; d->n++;
+}
+typedef struct { const tank_t *t; ctx_t *c; uint16_t *fb; bool cached; dyn_t *dr; } dframe_t;
+typedef struct { int k, x, z; bool placing; } dpos_t;                 /* a piece this frame (decor_state; x -1 = not in the tank) */
+typedef struct { short x; uint8_t z, pad; int q; uint32_t look; } dkey_t;   /* what the scene holds of a piece (x -1 = not in it) */
+static dkey_t g_scene_key[DK_COUNT];
+typedef struct {
+    void (*key)(const tank_t *t, uint32_t *look, int *q);              /* the scene key beyond x and z (its look, its growth step) */
+    void (*bake)(ctx_t *c, const tank_t *t, const dkey_t *k, bool front);   /* its body into the scene (front: the scene holds the pieces IN FRONT) */
+    void (*bake_front)(ctx_t *c, const tank_t *t, const dkey_t *k);    /* IN FRONT: the body and its mask */
+    void (*plain)(ctx_t *c, const tank_t *t, const dpos_t *p);         /* the scene without a cache */
+    void (*dragged)(ctx_t *c, const tank_t *t, const dpos_t *p);       /* over a scene baked without it */
+    void (*back)(dframe_t *f, const dpos_t *p, int pass);
+    void (*front)(dframe_t *f, const dpos_t *p, int pass);
+} decor_draw_t;
+/* recording a piece's mask while it is drawn IN FRONT, and the piece back over what was drawn on it */
+static void fmask_rec_begin(int k, int cx) {
+    const fmask_t *m = fmask_of(k);
+    memset(fmask_bits(m), 0, (size_t)m->rows * fmask_wpr(m) * sizeof(uint32_t));
+    g_rec = fmask_bits(m); g_rec_x0 = cx - m->w / 2; g_rec_y0 = m->y0; g_rec_w = m->w; g_rec_rows = m->rows; g_rec_wpr = fmask_wpr(m);
+}
+static void fmask_rec_end(int k, int cx) { g_rec = NULL; g_bake_x[k] = cx; }
+static void fmask_restore(uint16_t *fb, int k, int cx) {
+    const fmask_t *m = fmask_of(k);
+    front_restore(fb, fmask_bits(m), fmask_wpr(m), m->rows, cx - m->w / 2, m->y0);
+}
+
+/* the grass beds and the sword plant: a bed's fronds, alternate ones behind and in front when woven */
+static const int VEG_SEED[VEG_BEDS_MAX] = { 0, 7, 3, 5 };
+static void veg_back(dframe_t *f, const dpos_t *p, int pass) {
+    int b = DECOR[p->k].veg_bed;
+    if (p->z == pass) draw_veg(f->c, f->t, b, VEG_SEED[b], pass == DECOR_Z_BACK ? -1 : 0, f->cached);   /* no dynamic rect: with the scene cache each frond span vignettes itself */
+}
+static void veg_front(dframe_t *f, const dpos_t *p, int pass) {
+    int b = DECOR[p->k].veg_bed;
+    if (p->z == pass) draw_veg(f->c, f->t, b, VEG_SEED[b], pass == DECOR_Z_MIDDLE ? 1 : -1, f->cached);
+}
+
+/* the castle: BEHIND or IN FRONT, its body is the scene's; IN FRONT its front row
+   comes back over the fish (and the snail, the food, the bubbles) where they were
+   drawn - a fish in the arch swims THROUGH - before the woven grass's front fronds */
+static void castle_bake(ctx_t *c, const tank_t *t, const dkey_t *k, bool front) {
+    draw_castle(c, k->x, 0, true);
+    /* a themed castle IN FRONT (2026-10-10): its solid pixels come back over the fish through a
+       mask (front_restore), like the cluster's - it was repainted whole per dirty rect before,
+       and the pineapple's per-pixel geometry over 25 creatures' rects took ~200 ms a frame */
+    if (front && k->z == DECOR_Z_FRONT && theme_active()) {
+        fmask_rec_begin(DK_CASTLE, k->x);
+        draw_castle(c, k->x, 1, true);                                 /* the same pixels again, recorded */
+        fmask_rec_end(DK_CASTLE, k->x);
+    }
+}
+static void castle_plain(ctx_t *c, const tank_t *t, const dpos_t *p)   { draw_castle(c, p->x, 0, false); }
+static void castle_dragged(ctx_t *c, const tank_t *t, const dpos_t *p) { draw_castle(c, p->x, 0, true); }
+static void castle_back(dframe_t *f, const dpos_t *p, int pass) {
+    if (pass == DECOR_Z_BACK && p->z == DECOR_Z_FRONT) g_veg_mask_cx = p->x;   /* the grass stops at its walls */
+}
+static void castle_front(dframe_t *f, const dpos_t *p, int pass) {
+    if (pass != DECOR_Z_MIDDLE || p->z != DECOR_Z_FRONT) return;
+    if (f->cached && g_bake_x[DK_CASTLE] == p->x && !p->placing && !g_castle_live)   /* a themed castle, baked: back from the scene where something was drawn over it */
+        fmask_restore(f->fb, DK_CASTLE, p->x);
+    else if (f->cached) for (int i = 0; i < f->dr->n; i++)
+        draw_castle_front_rect(f->c, p->x, f->dr->r[i].x0, f->dr->r[i].y0, f->dr->r[i].x1, f->dr->r[i].y1);
+    else draw_castle(f->c, p->x, 1, false);
+}
+
+/* the coral and the reef cluster: BEHIND, baked at their growth step (the
+   sprite rebuilds by the step), the crown swaying over it under the grass; IN
+   FRONT at the live growth, back over everything, the crown over it */
+static void coral_key(const tank_t *t, uint32_t *look, int *q) { *look = tank_coral_rgb(t); *q = (int)(tank_coral_growth(t) * (CORAL_Q - 0.01f)); }
+static void coral_bake(ctx_t *c, const tank_t *t, const dkey_t *k, bool front) {
+    if (k->z == DECOR_Z_BACK) draw_coral(c, k->x, k->look, (k->q + 0.5f) / CORAL_Q, true);
+}
+static void coral_bake_front(ctx_t *c, const tank_t *t, const dkey_t *k) {
+    fmask_rec_begin(DK_CORAL, k->x);
+    draw_coral(c, k->x, k->look, tank_coral_growth(t), true);
+    fmask_rec_end(DK_CORAL, k->x);
+}
+static void coral_plain(ctx_t *c, const tank_t *t, const dpos_t *p) {
+    if (p->z == DECOR_Z_BACK) draw_coral(c, p->x, tank_coral_rgb(t), tank_coral_growth(t), false);
+}
+static void coral_dragged(ctx_t *c, const tank_t *t, const dpos_t *p) {
+    if (p->z == DECOR_Z_BACK) draw_coral(c, p->x, tank_coral_rgb(t), tank_coral_growth(t), true);
+}
+static void coral_crown(dframe_t *f, const dpos_t *p) {
+    int qx0, qy0, qx1, qy1;
+    draw_coral_crown(f->c, p->x, tank_coral_rgb(f->t), tank_coral_growth(f->t), f->t->clock, &qx0, &qy0, &qx1, &qy1);
+    if (qx1 >= qx0) dyn_add(f->dr, qx0, qy0, qx1, qy1);
+}
+static void coral_back(dframe_t *f, const dpos_t *p, int pass) { if (pass == DECOR_Z_BACK && p->z == DECOR_Z_BACK) coral_crown(f, p); }
+static void coral_front(dframe_t *f, const dpos_t *p, int pass) {
+    if (pass != DECOR_Z_FRONT || p->z != DECOR_Z_FRONT) return;
+    if (g_front_x[DK_CORAL] >= 0) fmask_restore(f->fb, DK_CORAL, p->x);   /* baked: back only over what was drawn on it this frame (the cluster's crown too) */
+    else draw_coral(f->c, p->x, tank_coral_rgb(f->t), tank_coral_growth(f->t), f->cached);
+    coral_crown(f, p);
+}
+static void cluster_key(const tank_t *t, uint32_t *look, int *q) {
+    float g = tank_cluster_growth(t);
+    *look = (uint32_t)tank_cluster_scheme(t); *q = (int)((g > 1 ? 1 : g) * (CL_Q - 0.01f));
+}
+static void cluster_bake(ctx_t *c, const tank_t *t, const dkey_t *k, bool front) {
+    if (k->z == DECOR_Z_BACK) draw_cluster(c, k->x, (int)k->look, (k->q + 0.5f) / CL_Q, true);
+}
+static void cluster_bake_front(ctx_t *c, const tank_t *t, const dkey_t *k) {
+    fmask_rec_begin(DK_CLUSTER, k->x);
+    draw_cluster(c, k->x, (int)k->look, tank_cluster_growth(t), true);   /* the live growth, as the frame's own repaints use */
+    fmask_rec_end(DK_CLUSTER, k->x);
+}
+static void cluster_plain(ctx_t *c, const tank_t *t, const dpos_t *p) {
+    if (p->z == DECOR_Z_BACK) draw_cluster(c, p->x, tank_cluster_scheme(t), tank_cluster_growth(t), false);
+}
+static void cluster_dragged(ctx_t *c, const tank_t *t, const dpos_t *p) {
+    if (p->z == DECOR_Z_BACK) draw_cluster(c, p->x, tank_cluster_scheme(t), tank_cluster_growth(t), true);
+}
+static void cluster_crown(dframe_t *f, const dpos_t *p) {
+    int qx0, qy0, qx1, qy1;
+    draw_cluster_crown(f->c, p->x, tank_cluster_scheme(f->t), tank_cluster_growth(f->t), f->t->clock, &qx0, &qy0, &qx1, &qy1);
+    if (qx1 >= qx0) dyn_add(f->dr, qx0, qy0, qx1, qy1);
+}
+static void cluster_back(dframe_t *f, const dpos_t *p, int pass) { if (pass == DECOR_Z_BACK && p->z == DECOR_Z_BACK) cluster_crown(f, p); }
+static void cluster_front(dframe_t *f, const dpos_t *p, int pass) {
+    if (pass != DECOR_Z_FRONT || p->z != DECOR_Z_FRONT) return;
+    if (g_front_x[DK_CLUSTER] >= 0) fmask_restore(f->fb, DK_CLUSTER, p->x);
+    else draw_cluster(f->c, p->x, tank_cluster_scheme(f->t), tank_cluster_growth(f->t), f->cached);
+    cluster_crown(f, p);
+}
+
+/* the shipwreck: BEHIND, whole; IN FRONT its dark inside is behind the fish
+   and only the hull over them - not its holes, so a fish behind it shows
+   through them. Baked IN FRONT the hull comes back through its mask; drawn
+   live (no cache, dragged, the scene without its pieces IN FRONT), the hull
+   is drawn over them */
+static void wreck_bake(ctx_t *c, const tank_t *t, const dkey_t *k, bool front) {
+    if (k->z == DECOR_Z_BACK) draw_wreck(c, k->x, true, -1);
+    else if (!front) draw_wreck(c, k->x, true, 0);
+}
+static void wreck_plain(ctx_t *c, const tank_t *t, const dpos_t *p) {
+    draw_wreck(c, p->x, false, p->z == DECOR_Z_BACK ? -1 : 0);
+}
+static void wreck_bake_front(ctx_t *c, const tank_t *t, const dkey_t *k) {
+    draw_wreck(c, k->x, true, 0);                                      /* its dark inside, behind the holes: not the mask's */
+    fmask_rec_begin(DK_WRECK, k->x);
+    draw_wreck(c, k->x, true, 1);
+    fmask_rec_end(DK_WRECK, k->x);
+}
+static void wreck_dragged(ctx_t *c, const tank_t *t, const dpos_t *p) {
+    draw_wreck(c, p->x, true, p->z == DECOR_Z_BACK ? -1 : 0);
+}
+static void wreck_front(dframe_t *f, const dpos_t *p, int pass) {
+    if (pass != DECOR_Z_FRONT || p->z != DECOR_Z_FRONT) return;
+    if (g_front_x[DK_WRECK] >= 0) fmask_restore(f->fb, DK_WRECK, p->x);
+    else draw_wreck(f->c, p->x, f->cached, 1);
+}
+
+static const decor_draw_t DECOR_DRAW[DK_COUNT] = {
+    [DK_SEAGRASS0] = { .back = veg_back, .front = veg_front },
+    [DK_SEAGRASS1] = { .back = veg_back, .front = veg_front },
+    [DK_SEAGRASS2] = { .back = veg_back, .front = veg_front },
+    [DK_PLANT]     = { .back = veg_back, .front = veg_front },
+    [DK_CASTLE]    = { .bake = castle_bake, .plain = castle_plain, .dragged = castle_dragged, .back = castle_back, .front = castle_front },
+    [DK_CORAL]     = { .key = coral_key, .bake = coral_bake, .bake_front = coral_bake_front, .plain = coral_plain, .dragged = coral_dragged,
+                       .back = coral_back, .front = coral_front },
+    [DK_CLUSTER]   = { .key = cluster_key, .bake = cluster_bake, .bake_front = cluster_bake_front, .plain = cluster_plain, .dragged = cluster_dragged,
+                       .back = cluster_back, .front = cluster_front },
+    [DK_WRECK]     = { .bake = wreck_bake, .bake_front = wreck_bake_front, .plain = wreck_plain, .dragged = wreck_dragged, .front = wreck_front },
+};
+/* the painter's orders: the scene's bodies, the scene's pieces IN FRONT (the wreck
+   first: the reef pieces stand over it), the back pass, the front pass */
+static const uint8_t PAINT_SCENE[]       = { DK_CASTLE, DK_CORAL, DK_CLUSTER, DK_WRECK };
+static const uint8_t PAINT_SCENE_FRONT[] = { DK_WRECK, DK_CLUSTER, DK_CORAL };
+static const uint8_t PAINT_BACK[]        = { DK_CASTLE, DK_CORAL, DK_CLUSTER, DK_SEAGRASS0, DK_SEAGRASS1, DK_SEAGRASS2, DK_PLANT };
+static const uint8_t PAINT_FRONT[]       = { DK_CASTLE, DK_SEAGRASS0, DK_SEAGRASS1, DK_SEAGRASS2, DK_PLANT, DK_WRECK, DK_CLUSTER, DK_CORAL };
+#define N_OF(a) ((int)(sizeof (a) / sizeof (a)[0]))
+static void decor_pass(dframe_t *f, const dpos_t *pos, const uint8_t *order, int n, bool front, int pass) {
+    for (int i = 0; i < n; i++) {
+        const dpos_t *p = &pos[order[i]];
+        void (*fn)(dframe_t *, const dpos_t *, int) = front ? DECOR_DRAW[p->k].front : DECOR_DRAW[p->k].back;
+        if (p->x >= 0 && fn) fn(f, p, pass);
+    }
+}
+static void decor_positions(const tank_t *t, dpos_t *pos) {
+    for (int k = 0; k < DK_COUNT; k++) { pos[k].k = k; decor_state(t, k, &pos[k].x, &pos[k].z, &pos[k].placing); }
+}
+
 static void draw_scene(const tank_t *t, uint16_t *fb, int stride, float dim) {
     ctx_t c = ctx_full(fb, stride, dim);
     /* water gradient #0a3c46 → #08272f → #031015 */
@@ -3748,9 +2659,11 @@ static void draw_scene(const tank_t *t, uint16_t *fb, int stride, float dim) {
     }
     /* (the dark oval under the left bed - the "reef rock" - is gone, 2026-10-02:
        it stood for nothing; the reef is the cluster the keeper buys) */
-    { int cx, z; bool placing; if (castle_state(t, &cx, &z, &placing)) draw_castle(&c, cx, 0, false); }   /* uncached: always drawn here */
-    { int cx, z; bool placing; if (coral_state(t, &cx, &z, &placing) && z == DECOR_Z_BACK) draw_coral(&c, cx, tank_coral_rgb(t), tank_coral_growth(t), false); }
-    { int cx, z; bool placing; if (cluster_state(t, &cx, &z, &placing) && z == DECOR_Z_BACK) draw_cluster(&c, cx, tank_cluster_scheme(t), tank_cluster_growth(t), false); }
+    dpos_t pos[DK_COUNT]; decor_positions(t, pos);
+    for (int i = 0; i < N_OF(PAINT_SCENE); i++) {
+        const dpos_t *p = &pos[PAINT_SCENE[i]];
+        if (p->x >= 0 && DECOR_DRAW[p->k].plain) DECOR_DRAW[p->k].plain(&c, t, p);
+    }
 }
 
 
@@ -3797,41 +2710,14 @@ static void bake_scene(const tank_t *t, uint16_t *sc, float dim) {
         }
     }
     ctx_t c = ctx_full(sc, TANK_W, dim);
-    if (g_scene_castle_x >= 0) draw_castle(&c, g_scene_castle_x, 0, true);   /* the castle, unless it is being dragged */
-    /* a themed castle IN FRONT (2026-10-10): its solid pixels come back over the fish through a
-       mask (front_restore), like the cluster's - it was repainted whole per dirty rect before,
-       and the pineapple's per-pixel geometry over 25 creatures' rects took ~200 ms a frame */
-    g_bake_ca_x = -1;
-    if (g_scene_front && g_scene_castle_x >= 0 && g_scene_castle_z == DECOR_Z_FRONT && theme_active()) {
-        memset(ds()->ca_mask, 0, sizeof ds()->ca_mask);
-        g_rec = &ds()->ca_mask[0][0]; g_rec_x0 = g_scene_castle_x - CASTLE_MASK_W / 2; g_rec_y0 = CASTLE_FY - CASTLE_ROWS; g_rec_w = CASTLE_MASK_W; g_rec_rows = CASTLE_ROWS + 12; g_rec_wpr = (CASTLE_MASK_W + 31) / 32;
-        draw_castle(&c, g_scene_castle_x, 1, true);                             /* the same pixels again, recorded */
-        g_bake_ca_x = g_scene_castle_x; g_rec = NULL;
+    for (int k = 0; k < DK_COUNT; k++) g_bake_x[k] = -1;
+    for (int i = 0; i < N_OF(PAINT_SCENE); i++) {                 /* the bodies, unless dragged */
+        const dkey_t *key = &g_scene_key[PAINT_SCENE[i]];
+        if (key->x >= 0 && DECOR_DRAW[PAINT_SCENE[i]].bake) DECOR_DRAW[PAINT_SCENE[i]].bake(&c, t, key, g_scene_front);
     }
-    if (g_scene_coral_x >= 0 && g_scene_coral_z == DECOR_Z_BACK) draw_coral(&c, g_scene_coral_x, g_scene_coral_rgb, (g_scene_coral_q + 0.5f) / CORAL_Q, true);   /* the coral BEHIND, likewise */
-    if (g_scene_cl_x >= 0 && g_scene_cl_z == DECOR_Z_BACK) draw_cluster(&c, g_scene_cl_x, g_scene_cl_scheme, (g_scene_cl_q + 0.5f) / CL_Q, true);   /* the cluster BEHIND */
-    if (g_scene_wk_x >= 0 && g_scene_wk_z == DECOR_Z_BACK) draw_wreck(&c, g_scene_wk_x, true, -1);   /* the shipwreck BEHIND, whole */
-    /* the pieces IN FRONT, in the frame's own order (the cluster, then the
-       coral over it), each noting the pixels it covers for the grass */
-    g_bake_cl_x = g_bake_co_x = g_bake_wk_x = -1;
-    if (g_scene_front && g_scene_wk_x >= 0 && g_scene_wk_z == DECOR_Z_FRONT) {   /* the wreck first: the reef pieces stand over it */
-        draw_wreck(&c, g_scene_wk_x, true, 0);                                   /* its dark inside, behind the holes: not the mask's */
-        memset(ds()->wk_mask, 0, sizeof ds()->wk_mask);
-        g_rec = &ds()->wk_mask[0][0]; g_rec_x0 = g_scene_wk_x - WK_W / 2; g_rec_y0 = WK_FY - WK_H; g_rec_w = WK_W; g_rec_rows = WK_H + 1; g_rec_wpr = (WK_W + 31) / 32;
-        draw_wreck(&c, g_scene_wk_x, true, 1);
-        g_bake_wk_x = g_scene_wk_x; g_rec = NULL;
-    }
-    if (g_scene_front && g_scene_cl_x >= 0 && g_scene_cl_z == DECOR_Z_FRONT) {
-        memset(ds()->cl_mask, 0, sizeof ds()->cl_mask);
-        g_rec = &ds()->cl_mask[0][0]; g_rec_x0 = g_scene_cl_x - CL_W / 2; g_rec_y0 = CL_FY - CL_H; g_rec_w = CL_W; g_rec_rows = CL_H + 1; g_rec_wpr = (CL_W + 31) / 32;
-        draw_cluster(&c, g_scene_cl_x, g_scene_cl_scheme, tank_cluster_growth(t), true);   /* the live growth, as the frame's own repaints use */
-        g_bake_cl_x = g_scene_cl_x;
-    }
-    if (g_scene_front && g_scene_coral_x >= 0 && g_scene_coral_z == DECOR_Z_FRONT) {
-        memset(ds()->co_mask, 0, sizeof ds()->co_mask);
-        g_rec = &ds()->co_mask[0][0]; g_rec_x0 = g_scene_coral_x - CORAL_W / 2; g_rec_y0 = CORAL_FY - CORAL_H; g_rec_w = CORAL_W; g_rec_rows = CORAL_H + 1; g_rec_wpr = (CORAL_W + 31) / 32;
-        draw_coral(&c, g_scene_coral_x, g_scene_coral_rgb, tank_coral_growth(t), true);
-        g_bake_co_x = g_scene_coral_x;
+    for (int i = 0; i < N_OF(PAINT_SCENE_FRONT) && g_scene_front; i++) {   /* the pieces IN FRONT, each noting the pixels it covers */
+        const dkey_t *key = &g_scene_key[PAINT_SCENE_FRONT[i]];
+        if (key->x >= 0 && key->z == DECOR_Z_FRONT && DECOR_DRAW[PAINT_SCENE_FRONT[i]].bake_front) DECOR_DRAW[PAINT_SCENE_FRONT[i]].bake_front(&c, t, key);
     }
     g_rec = NULL;
 }
@@ -3844,37 +2730,24 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
     bool cached = g_scene && g_dirty && stride == TANK_W;
     g_dirty_hold = false;                          /* the tank draws in the frame's coordinates: its marks count */
     if (cached) memset(g_dirty, 0, TANK_H * DIRTY_WORDS_PER_ROW * sizeof(uint32_t));
-    struct { short x0, y0, x1, y1; } rects[8 + MAX_FOOD + MAX_BUBBLE + N_FISH_MAX + VEG_BEDS_MAX + SHRIMP_MAX];
-    int nr = 0;
-#define DYN_RECT(cx0, cy0, cx1, cy1) do { if (cached && nr < (int)(sizeof rects / sizeof rects[0])) { \
-        rects[nr].x0 = (short)(cx0); rects[nr].y0 = (short)(cy0); \
-        rects[nr].x1 = (short)(cx1); rects[nr].y1 = (short)(cy1); nr++; } } while (0)
+    drect_t rects[8 + MAX_FOOD + MAX_BUBBLE + N_FISH_MAX + VEG_BEDS_MAX + SHRIMP_MAX];
+    dyn_t dr = { rects, 0, (int)(sizeof rects / sizeof rects[0]), cached };
+#define DYN_RECT(cx0, cy0, cx1, cy1) dyn_add(&dr, (cx0), (cy0), (cx1), (cy1))
 
-    int ccx, cz; bool placing; castle_state(t, &ccx, &cz, &placing);
-    int scene_cx = placing ? -1 : ccx;
-    int kx, kz; bool kplacing; coral_state(t, &kx, &kz, &kplacing);
-    uint32_t krgb = tank_coral_rgb(t);
-    float kg = tank_coral_growth(t);
-    int kq = (int)(kg * (CORAL_Q - 0.01f));
-    int scene_kx = kplacing ? -1 : kx;
-    int lx, lz; bool lplacing; cluster_state(t, &lx, &lz, &lplacing);
-    float lg = tank_cluster_growth(t); int lscheme = tank_cluster_scheme(t);
-    int lq = (int)((lg > 1 ? 1 : lg) * (CL_Q - 0.01f));
-    int scene_lx = lplacing ? -1 : lx;
-    int wx, wz; bool wplacing; wreck_state(t, &wx, &wz, &wplacing);
-    int scene_wx = wplacing ? -1 : wx;
-    g_veg_mask_cx = ccx >= 0 && cz == DECOR_Z_FRONT ? ccx : -1;
+    dpos_t pos[DK_COUNT]; decor_positions(t, pos);
+    dframe_t df = { t, &c, fb, cached, &dr };
     bool front = cached && !setup_is_place();      /* the pieces IN FRONT ride in the scene, but for a placement page's drag */
-    g_front_cl_x = g_front_co_x = g_front_wk_x = -1;   /* set below, once the scene is known to hold them */
+    for (int k = 0; k < DK_COUNT; k++) g_front_x[k] = -1;   /* set below, once the scene is known to hold them */
+    g_front_n = 0;
     if (cached) {
-        if (g_scene_dim != dim || g_scene_front != front || g_scene_castle_x != scene_cx || g_scene_castle_z != cz
-            || g_scene_coral_x != scene_kx || g_scene_coral_z != kz || g_scene_coral_rgb != krgb || g_scene_coral_q != kq
-            || g_scene_cl_x != scene_lx || g_scene_cl_z != lz || g_scene_cl_q != lq || g_scene_cl_scheme != lscheme
-            || g_scene_wk_x != scene_wx || g_scene_wk_z != wz) {
-            g_scene_castle_x = scene_cx; g_scene_castle_z = cz; g_scene_front = front;
-            g_scene_wk_x = scene_wx; g_scene_wk_z = wz;
-            g_scene_coral_x = scene_kx; g_scene_coral_z = kz; g_scene_coral_rgb = krgb; g_scene_coral_q = kq;
-            g_scene_cl_x = scene_lx; g_scene_cl_z = lz; g_scene_cl_q = lq; g_scene_cl_scheme = lscheme;
+        dkey_t key[DK_COUNT]; memset(key, 0, sizeof key);
+        for (int k = 0; k < DK_COUNT; k++) {
+            if (!DECOR_DRAW[k].bake) continue;     /* the scene holds what has a body there */
+            key[k].x = (short)(pos[k].placing ? -1 : pos[k].x); key[k].z = (uint8_t)pos[k].z;
+            if (pos[k].x >= 0 && DECOR_DRAW[k].key) DECOR_DRAW[k].key(t, &key[k].look, &key[k].q);
+        }
+        if (g_scene_dim != dim || g_scene_front != front || memcmp(g_scene_key, key, sizeof key)) {
+            memcpy(g_scene_key, key, sizeof key); g_scene_front = front;
             /* rebuild the static scene with the vignette baked in (the
                per-frame pass then only re-darkens dynamic patches) */
             bake_scene(t, g_scene, dim);
@@ -3884,37 +2757,29 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
         if (!(g_primed_fb == fb && g_primed_epoch == g_scene_epoch))
             memcpy(fb, g_scene, TANK_W * TANK_H * sizeof(uint16_t));
         g_primed_fb = NULL;
-        if (placing) draw_castle(&c, ccx, 0, true);      /* dragged: drawn live over the castle-less scene */
-        if (kplacing && kz == DECOR_Z_BACK) draw_coral(&c, kx, krgb, kg, true);   /* the coral dragged BEHIND: live too */
-        if (lplacing && lz == DECOR_Z_BACK) draw_cluster(&c, lx, lscheme, lg, true);
-        if (wplacing && wz == DECOR_Z_BACK) draw_wreck(&c, wx, true, -1);
-        g_front_cl_x = g_bake_cl_x; g_front_co_x = g_bake_co_x; g_front_wk_x = g_bake_wk_x;
+        for (int i = 0; i < N_OF(PAINT_SCENE); i++) {   /* dragged: drawn live over a scene baked without it */
+            const dpos_t *p = &pos[PAINT_SCENE[i]];
+            if (p->x >= 0 && p->placing && DECOR_DRAW[p->k].dragged) DECOR_DRAW[p->k].dragged(&c, t, p);
+        }
+        for (int i = 0; i < FMASK_N; i++)
+            if (FMASK[i].grass && g_bake_x[FMASK[i].k] >= 0) { g_front_x[FMASK[i].k] = g_bake_x[FMASK[i].k]; g_front_n++; }
     } else draw_scene(t, fb, stride, dim);
-#define CORAL_CROWN() do { int qx0, qy0, qx1, qy1; draw_coral_crown(&c, kx, krgb, kg, t->clock, &qx0, &qy0, &qx1, &qy1); \
-        if (qx1 >= qx0) DYN_RECT(qx0, qy0, qx1, qy1); } while (0)
-#define CLUSTER_CROWN() do { int qx0, qy0, qx1, qy1; draw_cluster_crown(&c, lx, lscheme, lg, t->clock, &qx0, &qy0, &qx1, &qy1); \
-        if (qx1 >= qx0) DYN_RECT(qx0, qy0, qx1, qy1); } while (0)
-    if (kx >= 0 && kz == DECOR_Z_BACK) CORAL_CROWN();   /* the crown BEHIND: over the baked fan, under the grass */
-    if (lx >= 0 && lz == DECOR_Z_BACK) CLUSTER_CROWN();
     PROF_ADD(0, p0);
 
     PROF_ADD(1, p0);   /* stage 1 (light shafts) retired 2026-09-01 */
-    /* vegetation, BACK layer: the reef bed (left - milestone lushness widens
-       its base, never withers) and two decor beds; all three keep growing up
-       and out with tank_t.veg_growth until the keeper trims them (slash the
-       canopy). Geometry comes from tank_veg_bed so physics and pixels agree.
-       The alternating FRONT fronds draw after the fish, below. */
-    static const int veg_seed[VEG_BEDS_MAX] = { 0, 7, 3, 5 };
-    for (int b = 0; b < tank_veg_beds(t); b++)          /* a BACK-layer piece first: behind the grass too */
-        if (bed_z(t, b) == DECOR_Z_BACK) draw_veg(&c, t, b, veg_seed[b], -1, cached);
-    for (int b = 0; b < tank_veg_beds(t); b++)
-        if (bed_z(t, b) == DECOR_Z_MIDDLE) draw_veg(&c, t, b, veg_seed[b], 0, cached);
-        /* no DYN_RECT: with the scene cache each frond span vignettes itself */
+    /* the decor behind the creatures: the crowns of the pieces BEHIND (over the
+       baked fan, under the grass), the plant BEHIND, then the back fronds of the
+       woven beds - the reef bed (left - milestone lushness widens its base, never
+       withers) and two decor beds, all growing up and out with tank_t.veg_growth
+       until the keeper trims them. Their front fronds draw after the fish, below. */
+    g_veg_mask_cx = -1;
+    decor_pass(&df, pos, PAINT_BACK, N_OF(PAINT_BACK), false, DECOR_Z_BACK);
+    decor_pass(&df, pos, PAINT_BACK, N_OF(PAINT_BACK), false, DECOR_Z_MIDDLE);
     PROF_ADD(2, p0);
     /* the airstone the column rises from, on the floor where the keeper put
        it (setup): three stones and a glint - dynamic, since it can move */
     {
-        float ax = t->bubble_x, ay = TANK_BOT - 17;
+        float ax = tank_bubble_x(t), ay = TANK_BOT - 17;
         bool bw = theme_active()==THEME_BLACKWATER;   /* Blackwater: three basalt stones, lit from the upper left */
         fill_ellipse(&c, ax - 6, ay + 1, 7, 4, theme_active()==THEME_TIDEPOOL_CLUB?0xcaac87:bw?0x3a3b3c:theme_active()?0x788f7a:0x2a3634, 255);
         fill_ellipse(&c, ax + 5, ay + 2, 6, 3.5f, theme_active()==THEME_TIDEPOOL_CLUB?0xa78767:bw?0x2a2b2c:theme_active()?0x536e63:0x22302c, 255);
@@ -4006,40 +2871,13 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
         draw_urchin(&c, t);
         DYN_RECT((int)t->urchin_x - 19, (int)URCHIN_FLOOR_Y - 17, (int)t->urchin_x + 19, (int)(URCHIN_FLOOR_Y + UR_BASE) + 1);
     }
-    /* the castle IN FRONT: its front row back over the fish (and the snail,
-       the food, the bubbles), only where they were drawn - a fish in the arch
-       swims THROUGH. BEHIND: nothing here; it is a backdrop the fish pass. */
-    if (ccx >= 0 && cz == DECOR_Z_FRONT) {
-        if (cached && g_bake_ca_x == ccx && !placing && !g_castle_live)   /* a themed castle, baked: back from the scene where something was drawn over it */
-            front_restore(fb, &ds()->ca_mask[0][0], (CASTLE_MASK_W + 31) / 32, CASTLE_ROWS + 12, ccx - CASTLE_MASK_W / 2, CASTLE_FY - CASTLE_ROWS);
-        else if (cached) for (int i = 0; i < nr; i++)
-            draw_castle_front_rect(&c, ccx, rects[i].x0, rects[i].y0, rects[i].x1, rects[i].y1);
-        else draw_castle(&c, ccx, 1, false);
-    }
-    /* vegetation, FRONT layer: the alternating fronds drawn over the fish,
-       so a fish inside a canopy is woven through it (each span applies its
-       own vignette and untags itself, so the fish rects below skip it) */
-    for (int b = 0; b < tank_veg_beds(t); b++)
-        if (bed_z(t, b) == DECOR_Z_MIDDLE) draw_veg(&c, t, b, veg_seed[b], 1, cached);
-    for (int b = 0; b < tank_veg_beds(t); b++)          /* a FRONT-layer piece last: over the grass and the fish */
-        if (bed_z(t, b) == DECOR_Z_FRONT) draw_veg(&c, t, b, veg_seed[b], -1, cached);
-    /* the cluster and the coral IN FRONT: over everything. Baked in the
-       scene, each comes back only over what was drawn on it this frame (for
-       the coral that includes the cluster's crown); otherwise whole */
-    if (wx >= 0 && wz == DECOR_Z_FRONT) {               /* the shipwreck IN FRONT: its hull back over the fish - not its holes */
-        if (g_front_wk_x >= 0) front_restore(fb, &ds()->wk_mask[0][0], (WK_W + 31) / 32, WK_H + 1, wx - WK_W / 2, WK_FY - WK_H);
-        else draw_wreck(&c, wx, cached, -1);
-    }
-    if (lx >= 0 && lz == DECOR_Z_FRONT) {
-        if (g_front_cl_x >= 0) front_restore(fb, &ds()->cl_mask[0][0], (CL_W + 31) / 32, CL_H + 1, lx - CL_W / 2, CL_FY - CL_H);
-        else draw_cluster(&c, lx, lscheme, lg, cached);
-        CLUSTER_CROWN();
-    }
-    if (kx >= 0 && kz == DECOR_Z_FRONT) {
-        if (g_front_co_x >= 0) front_restore(fb, &ds()->co_mask[0][0], (CORAL_W + 31) / 32, CORAL_H + 1, kx - CORAL_W / 2, CORAL_FY - CORAL_H);
-        else draw_coral(&c, kx, krgb, kg, cached);
-        CORAL_CROWN();
-    }
+    /* the decor over the creatures: the castle's front row (a fish in the arch
+       swims THROUGH), the front fronds of the woven beds (each span applies its
+       own vignette and untags itself, so the fish rects below skip it), then
+       the pieces IN FRONT over everything - baked in the scene, each comes back
+       only over what was drawn on it this frame; otherwise whole */
+    decor_pass(&df, pos, PAINT_FRONT, N_OF(PAINT_FRONT), true, DECOR_Z_MIDDLE);
+    decor_pass(&df, pos, PAINT_FRONT, N_OF(PAINT_FRONT), true, DECOR_Z_FRONT);
     if (tank_snail_upright(t) && t->snail_front) draw_snail(&c, t, true);   /* its front lane: over them (its rect is marked above) */
     PROF_ADD(4, p0);
     /* porthole vignette: darken corners toward AMOLED black. With a scene
@@ -4055,7 +2893,7 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
             int x_in = rem > 0 ? (int)(TANK_W * 0.5f * (1 - sqrtf(rem))) : TANK_W / 2;
             if (x_in <= 0) continue;
             short iv[sizeof rects / sizeof rects[0]][2]; int ni = 0;
-            for (int i = 0; i < nr; i++)
+            for (int i = 0; i < dr.n; i++)
                 if (y >= rects[i].y0 && y <= rects[i].y1) {
                     int a0 = rects[i].x0 < 0 ? 0 : rects[i].x0;
                     int a1 = rects[i].x1 >= TANK_W ? TANK_W - 1 : rects[i].x1;

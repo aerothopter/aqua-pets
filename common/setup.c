@@ -627,7 +627,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         /* the live tank with a stripe down the column: drag it anywhere */
         text_c(fb, stride, CX, SETUP_Y + 7, 2, C_CAPT, "PLACE THE BUBBLES");
         nav(fb, stride, true, "NEXT", false);
-        int bx = (int)t->bubble_x - PAGE_X;
+        int bx = (int)tank_bubble_x(t) - PAGE_X;
         render_rect_blend(fb, stride, bx - 22, SETUP_TOP_BTN_Y + SETUP_BTN_H + 10, 44, FLOOR - (SETUP_TOP_BTN_Y + SETUP_BTN_H + 10), C_EDGE, 46);
         chevron(fb, stride, bx, FLOOR - 34, true, C_EDGE);
         text_c(fb, stride, CX, 296, 2, C_CAPT, "DRAG THEM LEFT OR RIGHT");

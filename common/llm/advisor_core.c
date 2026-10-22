@@ -56,7 +56,7 @@ void advisor_core_encode(const tank_t *t, int idx, char *out, size_t n) {
     if (strcmp(frs, "none") == 0) snprintf(friend_s, sizeof friend_s, "none");
     else if (g_schema >= 3) snprintf(friend_s, sizeof friend_s, "%s", frs);            /* v3: no names */
     else snprintf(friend_s, sizeof friend_s, "%s %s", t->fish[fr].model_name, frs);
-    sighting(f, t->bubble_x, t->bubble_y, true, bubble_s, sizeof bubble_s);
+    sighting(f, tank_bubble_x(t), t->bubble_y, true, bubble_s, sizeof bubble_s);
     { float rx, ry; tank_reef_spot(t, &rx, &ry);   /* the cluster once the keeper owns one, else the grass corner's spot */
       sighting(f, rx, ry, true, reef_s, sizeof reef_s); }
 

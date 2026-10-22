@@ -727,21 +727,21 @@ static int selftest_pop(void) {
         const float bx = TANK_FLOOR_X(300.0f), by = PG_Y(200);      /* on this board's floor; in the water under the page's buttons */
         setup_touch(&tank, bx, by, true);
         tank_t probe = tank; tank_set_bubble_x(&probe, bx);
-        if (fabsf(tank.bubble_x - probe.bubble_x) > 0.5f) { printf("FAIL: press put the column at %.0f, not %.0f\n", tank.bubble_x, probe.bubble_x); return 1; }
+        if (fabsf(tank_bubble_x(&tank) - tank_bubble_x(&probe)) > 0.5f) { printf("FAIL: press put the column at %.0f, not %.0f\n", tank_bubble_x(&tank), tank_bubble_x(&probe)); return 1; }
         for (int k = 1; k <= 20; k++) setup_touch(&tank, bx + k * 2, by, true);
         probe = tank; tank_set_bubble_x(&probe, bx + 40);
-        if (fabsf(tank.bubble_x - probe.bubble_x) > 0.5f) { printf("FAIL: drag left the column at %.0f\n", tank.bubble_x); return 1; }
+        if (fabsf(tank_bubble_x(&tank) - tank_bubble_x(&probe)) > 0.5f) { printf("FAIL: drag left the column at %.0f\n", tank_bubble_x(&tank)); return 1; }
         for (int i = 0; i < MAX_BUBBLE; i++)
-            if (tank.bubble[i].column && fabsf(tank.bubble[i].x - tank.bubble_x) > 12) { printf("FAIL: a column bubble stayed behind\n"); return 1; }
+            if (tank.bubble[i].column && fabsf(tank.bubble[i].x - tank_bubble_x(&tank)) > 12) { printf("FAIL: a column bubble stayed behind\n"); return 1; }
         setup_touch(&tank, bx + 40, by, false);
         if (setup_page() != SETUP_PG_BUBBLES) { printf("FAIL: the drag's release acted as a tap\n"); return 1; }
         tank_set_bubble_x(&tank, 5);
-        if (tank.bubble_x < tank.reef_x + 50) { printf("FAIL: the column sits on the reef (%.0f)\n", tank.bubble_x); return 1; }
+        if (tank_bubble_x(&tank) < tank.reef_x + 50) { printf("FAIL: the column sits on the reef (%.0f)\n", tank_bubble_x(&tank)); return 1; }
         tank_set_bubble_x(&tank, 900);
-        if (tank.bubble_x > TANK_FX1 - 30) { printf("FAIL: the column sits in the glass (%.0f)\n", tank.bubble_x); return 1; }   /* (the floor's end: the glass itself in the rectangle) */
+        if (tank_bubble_x(&tank) > TANK_FX1 - 30) { printf("FAIL: the column sits in the glass (%.0f)\n", tank_bubble_x(&tank)); return 1; }   /* (the floor's end: the glass itself in the rectangle) */
         tank_set_bubble_x(&tank, bx + 40);
     }
-    float bubble_x_set = tank.bubble_x;
+    float bubble_x_set = tank_bubble_x(&tank);
     setup_activate(&tank, SETUP_HIT_NEXT);
     if (setup_page() != SETUP_PG_NAME_A) { printf("FAIL: NEXT did not reach the name page\n"); return 1; }
     /* the fish being named takes the stage - the clear spot above the letters */
@@ -817,13 +817,13 @@ static int selftest_pop(void) {
     setup_activate(&tank, SETUP_HIT_NEXT);            /* BEGIN */
     if (setup_active() || progression_setup_pending() || tank.stage_fish != -1) { printf("FAIL: BEGIN did not finish the setup\n"); return 1; }
     tank_init(&tank, 13); progression_boot(&tank);
-    if (fabsf(tank.bubble_x - bubble_x_set) > 0.5f) { printf("FAIL: the bubble column did not come back from the save (%.0f)\n", tank.bubble_x); return 1; }
+    if (fabsf(tank_bubble_x(&tank) - bubble_x_set) > 0.5f) { printf("FAIL: the bubble column did not come back from the save (%.0f)\n", tank_bubble_x(&tank)); return 1; }
     if (progression_setup_pending() || strcmp(tank.fish[0].name, "bub") || strcmp(tank.fish[1].name, preset1) ||
         tank.fish[0].color != LOOK_BODY[6] || tank.fish[0].accent != accent0 || strcmp(preset0, tank_roster_name(tank.fish[0].preset))) {
         printf("FAIL: names/looks did not come back from the save ('%s' %06x/%06x, pending %d)\n",
                tank.fish[0].name, tank.fish[0].color, tank.fish[0].accent, progression_setup_pending()); return 1;
     }
-    printf("  setup ok: %s (blue) + %s, bubbles at x %.0f, saved and reloaded, nothing owed\n", tank.fish[0].name, tank.fish[1].name, tank.bubble_x);
+    printf("  setup ok: %s (blue) + %s, bubbles at x %.0f, saved and reloaded, nothing owed\n", tank.fish[0].name, tank.fish[1].name, tank_bubble_x(&tank));
     /* notices wait for a fry's welcome (2026-09-29, Strato: the milestone and
        the welcome overlapped). The frame order both platforms keep: the tank
        ticks (the fry is born, its badge set), the notices tick, THEN the
@@ -1189,7 +1189,7 @@ static int selftest_sleep(void) {
         tank.fish[0].ms_bits |= MS_ARRIVED | MS_FIRST_MEAL_FROM_YOU; tank.fish[0].ms_seen = tank.fish[0].ms_bits;
         tank.tank_ms_bits |= TMS_FIRST_FULL_NIGHT; tank.tank_ms_seen = tank.tank_ms_bits;
         uint32_t want_seen = tank.fish[0].ms_seen, want_tseen = tank.tank_ms_seen;
-        float bx_default = tank.bubble_x;
+        float bx_default = tank_bubble_x(&tank);
         progression_save(&tank);
         {
             unsigned char buf[4096]; FILE *f = fopen(sav, "rb"); if (!f) return 1;
@@ -1201,10 +1201,10 @@ static int selftest_sleep(void) {
         }
         tank_init(&tank, 8); progression_boot(&tank);
         if (tank.n_fish != 2 || strcmp(tank.fish[0].name, "fez") || tank.fish[0].ms_seen != want_seen ||
-            tank.tank_ms_seen != want_tseen || tank.bubble_x != bx_default) {
+            tank.tank_ms_seen != want_tseen || tank_bubble_x(&tank) != bx_default) {
             printf("FAIL: the 1432-byte pre-bubble save came back as %d fish, %s, seen %08x/%08x (want %08x/%08x), bubble %.0f (want %.0f)\n",
                    tank.n_fish, tank.n_fish ? tank.fish[0].name : "-", tank.fish[0].ms_seen, tank.tank_ms_seen,
-                   want_seen, want_tseen, tank.bubble_x, bx_default); return 1; }
+                   want_seen, want_tseen, tank_bubble_x(&tank), bx_default); return 1; }
         printf("selftest-sleep: a 1432-byte save from the first public installer builds keeps its badges seen and its bubble column\n");
     }
     printf("selftest-sleep: dash %.0f px/s at the drop; fed and calmed %.1f s after pellets\n",
@@ -1275,20 +1275,20 @@ static int saves_check(const char *what, const uint8_t *e, float bubble_default)
     float bx = bubble_default;
     if (sv_f32(e, 1404) > 0) {                           /* the file's column, where this board's floor lets it stand (the fixtures are
                                                             the rectangle's: its 358 is past the end of the watch's floor) */
-        static tank_t probe; tank_init(&probe, 8); tank_set_bubble_x(&probe, sv_f32(e, 1404)); bx = probe.bubble_x;
+        static tank_t probe; tank_init(&probe, 8); tank_set_bubble_x(&probe, sv_f32(e, 1404)); bx = tank_bubble_x(&probe);
     }
-    if (tank.bubble_x != bx) SV_FAIL("bubble column %.0f, want %.0f", tank.bubble_x, bx);
+    if (tank_bubble_x(&tank) != bx) SV_FAIL("bubble column %.0f, want %.0f", tank_bubble_x(&tank), bx);
     int idle = e[1476] | e[1477] << 8;
     if (tank.light_tip_seen != (e[1684] != 0)) SV_FAIL("the lights-out notice's mark %d", tank.light_tip_seen);
     if (tank.light_idle_s != (idle ? idle : LIGHT_IDLE_S) || tank.light_auto != (e[1478] != 0)) SV_FAIL("light settings %d s auto %d", tank.light_idle_s, tank.light_auto);
     if (tank.sd_balance != (int32_t)sv_u32(e, 1480) || tank.sd_earned != (int32_t)sv_u32(e, 1484) ||
         tank.sd_unlocks != ((sv_u32(e, 1488) & ((1u << SD_ITEM_COUNT) - 1) & ((1u << SD_ITEM_SP_FIRST) - 1)) | sp_bits)) SV_FAIL("sand dollars %d (earned %d), unlocks %02x", tank.sd_balance, tank.sd_earned, tank.sd_unlocks);
     if (tank.snail_grazed != (int32_t)sv_u32(e, 1612)) SV_FAIL("the snail's tally %d", (int)tank.snail_grazed);
-    if (sv_f32(e, 1616) > 0 && (tank.castle_x != sv_f32(e, 1616) || tank.castle_z != (e[1620] == DECOR_Z_BACK + 1 ? DECOR_Z_BACK : DECOR_Z_FRONT)))
-        SV_FAIL("castle at %.0f depth %d", tank.castle_x, tank.castle_z);
-    if (sv_u32(e, 1632) && tank.coral_rgb != (sv_u32(e, 1632) & 0xffffff)) SV_FAIL("coral color %06x", tank.coral_rgb);
-    if (tank.coral_growth != fmaxf(sv_f32(e, 1636), 0) || tank.cluster_growth != fmaxf(sv_f32(e, 1648), 0)) SV_FAIL("coral / cluster growth %.2f / %.2f", tank.coral_growth, tank.cluster_growth);
-    if (tank.cluster_scheme != (e[1645] < CLUSTER_SCHEME_N ? e[1645] : CLUSTER_SCHEME_N - 1)) SV_FAIL("cluster look %d", tank.cluster_scheme);
+    if (sv_f32(e, 1616) > 0 && (tank.decor[DK_CASTLE].x != sv_f32(e, 1616) || tank.decor[DK_CASTLE].z != (e[1620] == DECOR_Z_BACK + 1 ? DECOR_Z_BACK : DECOR_Z_FRONT)))
+        SV_FAIL("castle at %.0f depth %d", tank.decor[DK_CASTLE].x, tank.decor[DK_CASTLE].z);
+    if (sv_u32(e, 1632) && tank.decor[DK_CORAL].rgb != (sv_u32(e, 1632) & 0xffffff)) SV_FAIL("coral color %06x", tank.decor[DK_CORAL].rgb);
+    if (tank.decor[DK_CORAL].growth != fmaxf(sv_f32(e, 1636), 0) || tank.decor[DK_CLUSTER].growth != fmaxf(sv_f32(e, 1648), 0)) SV_FAIL("coral / cluster growth %.2f / %.2f", tank.decor[DK_CORAL].growth, tank.decor[DK_CLUSTER].growth);
+    if (tank.decor[DK_CLUSTER].variant != (e[1645] < CLUSTER_SCHEME_N ? e[1645] : CLUSTER_SCHEME_N - 1)) SV_FAIL("cluster look %d", tank.decor[DK_CLUSTER].variant);
     if (tank.sd_unlocks & SD_ITEM_SHRIMP) {             /* the shrimp tail (09-29): the school, its count, its cooldown */
         float cool = sv_f32(e, 1656);
         if (tank.shrimp_n != (e[1652] >= SHRIMP_START ? e[1652] : SHRIMP_START) || tank.shrimp_food != (e[1653] <= SHRIMP_PER_JOIN ? e[1653] : SHRIMP_PER_JOIN)
@@ -1308,7 +1308,7 @@ static int saves_load(const char *what, const uint8_t *bytes, size_t len, const 
     const char *sav = getenv("AQUA_PETS_SAVE");
     FILE *f = fopen(sav, "wb"); if (!f || fwrite(bytes, 1, len, f) != len) { printf("FAIL: could not write %s\n", sav); return 1; }
     fclose(f);
-    tank_init(&tank, 8); float bx0 = tank.bubble_x;
+    tank_init(&tank, 8); float bx0 = tank_bubble_x(&tank);
     progression_wake(&tank, 0);                          /* no clock: a plain restore, nothing lived through */
     if (saves_check(what, e, bx0)) return 1;
     if (progression_loaded_release() != sv_u32(e, 1664)) { printf("FAIL: %s: the release stamp read %06x, the file says %06x\n", what, progression_loaded_release(), sv_u32(e, 1664)); return 1; }
@@ -2324,7 +2324,7 @@ static int selftest_llm(int minutes) {
             const fish_t *f = &tank.fish[fi];
             goal_ticks[f->goal.id]++;
             cur_sum += f->curiosity; hun_sum += f->hunger; en_sum += f->energy;
-            if (tank_dist(f->x, f->y, tank.bubble_x, tank.bubble_y - 74) < 55) near_b++;
+            if (tank_dist(f->x, f->y, tank_bubble_x(&tank), tank.bubble_y - 74) < 55) near_b++;
             if (tank_dist(f->x, f->y, tank.reef_x, tank.reef_y - 35) < 55) near_r++;
             bored_sum += f->bored;
             zmask[fi] |= (uint8_t)(1u << (int)(f->zone_last < 0 ? 0 : f->zone_last));
@@ -2464,9 +2464,9 @@ static int hero_shot(const char *prefix) {
     tank_castle_place(&tank); tank_coral_place(&tank); tank_cluster_place(&tank);
     tank_decor_set(&tank, 2, 336, DECOR_Z_FRONT);                        /* the castle, right */
     tank_decor_set(&tank, 3, 208, DECOR_Z_FRONT);                        /* the coral in gold (the logo's sand dollar) */
-    tank_coral_set_rgb(&tank, CORAL_PAL[7]); tank.coral_growth = CORAL_FULL;
+    tank_coral_set_rgb(&tank, CORAL_PAL[7]); tank.decor[DK_CORAL].growth = CORAL_FULL;
     tank_decor_set(&tank, 4, 92, DECOR_Z_FRONT);                         /* the reef cluster in bloom, left */
-    tank_cluster_set_scheme(&tank, 0); tank.cluster_growth = CLUSTER_FULL;
+    tank_cluster_set_scheme(&tank, 0); tank.decor[DK_CLUSTER].growth = CLUSTER_FULL;
     for (int i = 0; i < 12 * 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);   /* bubbles up the column */
     tank_veg_set(&tank, 0, 0.62f); tank_veg_set(&tank, 1, 0.5f); tank_veg_set(&tank, 2, 0.7f);
     memset(tank.algae, 0, sizeof tank.algae);
@@ -2518,9 +2518,9 @@ static int clip(const char *prefix, int seconds) {
     tank_urchin_place(&tank); tank_shrimp_place(&tank, 6);
     tank_decor_set(&tank, 2, 336 * sx, DECOR_Z_FRONT);
     tank_decor_set(&tank, 3, 208 * sx, DECOR_Z_FRONT);
-    tank_coral_set_rgb(&tank, CORAL_PAL[7]); tank.coral_growth = CORAL_FULL;
+    tank_coral_set_rgb(&tank, CORAL_PAL[7]); tank.decor[DK_CORAL].growth = CORAL_FULL;
     tank_decor_set(&tank, 4, 92 * sx, DECOR_Z_FRONT);
-    tank_cluster_set_scheme(&tank, 0); tank.cluster_growth = CLUSTER_FULL;
+    tank_cluster_set_scheme(&tank, 0); tank.decor[DK_CLUSTER].growth = CLUSTER_FULL;
     tank_veg_set(&tank, 0, 0.62f); tank_veg_set(&tank, 1, 0.5f); tank_veg_set(&tank, 2, 0.7f);
     for (int i = 0; i < 20 * 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);   /* settle: bubbles up, fish spread */
     memset(tank.algae, 0, sizeof tank.algae);
@@ -2893,11 +2893,11 @@ static int snapshot(const char *prefix, int seconds) {
         tank.fish[3].x = 190; tank.fish[3].y = TANK_BOT - 16 - 90; tank.fish[3].heading = 3.0f; tank_fish_face(&tank.fish[3]);
         for (int i = 0; i < 30; i++) render_tank(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_coral_young.ppm", prefix); write_ppm(path, fb);      /* just bought: CORAL_START */
-        tank.coral_growth = 0.72f; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+        tank.decor[DK_CORAL].growth = 0.72f; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_coral_half.ppm", prefix); write_ppm(path, fb);       /* a week in */
-        tank.coral_growth = 1.0f; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+        tank.decor[DK_CORAL].growth = 1.0f; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_coral_fan.ppm", prefix); write_ppm(path, fb);        /* the fan complete, no crown yet */
-        tank.coral_growth = CORAL_FULL; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+        tank.decor[DK_CORAL].growth = CORAL_FULL; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_coral.ppm", prefix); write_ppm(path, fb);            /* the crown out */
         tank_decor_set(&tank, 3, 150, DECOR_Z_FRONT); tank_coral_set_rgb(&tank, CORAL_PAL[3]);
         render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
@@ -2921,9 +2921,9 @@ static int snapshot(const char *prefix, int seconds) {
         tank.fish[3].x = 370; tank.fish[3].y = TANK_BOT - 16 - 100; tank.fish[3].heading = 3.0f; tank_fish_face(&tank.fish[3]);
         for (int i = 0; i < 30; i++) render_tank(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_cluster_young.ppm", prefix); write_ppm(path, fb);
-        tank.cluster_growth = 1.0f; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+        tank.decor[DK_CLUSTER].growth = 1.0f; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_cluster_full.ppm", prefix); write_ppm(path, fb);
-        tank.cluster_growth = CLUSTER_FULL; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+        tank.decor[DK_CLUSTER].growth = CLUSTER_FULL; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_cluster.ppm", prefix); write_ppm(path, fb);
         tank_decor_set(&tank, 4, 330, DECOR_Z_FRONT); tank_cluster_set_scheme(&tank, 1); render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_cluster_front.ppm", prefix); write_ppm(path, fb);
@@ -3548,9 +3548,9 @@ static int selftest_shop(void) {
         /* the crown: at CORAL_FULL there are pixels above the fan's top that the fan alone never touches */
         tank_decor_set(&tank, 3, 224, DECOR_Z_FRONT);
         const int kx = (int)tank_decor_x(&tank, 3);
-        tank.coral_growth = 1.0f; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+        tank.decor[DK_CORAL].growth = 1.0f; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
         static uint16_t fb2[TANK_W * TANK_H]; memcpy(fb2, fb, sizeof fb2);
-        tank.coral_growth = CORAL_FULL; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+        tank.decor[DK_CORAL].growth = CORAL_FULL; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
         int crown = 0, ytop = TANK_BOT - 14 - 92;
         for (int y = ytop - 12; y < ytop + 16; y++) for (int x = kx - 40; x < kx + 40; x++) crown += fb[y * TANK_W + x] != fb2[y * TANK_W + x];
         if (crown < 30) { printf("FAIL: no crown above the grown coral (%d px differ)\n", crown); return 1; }
@@ -3616,9 +3616,9 @@ static int selftest_shop(void) {
         setup_activate(&tank, SETUP_HIT_NEXT);
         /* the bloom: at CLUSTER_FULL pixels differ from full size without it, above the rock */
         tank_decor_set(&tank, 4, 250, DECOR_Z_FRONT);
-        tank.cluster_growth = 1.0f; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+        tank.decor[DK_CLUSTER].growth = 1.0f; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
         static uint16_t fb2[TANK_W * TANK_H]; memcpy(fb2, fb, sizeof fb2);
-        tank.cluster_growth = CLUSTER_FULL; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+        tank.decor[DK_CLUSTER].growth = CLUSTER_FULL; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
         int bloom = 0;
         for (int y = TANK_BOT - 14 - 140; y < TANK_BOT - 14 - 20; y++) for (int x = 250 - 80; x < 250 + 80; x++) bloom += fb[y * TANK_W + x] != fb2[y * TANK_W + x];
         if (bloom < 150) { printf("FAIL: no bloom on the grown cluster (%d px differ)\n", bloom); return 1; }
@@ -3836,7 +3836,7 @@ static int selftest_shop(void) {
            `reef` sighting points at it); the fish's badge in its place is its
            first rest inside a seagrass canopy */
         {
-            uint32_t unl = tank.sd_unlocks, tms = tank.tank_ms_bits; fish_t keep0 = tank.fish[0]; float cl_x = tank.cluster_x;
+            uint32_t unl = tank.sd_unlocks, tms = tank.tank_ms_bits; fish_t keep0 = tank.fish[0]; float cl_x = tank.decor[DK_CLUSTER].x;
             float bed0[VEG_FRONDS_MAX]; memcpy(bed0, tank.veg_h[0], sizeof bed0);
             fish_t *f = &tank.fish[0]; float rx, ry;
             tank.sd_unlocks &= ~(SD_ITEM_CLUSTER | SD_ITEM_SHRIMP); tank.tank_ms_bits &= ~(TMS_FIRST_REEF | TMS_FULL_SCHOOL);
@@ -3888,7 +3888,7 @@ static int selftest_shop(void) {
             progression_tick(&tank, 1.0f / 60.0f);
             if (!(f->ms_bits & MS_FIRST_GRASS)) { printf("FAIL: hiding in the canopy did not earn the seagrass badge\n"); return 1; }
             memcpy(tank.veg_h[0], bed0, sizeof bed0); tank_veg_sync(&tank);
-            tank.fish[0] = keep0; tank.sd_unlocks = unl; tank.tank_ms_bits = tms; tank.cluster_x = cl_x;
+            tank.fish[0] = keep0; tank.sd_unlocks = unl; tank.tank_ms_bits = tms; tank.decor[DK_CLUSTER].x = cl_x;
             printf("selftest-shop: the reef: no badge without the cluster, the fish leave the old corner for the cluster and earn it in %.0f s, it stays once earned; the seagrass badge wants a rest or a hide inside real cover\n", took / 60.0f);
         }
         tank.trickle_off = false;
@@ -3975,10 +3975,10 @@ static int selftest_shop(void) {
         if (!progression_buy(&tank, SD_ITEM_WRECK_IDX) || tank.sd_balance != 0 || !(tank.sd_unlocks & SD_ITEM_WRECK) || tank_decor_z(&tank, SD_ITEM_WRECK_IDX) != DECOR_Z_FRONT) { printf("FAIL: the wreck did not sell at %d\n", SD_PRICE_WRECK); return 1; }
         if (tank_decor_x(&tank, SD_ITEM_WRECK_IDX) != WRECK_X_DEFAULT) { printf("FAIL: the wreck's default spot\n"); return 1; }
         tank_decor_set(&tank, SD_ITEM_WRECK_IDX, 200, DECOR_Z_BACK);
-        if (tank.wreck_x != 200 || tank.wreck_z != DECOR_Z_BACK || tank_decor_hit(&tank, 200, TANK_BOT - 30) != SD_ITEM_WRECK_IDX) { printf("FAIL: placing the wreck (x %.0f z %d hit %d)\n", tank.wreck_x, tank.wreck_z, tank_decor_hit(&tank, 200, TANK_BOT - 30)); return 1; }
+        if (tank.decor[DK_WRECK].x != 200 || tank.decor[DK_WRECK].z != DECOR_Z_BACK || tank_decor_hit(&tank, 200, TANK_BOT - 30) != SD_ITEM_WRECK_IDX) { printf("FAIL: placing the wreck (x %.0f z %d hit %d)\n", tank.decor[DK_WRECK].x, tank.decor[DK_WRECK].z, tank_decor_hit(&tank, 200, TANK_BOT - 30)); return 1; }
         progression_save(&tank);
         { tank_t back; tank_init(&back, 1); progression_boot(&back);
-          if (!(back.sd_unlocks & SD_ITEM_WRECK) || back.wreck_x != 200 || back.wreck_z != DECOR_Z_BACK) { printf("FAIL: the wreck did not come back from the save (x %.0f z %d)\n", back.wreck_x, back.wreck_z); return 1; } }
+          if (!(back.sd_unlocks & SD_ITEM_WRECK) || back.decor[DK_WRECK].x != 200 || back.decor[DK_WRECK].z != DECOR_Z_BACK) { printf("FAIL: the wreck did not come back from the save (x %.0f z %d)\n", back.decor[DK_WRECK].x, back.decor[DK_WRECK].z); return 1; } }
         for (int z = DECOR_Z_BACK; z <= DECOR_Z_FRONT; z += 2) {
             tank_decor_set(&tank, SD_ITEM_WRECK_IDX, 200, z); tank.fish[0].x = 200 - 22; tank.fish[0].y = TANK_BOT - 14 + DECOR_SINK - 14;
             for (int f = 0; f < 3; f++) { tank_tick(&tank, 1 / 60.0f, advisor_rules); render_tank(&tank, fb, TANK_W); }
@@ -4415,7 +4415,7 @@ static int bench(void) {
     tank.sd_unlocks = SD_ITEM_PLANT | SD_ITEM_SNAIL | SD_ITEM_CASTLE | SD_ITEM_CORAL | SD_ITEM_CLUSTER | SD_ITEM_SHRIMP | SD_ITEM_URCHIN | SD_ITEM_WRECK | SD_ITEM_FROGMAN | SD_ITEM_SUB;
     tank_plant_place(&tank); tank_snail_place(&tank); tank_castle_place(&tank); tank_coral_place(&tank); tank_cluster_place(&tank);
     tank_shrimp_place(&tank, 6); tank_urchin_place(&tank); tank_wreck_place(&tank); tank_frogman_place(&tank); tank_sub_place(&tank);
-    tank.coral_growth = 1.25f; tank.cluster_growth = 1.8f;
+    tank.decor[DK_CORAL].growth = 1.25f; tank.decor[DK_CLUSTER].growth = 1.8f;
     tank_decor_set(&tank, 2, TANK_W * 0.5f, DECOR_Z_FRONT); tank_decor_set(&tank, 3, TANK_W * 0.22f, DECOR_Z_FRONT);
     tank_decor_set(&tank, 4, TANK_W * 0.8f, DECOR_Z_FRONT); tank_decor_set(&tank, SD_ITEM_WRECK_IDX, TANK_W * 0.35f, DECOR_Z_FRONT);
     for (int th = 0; th < THEME_COUNT; th++) {
@@ -5249,6 +5249,217 @@ static int selftest_species(void) {
     return 0;
 }
 
+/* --golden-decor [prefix] (2026-10-21, the decor refactor's oracle): every decor
+ * piece and helper in a fixed tank, each theme, each mix of depths, the scene
+ * cache on and off, then a minute of the tank running - one FNV-1a hash per
+ * frame on stdout (and <prefix>_<name>.ppm when a prefix is given), and the hash
+ * of a save of the staged tank with its wall-clock stamp zeroed. Two builds that
+ * print the same lines draw and save the same tank. */
+static uint64_t fnv64(const void *p, size_t n, uint64_t h) {
+    const unsigned char *b = p;
+    for (size_t i = 0; i < n; i++) { h ^= b[i]; h *= 1099511628211ull; }
+    return h;
+}
+static void golden_frame(const char *prefix, const char *name, const uint16_t *fb) {
+    printf("%s %016llx\n", name, (unsigned long long)fnv64(fb, (size_t)TANK_W * TANK_H * 2, 1469598103934665603ull));
+    if (prefix) { char path[512]; snprintf(path, sizeof path, "%s_%s.ppm", prefix, name); write_ppm(path, fb); }
+}
+static const int GOLDEN_ITEM[5] = { 0, 2, 3, 4, SD_ITEM_WRECK_IDX };   /* plant, castle, coral, cluster, wreck */
+static const float GOLDEN_X[2][5] = { { 230, 320, 150, 360, 110 },     /* the castle and the wreck apart */
+                                      { 90, 200, 380, 120, 290 } };    /* ... overlapping, the cluster under the castle's left */
+static void golden_layout(int lay) {
+    const float sx = TANK_W / 448.0f;
+    for (int k = 0; k < 5; k++) tank_decor_set(&tank, GOLDEN_ITEM[k], GOLDEN_X[lay][k] * sx, tank_decor_z(&tank, GOLDEN_ITEM[k]));
+    for (int i = 0; i < tank.n_fish; i++) {          /* the fish among the pieces: through the arch, by the wreck, over the reef */
+        static const float FY[6] = { 40, 50, 70, 45, 120, 200 };
+        tank.fish[i].x = (i < 5 ? GOLDEN_X[lay][(i + 1) % 5] : 270) * sx; tank.fish[i].y = TANK_BOT - FY[i];
+        tank.fish[i].heading = i % 2 ? 3.1f : 0.1f; tank_fish_face(&tank.fish[i]);
+    }
+}
+static void golden_stage(int theme) {
+    const float sx = TANK_W / 448.0f;
+    tank_init(&tank, 2024); tank_new_population(&tank);
+    while (tank.n_fish < 6) tank_add_fish(&tank, 0, 1);
+    tank.theme = (uint8_t)theme;
+    tank_veg_set(&tank, 0, 0.6f); tank_veg_set(&tank, 1, 0.5f); tank_veg_set(&tank, 2, 0.45f);
+    for (int i = 0; i < 10 * 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+    tank.sd_unlocks |= SD_ITEM_PLANT | SD_ITEM_CASTLE | SD_ITEM_CORAL | SD_ITEM_CLUSTER | SD_ITEM_WRECK
+                     | SD_ITEM_FROGMAN | SD_ITEM_SUB | SD_ITEM_SNAIL | SD_ITEM_URCHIN | SD_ITEM_SHRIMP;
+    tank_plant_place(&tank); tank_castle_place(&tank); tank_coral_place(&tank); tank_cluster_place(&tank); tank_wreck_place(&tank);
+    tank_frogman_place(&tank); tank_sub_place(&tank); tank_snail_place(&tank); tank_urchin_place(&tank); tank_shrimp_place(&tank, 6);
+    tank_veg_set(&tank, 3, 0.7f);
+    tank_coral_set_rgb(&tank, CORAL_PAL[3]); tank.decor[DK_CORAL].growth = CORAL_FULL;
+    tank_cluster_set_scheme(&tank, 1); tank.decor[DK_CLUSTER].growth = CLUSTER_FULL;
+    tank_decor_set(&tank, 0, 230 * sx, DECOR_Z_MIDDLE);
+    golden_layout(0);
+    tank.snail_x = 200 * sx; tank.snail_y = SNAIL_FLOOR_Y; tank.snail_cell = -1;
+}
+static int golden_decor(const char *prefix) {
+    static uint16_t fb[TANK_W * TANK_H], scene[TANK_W * TANK_H];
+    static const int Z[6][5] = {                      /* plant, castle, coral, cluster, wreck */
+        { DECOR_Z_MIDDLE, DECOR_Z_FRONT, DECOR_Z_FRONT, DECOR_Z_FRONT, DECOR_Z_FRONT },
+        { DECOR_Z_BACK,   DECOR_Z_BACK,  DECOR_Z_BACK,  DECOR_Z_BACK,  DECOR_Z_BACK },
+        { DECOR_Z_FRONT,  DECOR_Z_BACK,  DECOR_Z_FRONT, DECOR_Z_BACK,  DECOR_Z_FRONT },
+        { DECOR_Z_BACK,   DECOR_Z_FRONT, DECOR_Z_BACK,  DECOR_Z_FRONT, DECOR_Z_BACK },
+        { DECOR_Z_FRONT,  DECOR_Z_FRONT, DECOR_Z_BACK,  DECOR_Z_BACK,  DECOR_Z_FRONT },   /* the castle and the wreck alone IN FRONT */
+        { DECOR_Z_MIDDLE, DECOR_Z_BACK,  DECOR_Z_FRONT, DECOR_Z_FRONT, DECOR_Z_BACK } };
+    char name[64];
+    render_set_vignette_cache(vig_buf); render_set_card_cache(card_buf); render_set_dirty_mask(dirty_buf);
+    for (int theme = 0; theme < THEME_COUNT; theme++)
+        for (int cached = 1; cached >= 0; cached--) {
+            golden_stage(theme);
+            render_set_scene_cache(cached ? scene : NULL);
+            for (int lay = 0; lay < 2; lay++) {
+                golden_layout(lay);
+                for (int m = 0; m < 6; m++) {
+                    for (int k = 0; k < 5; k++) tank_decor_set(&tank, GOLDEN_ITEM[k], tank_decor_x(&tank, GOLDEN_ITEM[k]), Z[m][k]);
+                    render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+                    snprintf(name, sizeof name, "t%d_%s_l%d_mix%d", theme, cached ? "cache" : "plain", lay, m); golden_frame(prefix, name, fb);
+                    tank.night = true; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W); tank.night = false;
+                    snprintf(name, sizeof name, "t%d_%s_l%d_mix%d_night", theme, cached ? "cache" : "plain", lay, m); golden_frame(prefix, name, fb);
+                }
+            }
+            golden_layout(0);
+            for (int k = 0; k < 5; k++) tank_decor_set(&tank, GOLDEN_ITEM[k], tank_decor_x(&tank, GOLDEN_ITEM[k]), Z[0][k]);
+            for (int s = 0; s < 60 * 60; s++) {           /* a minute: the frogman and the sub cross, the helpers about their rules */
+                tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+                if (s % 300 == 299) {
+                    render_tank(&tank, fb, TANK_W);
+                    snprintf(name, sizeof name, "t%d_%s_run%02d", theme, cached ? "cache" : "plain", s / 300); golden_frame(prefix, name, fb);
+                }
+            }
+            if (theme == 0 && cached) {
+                tank_shake(&tank, 1.0f);
+                for (int s = 0; s < 120; s++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+                render_tank(&tank, fb, TANK_W); golden_frame(prefix, "t0_cache_shaken", fb);
+                tank_tick_sleep(&tank, 8 * 3600);
+                render_tank(&tank, fb, TANK_W); golden_frame(prefix, "t0_cache_slept", fb);
+                static char save[512];
+                snprintf(save, sizeof save, "%s/aqua-golden-%ld.sav", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp", (long)getpid());
+                setenv("AQUA_PETS_SAVE", save, 1);
+                if (!progression_save(&tank)) { printf("golden: the save failed (%s)\n", save); return 1; }
+                FILE *f = fopen(save, "rb"); if (!f) return 1;
+                static unsigned char buf[8192]; size_t n = fread(buf, 1, sizeof buf, f); fclose(f); unlink(save);
+                if (n >= 16) memset(buf + 8, 0, 8);          /* saved_unix: the wall clock */
+                printf("save %zu %016llx\n", n, (unsigned long long)fnv64(buf, n, 1469598103934665603ull));
+            }
+        }
+    return 0;
+}
+
+/* --selftest-decor (2026-10-21): every row of DECOR[] (common/decor.h) in this
+ * board's world - its depths (the placement bar's segments map back; a depth it
+ * lacks snaps to one it has), its default spot and the floor's clamp inside the
+ * glass, a hold on its foot, the sale back to its factory state, the save and
+ * the load, and a woven (MIDDLE) piece's two halves round a creature in front
+ * of it. A new row is checked here with no new code. */
+#define DC_FAIL(...) do { printf("FAIL: decor %s: ", DECOR[k].name); printf(__VA_ARGS__); printf("\n"); return 1; } while (0)
+static void dc_fresh(void) {
+    tank_init(&tank, 5); progression_fresh(&tank); progression_setup_done(&tank);
+    tank.stage_fish = -1;
+    for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, 0.6f);
+}
+static void dc_render(uint16_t *out) {
+    static uint16_t fb[TANK_W * TANK_H];
+    render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+    memcpy(out, fb, sizeof fb);
+}
+/* the piece gone from the tank, as far as the eye goes: unbought, or its bed cut to nubs */
+static void dc_absent(int k) {
+    if (DECOR[k].shop_bit) tank.sd_unlocks &= ~DECOR[k].shop_bit;
+    else if (DECOR[k].veg_bed >= 0) tank_veg_set(&tank, DECOR[k].veg_bed, VEG_NUB);
+}
+static int selftest_decor(void) {
+    static uint16_t none[TANK_W * TANK_H], fish[TANK_W * TANK_H], piece[TANK_W * TANK_H], both[TANK_W * TANK_H], scene[TANK_W * TANK_H];
+    static tank_t back;
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest-decor.sav", 1);   /* never touch the real save */
+    render_set_scene_cache(scene); render_set_vignette_cache(vig_buf); render_set_card_cache(card_buf); render_set_dirty_mask(dirty_buf);
+    int woven = 0;
+    for (int k = 0; k < DK_COUNT; k++) {
+        const decor_def_t *d = &DECOR[k];
+        dc_fresh();
+        if (d->shop_bit) tank.sd_unlocks |= d->shop_bit;
+        if (!decor_owned(&tank, k)) DC_FAIL("not in the tank once bought");
+        /* the depths */
+        int n = decor_z_count(k);
+        if (n < 1 || !((d->z_mask >> d->z_default) & 1)) DC_FAIL("offers %d depths and arrives at %d", n, d->z_default);
+        if (tank.decor[k].z != d->z_default) DC_FAIL("a new tank has it at depth %d, not %d", tank.decor[k].z, d->z_default);
+        for (int i = 0; i < n; i++) {
+            int z = decor_z_at(k, i);
+            if (!((d->z_mask >> z) & 1) || decor_z_index(k, z) != i) DC_FAIL("segment %d is depth %d, which maps back to segment %d", i, z, decor_z_index(k, z));
+        }
+        for (int z = 0; z < DECOR_Z_N; z++) {
+            decor_set(&tank, k, decor_x(&tank, k), z);
+            int got = decor_z(&tank, k);
+            if (!((d->z_mask >> got) & 1) || (((d->z_mask >> z) & 1) && got != z)) DC_FAIL("asked for depth %d, it took %d", z, got);
+        }
+        if (d->flags & DF_MOVABLE) {
+            /* the floor: the default spot and every clamp inside the glass at the sand */
+            float y = TANK_BOT - 14, gx0 = tank_glass_x0(y), gx1 = tank_glass_x1(y);
+            float lo = TANK_FX0 + DECOR_MARGIN + d->half_w, hi = TANK_FX1 - DECOR_MARGIN - d->half_w;
+            if (d->x_default < lo - 0.5f || d->x_default > hi + 0.5f) DC_FAIL("its default spot %.0f is off the floor %.0f..%.0f", d->x_default, lo, hi);
+            for (int i = 0; i < 4; i++) {
+                float want = i == 0 ? -1000 : i == 1 ? TANK_W * 0.3f : i == 2 ? TANK_W * 0.7f : 10000;
+                decor_set(&tank, k, want, d->z_default);
+                float x = decor_x(&tank, k);
+                if (x - d->half_w < gx0 - 0.5f || x + d->half_w > gx1 + 0.5f) DC_FAIL("put at %.0f it stands at %.0f, out of the glass %.0f..%.0f", want, x, gx0, gx1);
+            }
+            /* a hold on its foot finds it (alone in the tank); one well over it does not */
+            uint32_t unl = tank.sd_unlocks; tank.sd_unlocks = d->shop_bit;
+            decor_set(&tank, k, TANK_W * 0.5f, d->z_default);
+            if (decor_hit(&tank, decor_x(&tank, k), TANK_BOT - 6) != k) DC_FAIL("a hold on its foot does not find it");
+            if (tank_decor_hit(&tank, decor_x(&tank, k), TANK_BOT - 6) != d->shop_item) DC_FAIL("the shop's hold finds item %d", tank_decor_hit(&tank, decor_x(&tank, k), TANK_BOT - 6));
+            if (decor_hit(&tank, decor_x(&tank, k), decor_top(&tank, k) - 30) == k) DC_FAIL("a hold well above it finds it");
+            tank.sd_unlocks = unl;
+            /* the save and the load, at every depth it offers */
+            for (int i = 0; i < n; i++) {
+                float x = TANK_FX0 + (TANK_FX1 - TANK_FX0) * (0.35f + 0.1f * i);
+                decor_set(&tank, k, x, decor_z_at(k, i)); x = decor_x(&tank, k);
+                if (!progression_save(&tank)) DC_FAIL("the save failed");
+                tank_init(&back, 9); progression_boot(&back);
+                if (!decor_owned(&back, k) || fabsf(decor_x(&back, k) - x) > 0.01f || decor_z(&back, k) != decor_z_at(k, i))
+                    DC_FAIL("saved at %.1f depth %d, loaded at %.1f depth %d", x, decor_z_at(k, i), decor_x(&back, k), decor_z(&back, k));
+            }
+        }
+        if (d->flags & DF_SELLABLE) {
+            /* bought, moved, sold: the money back, the piece gone, its next purchase fresh */
+            dc_fresh(); tank.sd_balance = 100000;
+            if (!progression_buy(&tank, d->shop_item) || !decor_owned(&tank, k)) DC_FAIL("cannot be bought");
+            decor_set(&tank, k, TANK_W * 0.4f, decor_z_at(k, n - 1));
+            int bal = tank.sd_balance;
+            if (!progression_sell(&tank, d->shop_item) || decor_owned(&tank, k)) DC_FAIL("cannot be sold");
+            if (tank.sd_balance != bal + progression_sell_value(d->shop_item)) DC_FAIL("sold for %d, not %d", tank.sd_balance - bal, progression_sell_value(d->shop_item));
+            if (tank.decor[k].x != 0 || tank.decor[k].z != d->z_default) DC_FAIL("a sold piece is at %.0f depth %d, not its factory state", tank.decor[k].x, tank.decor[k].z);
+        }
+        if ((d->z_mask >> DECOR_Z_MIDDLE) & 1) {
+            /* woven: a creature in front of it has some of the piece over it and some behind */
+            dc_fresh();
+            if (d->shop_bit) { tank.sd_unlocks |= d->shop_bit; decor_place(&tank, k); }
+            if (d->veg_bed >= 0) tank_veg_set(&tank, d->veg_bed, 0.6f);
+            decor_set(&tank, k, TANK_W * 0.5f, DECOR_Z_MIDDLE);
+            float cx = decor_x(&tank, k);
+            tank_make_fish(&tank, 0, 0, 0.5f, 0.5f, STAGE_ADULT); tank.n_fish = 1;
+            fish_t *f = &tank.fish[0]; f->x = cx; f->y = TANK_BOT - 70; f->size = 2.5f; f->heading = 0; tank_fish_face(f);
+            tank_t keep = tank;
+            tank.n_fish = 0; dc_absent(k); dc_render(none);
+            tank = keep; dc_absent(k); dc_render(fish);
+            tank = keep; tank.n_fish = 0; dc_render(piece);
+            tank = keep; dc_render(both);
+            int over = 0, under = 0;
+            for (int p = 0; p < TANK_W * TANK_H; p++) {
+                if (fish[p] == none[p]) continue;                         /* not the creature's pixel */
+                if (both[p] != fish[p]) over++;                           /* the piece drawn over it */
+                else if (piece[p] != none[p]) under++;                    /* the piece is there, and the creature over it */
+            }
+            if (!over || !under) DC_FAIL("woven, %d of its pixels are over the creature and %d under it", over, under);
+            woven++;
+        }
+    }
+    remove(getenv("AQUA_PETS_SAVE"));
+    printf("selftest-decor: %d pieces (%d woven): depths, the floor inside the glass, the hold, the sale, the save; selftest-decor ok\n", DK_COUNT, woven);
+    return 0;
+}
+
 extern int selftest_themes(const char *prefix);
 
 int main(int argc, char **argv) {
@@ -5262,6 +5473,8 @@ int main(int argc, char **argv) {
         if (strcmp(argv[a], "--snapshot") == 0 && a + 1 < argc)
             return snapshot(argv[a + 1], a + 2 < argc ? atoi(argv[a + 2]) : 20);
         if (strcmp(argv[a], "--selftest-themes") == 0) return selftest_themes(a + 1 < argc ? argv[a + 1] : NULL);
+        if (strcmp(argv[a], "--golden-decor") == 0) return golden_decor(a + 1 < argc ? argv[a + 1] : NULL);
+        if (strcmp(argv[a], "--selftest-decor") == 0) return selftest_decor();
         if (strcmp(argv[a], "--selftest") == 0) return selftest();
         if (strcmp(argv[a], "--bench") == 0) return bench();
         if (strcmp(argv[a], "--species-sheet") == 0 && a + 1 < argc) return species_sheet(argv[a + 1]);
@@ -5598,8 +5811,8 @@ int main(int argc, char **argv) {
         }
         kdown = k[SDL_SCANCODE_K];
         if (k[SDL_SCANCODE_J] && !jdown && (tank.sd_unlocks & SD_ITEM_CORAL)) {   /* the coral's growth, a step at a time (a month in ~8 taps) */
-            tank.coral_growth = tank_coral_growth(&tank) + 0.15f > CORAL_FULL ? CORAL_START : tank_coral_growth(&tank) + 0.15f;
-            printf("coral growth %.2f (1.0 = the fan, %.2f = the crown)\n", tank.coral_growth, CORAL_FULL);
+            tank.decor[DK_CORAL].growth = tank_coral_growth(&tank) + 0.15f > CORAL_FULL ? CORAL_START : tank_coral_growth(&tank) + 0.15f;
+            printf("coral growth %.2f (1.0 = the fan, %.2f = the crown)\n", tank.decor[DK_CORAL].growth, CORAL_FULL);
         }
         jdown = k[SDL_SCANCODE_J];
         if (k[SDL_SCANCODE_I] && !idown) {         /* the reef cluster (2026-09-24): granted free; again = the next look; past the last takes it away */
@@ -5611,8 +5824,8 @@ int main(int argc, char **argv) {
         }
         idown = k[SDL_SCANCODE_I];
         if (k[SDL_SCANCODE_O] && !odown && (tank.sd_unlocks & SD_ITEM_CLUSTER)) {
-            tank.cluster_growth = tank_cluster_growth(&tank) + 0.25f > CLUSTER_FULL ? CLUSTER_START + 1e-4f : tank_cluster_growth(&tank) + 0.25f;
-            printf("cluster growth %.2f (1.0 = full size, %.2f = every tentacle)\n", tank.cluster_growth, CLUSTER_FULL);
+            tank.decor[DK_CLUSTER].growth = tank_cluster_growth(&tank) + 0.25f > CLUSTER_FULL ? CLUSTER_START + 1e-4f : tank_cluster_growth(&tank) + 0.25f;
+            printf("cluster growth %.2f (1.0 = full size, %.2f = every tentacle)\n", tank.decor[DK_CLUSTER].growth, CLUSTER_FULL);
         }
         odown = k[SDL_SCANCODE_O];
         if (k[SDL_SCANCODE_W] && !wdown) {         /* the shrimp school (2026-09-29): granted free; again = one more; past SHRIMP_MAX takes them away */
