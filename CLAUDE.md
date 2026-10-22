@@ -20,7 +20,9 @@ make check-all       # every selftest on all three boards (required gate for any
 make NOMODEL=1 check-all   # skip --selftest-llm when model/out/model_q4.bin is absent
 ```
 
-**Run a single test:** run one selftest flag on the built binary, e.g. `./fishsim --selftest-shop` or `./fishsim-round --selftest-pop`. The full list is `SELFTESTS` in [sim/Makefile](sim/Makefile): `--selftest-themes`, `--selftest`, `--selftest-hunger`, `--selftest-shop`, `--selftest-battery`, `--selftest-pop`, `--selftest-card`, `--selftest-menu`, `--selftest-sleep`, `--selftest-tend`, `--selftest-llm`, `--selftest-saves`, `--selftest-update`, `--selftest-species`, `--selftest-encoder`.
+**Run a single test:** run one selftest flag on the built binary, e.g. `./fishsim --selftest-shop` or `./fishsim-round --selftest-pop`. The full list is `SELFTESTS` in [sim/Makefile](sim/Makefile): `--selftest-themes`, `--selftest`, `--selftest-hunger`, `--selftest-shop`, `--selftest-battery`, `--selftest-pop`, `--selftest-card`, `--selftest-menu`, `--selftest-sleep`, `--selftest-tend`, `--selftest-llm`, `--selftest-saves`, `--selftest-update`, `--selftest-species`, `--selftest-encoder`, `--selftest-decor`.
+
+`--golden-decor [prefix]` (not a selftest) prints a hash per frame for a fixed tank with every decor piece and helper, every depth mix, all themes, cache on and off, plus a save. Run it on two builds to prove a refactor changed no pixel.
 
 Useful sim flags: `--fresh`, `--fast N`, `--greedy`, `--narrate` (prints every model decision), `--snapshot <prefix>` (writes PPM frames of every page), `--bench`.
 
@@ -39,6 +41,11 @@ There are three strictly separated layers, all in `common/`:
 - **Advisor** (`advisor.c`, `llm/`): `advisor_rules` is a non-LLM stub (sim key **L** toggles it). The LLM advisor encodes a fish's situation as one text line ([model/schema.md](model/schema.md)), runs the 4-bit llama2.c-style engine (`llm/q4_model.c`, `llm/word_tok.c`), and parses back a goal and an urgency. `llm/advisor_core.c` holds the shared encoder. Each platform supplies its own thread wrapper: `sim/advisor_llm.c` and `firmware/main/advisor_llm_esp.c` (second core, weights mmapped from flash). A fish is re-asked only when its `state_signature` bands change.
 - **Progression** (`progression.c`): growth, arrivals and breeding, trust, milestones, sand dollars, the shop, and persistence.
 
+Tank entities come in three families (a refactor in phases since 2026-10-21; plan in docs/HANDOFF.md):
+- **Decor** (`decor.c`/`decor.h`): static pieces, one row each in `DECOR[]` (where it stands, the depths it offers, its den/camouflage/ground/reef parts, buy/sell/grow hooks), instances in `tank_t.decor[]`. render.c draws them through `DECOR_DRAW[]` and the `PAINT_*` orders; each piece's art is in `decor_<name>.inc`. A depth is BACK, FRONT or MIDDLE, and MIDDLE is a split: half the piece behind the creatures and half in front, each piece defining its halves. A new piece is a row, its draw hooks and its art.
+- **Helpers** (the snail, urchin, shrimp, frogman, sub): move by their own rules, bought, never bred or placed. Still loose `tank_t` fields until phase 2.
+- **Creatures**: what the model decides for, `t->fish[]` (also the encoder's `friend` set). Helpers must never join it.
+
 Rendering is a software RGB565 renderer in `render.c`, which draws the tank, the cards, milestones, the shop, settings, and the pixel font. `theme.c` and `*_assets.c` provide the four themes. `setup.c` handles first run and the birth flow, `update.c` the OTA pages, `notice.c` the announcements, and `audio.c`/`sounds.c` the mixer and the cue bank.
 
 Platform-specific code is limited to the **ports**: `sim/*_port_sim.c` and `firmware/main/*_port_*.c` (display, touch, IMU, battery, audio, net, persistence).
@@ -53,7 +60,7 @@ Platform-specific code is limited to the **ports**: `sim/*_port_sim.c` and `firm
 - **Board `#ifdef`s (`TANK_ROUND`, `TANK_WATCH`) belong only in** the geometry in `tank.h`, layout-constant blocks in `render.h`/`render.c`/`update.c`, and the ports. If feature logic needs one, it was written against a pixel instead of a name.
 - **There are two coordinate spaces.** Fish live in TANK coordinates (`TANK_W`/`TANK_H`/`TANK_BOT`/`TANK_FX0`/`TANK_FX1`). Pages draw in a 448×368 PAGE space centered at `PAGE_X`/`PAGE_Y`. Anything crossing between them must subtract `PAGE_X`/`PAGE_Y`. New page elements go inside PAGE x 56..392, y 60..300, the area every board shows whole.
 - **Tests ask the layout where things are** (`render_milestones_card`, the `MSP_*`/`SHP_*`/`SET_*`/`UPD_*` constants). A literal pixel in a test only tests one board.
-- **The save layout is locked** (`SAVE LAYOUT LOCK` in [common/progression.c](common/progression.c)). New fields only go at the end of `save_t`, and the `_Static_assert` offsets must hold. Saves from every earlier version must still load. `sim/testdata/saves/` holds historical saves for `--selftest-saves`.
+- **The save layout is locked** (`SAVE LAYOUT LOCK` in [common/progression.c](common/progression.c)). The save is layout 3 ("PTK3", since 2026-10-21). New fields only go at the end of `save_t`, and the `_Static_assert` offsets must hold. Decor and helpers are records keyed by kind, so a new kind needs no new field. Every layout 3 save must still load. PTK2 saves (before 2026-10-21) start a fresh tank: the keeper chose that break for the decor refactor. `sim/testdata/saves/` holds both kinds for `--selftest-saves`.
 - **A change is not done until all three boards pass:** `make check-all`, the side-by-side picture (`tools/board_sheet.py --selftest-card`), and firmware builds for each board (`tools/flash.sh`, `flash_round.sh --build-only`, `flash_watch.sh --build-only`). Watch `.bss`: internal RAM has only ~23 KB headroom.
 
 ## Generated files: do not hand-edit

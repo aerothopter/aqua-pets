@@ -54,8 +54,9 @@ pixel instead of a name - fix that instead.
    `render_milestones_row`, `render_milestones_arrow`) or uses the layout's
    named constants with `PAGE_X` / `PAGE_Y`. A literal pixel in a test is a
    test for one board.
-4. **A save field only ever appends** (progression.c's SAVE LAYOUT LOCK), and
-   the save means the same on every board.
+4. **A save field only ever appends** (progression.c's SAVE LAYOUT LOCK; save
+   layout 3 since 2026-10-21, PTK2 saves before it start fresh), and the save
+   means the same on every board.
 5. **Nothing is done until all three say so:**
 
    | step | command (from the project root) | what it proves |

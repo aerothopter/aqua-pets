@@ -2610,6 +2610,57 @@ static void wreck_front(dframe_t *f, const dpos_t *p, int pass) {
     else draw_wreck(f->c, p->x, f->cached, 1);
 }
 
+/* the airstone: its stones on the floor and the column's bubbles. BEHIND, both
+   go behind the creatures (the stones over the grass's back fronds, the
+   bubbles with the drifting ones, after the food); IN FRONT, both over them;
+   woven, the stones stay behind and every other bubble of the column comes
+   in front */
+static void draw_airstone(ctx_t *c, const tank_t *t, dyn_t *dr) {
+    float ax = tank_bubble_x(t), ay = TANK_BOT - 17;
+    bool bw = theme_active()==THEME_BLACKWATER;   /* Blackwater: three basalt stones, lit from the upper left */
+    fill_ellipse(c, ax - 6, ay + 1, 7, 4, theme_active()==THEME_TIDEPOOL_CLUB?0xcaac87:bw?0x3a3b3c:theme_active()?0x788f7a:0x2a3634, 255);
+    fill_ellipse(c, ax + 5, ay + 2, 6, 3.5f, theme_active()==THEME_TIDEPOOL_CLUB?0xa78767:bw?0x2a2b2c:theme_active()?0x536e63:0x22302c, 255);
+    fill_ellipse(c, ax, ay - 2, 6, 3.5f, theme_active()==THEME_TIDEPOOL_CLUB?0xead6ad:bw?0x55575a:theme_active()?0x96aa90:0x3a4a48, 255);
+    fill_ellipse(c, ax - 1, ay - 3, 2, 1.2f, 0x5a6a68, 200);
+    dyn_add(dr, (int)ax - 14, (int)ay - 7, (int)ax + 12, (int)ay + 7);
+}
+static void draw_bubble(ctx_t *c, const bubble_t *b, dyn_t *dr) {
+    float r = b->column ? 2.6f : 1.8f;
+    if(theme_active()==THEME_BLACKWATER) {
+        /* a real bubble: a thin bright rim (the surface's reflection), a dark glassy inside, the sun's window top-left */
+        for(int j=0;j<12;j++) {
+            float a=TAU*j/12;
+            px_blend(c,(int)(b->x+cosf(a)*r),(int)(b->y+sinf(a)*r),j>=6&&j<=10?0xe8f6ff:0x7fb4c4,j>=6&&j<=10?200:120);
+        }
+        fill_ellipse(c,b->x,b->y,r*.55f,r*.55f,0x9fd8e2,45);
+        fill_ellipse(c,b->x-r*.4f,b->y-r*.4f,.9f,.6f,0xffffff,230);
+    } else if(theme_active()) {
+        bool club=theme_active()==THEME_TIDEPOOL_CLUB;
+        r=club?r+0.6f:r;
+        for(int j=0;j<12;j++) {
+            float a=TAU*j/12;
+            px_blend(c,(int)(b->x+cosf(a)*r),(int)(b->y+sinf(a)*r),club?0x3d8e83:0xc4e6d1,club?140:110);
+        }
+        fill_ellipse(c,b->x-r*.4f,b->y-r*.5f,club?1:.65f,.65f,0xfff6d9,240);
+    } else {
+        fill_ellipse(c, b->x, b->y, r, r, 0x9fd8e2, 60);
+        px_blend(c, (int)(b->x - r * 0.4f), (int)(b->y - r * 0.4f), 0xffffff, 120);
+    }
+    dyn_add(dr, (int)b->x - 5, (int)b->y - 5, (int)b->x + 5, (int)b->y + 5);
+}
+static bool airstone_bubble_front(const tank_t *t, int i) {
+    int z = decor_z(t, DK_AIRSTONE);
+    return t->bubble[i].column && (z == DECOR_Z_FRONT || (z == DECOR_Z_MIDDLE && (i & 1)));
+}
+static void airstone_back(dframe_t *f, const dpos_t *p, int pass) {
+    if (pass == DECOR_Z_MIDDLE && p->z != DECOR_Z_FRONT) draw_airstone(f->c, f->t, f->dr);   /* after every back frond */
+}
+static void airstone_front(dframe_t *f, const dpos_t *p, int pass) {
+    if (pass != p->z || pass == DECOR_Z_BACK) return;
+    if (p->z == DECOR_Z_FRONT) draw_airstone(f->c, f->t, f->dr);
+    for (int i = 0; i < MAX_BUBBLE; i++) if (airstone_bubble_front(f->t, i)) draw_bubble(f->c, &f->t->bubble[i], f->dr);
+}
+
 static const decor_draw_t DECOR_DRAW[DK_COUNT] = {
     [DK_SEAGRASS0] = { .back = veg_back, .front = veg_front },
     [DK_SEAGRASS1] = { .back = veg_back, .front = veg_front },
@@ -2621,13 +2672,14 @@ static const decor_draw_t DECOR_DRAW[DK_COUNT] = {
     [DK_CLUSTER]   = { .key = cluster_key, .bake = cluster_bake, .bake_front = cluster_bake_front, .plain = cluster_plain, .dragged = cluster_dragged,
                        .back = cluster_back, .front = cluster_front },
     [DK_WRECK]     = { .bake = wreck_bake, .bake_front = wreck_bake_front, .plain = wreck_plain, .dragged = wreck_dragged, .front = wreck_front },
+    [DK_AIRSTONE]  = { .back = airstone_back, .front = airstone_front },
 };
 /* the painter's orders: the scene's bodies, the scene's pieces IN FRONT (the wreck
    first: the reef pieces stand over it), the back pass, the front pass */
 static const uint8_t PAINT_SCENE[]       = { DK_CASTLE, DK_CORAL, DK_CLUSTER, DK_WRECK };
 static const uint8_t PAINT_SCENE_FRONT[] = { DK_WRECK, DK_CLUSTER, DK_CORAL };
-static const uint8_t PAINT_BACK[]        = { DK_CASTLE, DK_CORAL, DK_CLUSTER, DK_SEAGRASS0, DK_SEAGRASS1, DK_SEAGRASS2, DK_PLANT };
-static const uint8_t PAINT_FRONT[]       = { DK_CASTLE, DK_SEAGRASS0, DK_SEAGRASS1, DK_SEAGRASS2, DK_PLANT, DK_WRECK, DK_CLUSTER, DK_CORAL };
+static const uint8_t PAINT_BACK[]        = { DK_CASTLE, DK_CORAL, DK_CLUSTER, DK_SEAGRASS0, DK_SEAGRASS1, DK_SEAGRASS2, DK_PLANT, DK_AIRSTONE };
+static const uint8_t PAINT_FRONT[]       = { DK_CASTLE, DK_SEAGRASS0, DK_SEAGRASS1, DK_SEAGRASS2, DK_PLANT, DK_WRECK, DK_CLUSTER, DK_CORAL, DK_AIRSTONE };
 #define N_OF(a) ((int)(sizeof (a) / sizeof (a)[0]))
 static void decor_pass(dframe_t *f, const dpos_t *pos, const uint8_t *order, int n, bool front, int pass) {
     for (int i = 0; i < n; i++) {
@@ -2776,17 +2828,6 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
     decor_pass(&df, pos, PAINT_BACK, N_OF(PAINT_BACK), false, DECOR_Z_BACK);
     decor_pass(&df, pos, PAINT_BACK, N_OF(PAINT_BACK), false, DECOR_Z_MIDDLE);
     PROF_ADD(2, p0);
-    /* the airstone the column rises from, on the floor where the keeper put
-       it (setup): three stones and a glint - dynamic, since it can move */
-    {
-        float ax = tank_bubble_x(t), ay = TANK_BOT - 17;
-        bool bw = theme_active()==THEME_BLACKWATER;   /* Blackwater: three basalt stones, lit from the upper left */
-        fill_ellipse(&c, ax - 6, ay + 1, 7, 4, theme_active()==THEME_TIDEPOOL_CLUB?0xcaac87:bw?0x3a3b3c:theme_active()?0x788f7a:0x2a3634, 255);
-        fill_ellipse(&c, ax + 5, ay + 2, 6, 3.5f, theme_active()==THEME_TIDEPOOL_CLUB?0xa78767:bw?0x2a2b2c:theme_active()?0x536e63:0x22302c, 255);
-        fill_ellipse(&c, ax, ay - 2, 6, 3.5f, theme_active()==THEME_TIDEPOOL_CLUB?0xead6ad:bw?0x55575a:theme_active()?0x96aa90:0x3a4a48, 255);
-        fill_ellipse(&c, ax - 1, ay - 3, 2, 1.2f, 0x5a6a68, 200);
-        DYN_RECT((int)ax - 14, (int)ay - 7, (int)ax + 12, (int)ay + 7);
-    }
     /* food pellets */
     for (int i = 0; i < MAX_FOOD; i++)
         if (t->food[i].alive) {
@@ -2810,32 +2851,9 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
             }
             DYN_RECT((int)t->food[i].x - 5, (int)t->food[i].y - 5, (int)t->food[i].x + 5, (int)t->food[i].y + 5);
         }
-    /* bubbles */
-    for (int i = 0; i < MAX_BUBBLE; i++) {
-        const bubble_t *b = &t->bubble[i];
-        float r = b->column ? 2.6f : 1.8f;
-        if(theme_active()==THEME_BLACKWATER) {
-            /* a real bubble: a thin bright rim (the surface's reflection), a dark glassy inside, the sun's window top-left */
-            for(int j=0;j<12;j++) {
-                float a=TAU*j/12;
-                px_blend(&c,(int)(b->x+cosf(a)*r),(int)(b->y+sinf(a)*r),j>=6&&j<=10?0xe8f6ff:0x7fb4c4,j>=6&&j<=10?200:120);
-            }
-            fill_ellipse(&c,b->x,b->y,r*.55f,r*.55f,0x9fd8e2,45);
-            fill_ellipse(&c,b->x-r*.4f,b->y-r*.4f,.9f,.6f,0xffffff,230);
-        } else if(theme_active()) {
-            bool club=theme_active()==THEME_TIDEPOOL_CLUB;
-            r=club?r+0.6f:r;
-            for(int j=0;j<12;j++) {
-                float a=TAU*j/12;
-                px_blend(&c,(int)(b->x+cosf(a)*r),(int)(b->y+sinf(a)*r),club?0x3d8e83:0xc4e6d1,club?140:110);
-            }
-            fill_ellipse(&c,b->x-r*.4f,b->y-r*.5f,club?1:.65f,.65f,0xfff6d9,240);
-        } else {
-            fill_ellipse(&c, b->x, b->y, r, r, 0x9fd8e2, 60);
-            px_blend(&c, (int)(b->x - r * 0.4f), (int)(b->y - r * 0.4f), 0xffffff, 120);
-        }
-        DYN_RECT((int)b->x - 5, (int)b->y - 5, (int)b->x + 5, (int)b->y + 5);
-    }
+    /* bubbles: the drifting ones, and the column's behind the creatures (the airstone's depth: airstone_front) */
+    for (int i = 0; i < MAX_BUBBLE; i++)
+        if (!airstone_bubble_front(t, i)) draw_bubble(&c, &t->bubble[i], &dr);
     /* the shrimp school: on the sand and in the grass, under the fish and
        the front fronds (the grass is their cover) */
     if (t->sd_unlocks & SD_ITEM_SHRIMP) {

@@ -20,7 +20,7 @@ The modern settings and seven-character naming wheel use device-specific safe bo
 
 Regenerate with `python3 tools/gen_theme_assets.py`; verify with `python3 tools/gen_theme_assets.py --check`. Generation requires Pillow, librsvg-2 and libcairo. It does not require network access. Firmware and simulator use the checked-in `common/theme_assets.c`, so normal builds need none of those generation dependencies. Pixel/font arrays consume 325,176 bytes of flash; there is no runtime SVG or font engine.
 
-The persisted theme ID is appended at byte 3592 of the save, leaving every previous field at its original offset. Missing/unknown IDs fall back to Original. Do not reorder the IDs in `common/theme.h`.
+The persisted theme ID is `save_t.theme` (byte 56 of save layout 3, progression.c's SAVE LAYOUT LOCK). Missing/unknown IDs fall back to Original. Do not reorder the IDs in `common/theme.h`.
 
 ## Verification
 

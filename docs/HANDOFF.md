@@ -2,6 +2,68 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-21: save layout 3; the seagrass and the airstone get depths (refactor phase 1b)
+
+**What changed.**
+- **Save layout 3** ("PTK3", `common/progression.c`). This is a deliberate
+  break, the keeper's call: a PTK2 save (everything before today) is not
+  loaded and the tank starts fresh. On a real tank that means the first boot
+  after updating loses its fish, sand dollars and decor. **The release that
+  ships this must say so in its changelog**, and installer/README.md now does.
+  The new layout:
+  - one 100 B record per creature (25), with no 6 + 19 core/tail split
+  - every frond of all four beds
+  - the film
+  - a record per decor piece keyed by its kind (`decor_save_t`, 12 slots, 9 used)
+  - a record per helper keyed by `SVH_*` (`helper_save_t`, 8 slots, 3 used)
+  - the keeper's settings and money in a header section
+
+  3848 B, 152 B under the NVS budget. Within layout 3 the old rules hold: a
+  field only appends (SAVE LAYOUT LOCK, asserted on both compilers), and a
+  newer build's longer save loads its head. A new decor kind or helper is a
+  record, not a field. The loader no longer reads `veg_growth`, the
+  pre-bubble migration or the core/ext split.
+- **`--selftest-saves`** was rewritten. A tank with every field set comes back
+  field for field and re-saves the same bytes. A short save, a foreign magic
+  and a roster of 0, 1 or 26 each start fresh, and a longer save loads its
+  head. All 8 PTK2 fixtures start fresh at every length they ever had, and
+  the new `ptk3-2026-10-21-rich.sav` loads on all three boards. The
+  testdata README explains how to add one per release.
+- **Depths for the seagrass beds and the airstone** (decor rows: all three).
+  The beds are drawn by the grass's own pass at any depth. The airstone at
+  BACK draws exactly as before: its stones after the back fronds, the column
+  after the food. FRONT puts the stones and the whole column over the
+  creatures. MIDDLE is the split: the stones stay behind, and every other
+  bubble of the column comes in front.
+- **The setup bubbles page has the DEPTH bar.** The placement page's bar is
+  now shared helpers keyed by decor kind (`depth_bar`, `depth_bar_hit`), and
+  the bubbles page has a tile of its own: bubbles behind, through or over the
+  first fish. The drag zone starts under the bar. The placement page's stripe
+  reads each piece's height from the table (`decor_top`) instead of its own
+  copy. The seagrass depth is data only for now: the director and tests can
+  set it, and a hold on the grass stays the trust gesture.
+- `--selftest-decor` checks every woven piece (5 of them now) by comparing
+  MIDDLE against BACK and FRONT around a column of creatures. Each depth of
+  every piece survives the save. `--selftest-sleep`'s old-length checks became
+  a plain reload, and `--selftest-themes` pokes the theme at its new offset 56.
+
+All tank frames are identical to phase 1a (the oracle's 291 hashes per
+board). The pictures that changed are the bubbles page and the save's hash.
+The version-stamped pages differ only by the build id.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (16 selftests) | the bubbles page; oracle vs 1a | no (ESP-IDF v6.1 here, v5.4 pinned); common/ cross-compiles clean, layout asserts hold on xtensa gcc | no | no |
+| 1.75C round | passes | yes | no (cross-compiled) | no | no |
+| 2.06 watch | passes | yes | no (cross-compiled) | no | no |
+
+**Open.**
+- Flash only knowing the tank on it will start fresh (DEVICE.md's in-flight
+  table: anything mid-measurement on the board is lost with the save).
+- Phase 2: helpers, their save records already in place (`SVH_*`).
+
 ## 2026-10-21: the decor is one table (refactor phase 1a)
 
 **What changed.** The first step of a three-family refactor (decor, helpers,

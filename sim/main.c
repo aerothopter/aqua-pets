@@ -724,7 +724,16 @@ static int selftest_pop(void) {
        it, the rising bubbles come along, the reef and the grass push it off;
        the release is no tap */
     {
-        const float bx = TANK_FLOOR_X(300.0f), by = PG_Y(200);      /* on this board's floor; in the water under the page's buttons */
+        const float bx = TANK_FLOOR_X(300.0f), by = PG_Y(SETUP_PLACE_Y + 40);   /* on this board's floor; in the water under the DEPTH bar */
+        /* the DEPTH bar (2026-10-21): a tap on each segment puts the airstone at that depth; BEHIND again to go on */
+        for (int i = decor_z_count(DK_AIRSTONE) - 1; i >= 0; i--) {
+            float sx = (PAGE_W - decor_z_count(DK_AIRSTONE) * SETUP_DEPTH_SEG_W) / 2 + i * SETUP_DEPTH_SEG_W + SETUP_DEPTH_SEG_W / 2;
+            int h = pg_hit(sx, SETUP_DEPTH_Y + SETUP_DEPTH_H / 2);
+            if (h != SETUP_HIT_Z0 + decor_z_at(DK_AIRSTONE, i)) { printf("FAIL: the bubbles' DEPTH segment %d hit-tests as %s\n", i, setup_hit_name(h)); return 1; }
+            setup_activate(&tank, h);
+            if (decor_z(&tank, DK_AIRSTONE) != decor_z_at(DK_AIRSTONE, i)) { printf("FAIL: the bubbles are at depth %d, not %d\n", decor_z(&tank, DK_AIRSTONE), decor_z_at(DK_AIRSTONE, i)); return 1; }
+        }
+        setup_activate(&tank, SETUP_HIT_Z0 + DECOR_Z_MIDDLE);   /* woven: the save keeps it (below) */
         setup_touch(&tank, bx, by, true);
         tank_t probe = tank; tank_set_bubble_x(&probe, bx);
         if (fabsf(tank_bubble_x(&tank) - tank_bubble_x(&probe)) > 0.5f) { printf("FAIL: press put the column at %.0f, not %.0f\n", tank_bubble_x(&tank), tank_bubble_x(&probe)); return 1; }
@@ -818,6 +827,7 @@ static int selftest_pop(void) {
     if (setup_active() || progression_setup_pending() || tank.stage_fish != -1) { printf("FAIL: BEGIN did not finish the setup\n"); return 1; }
     tank_init(&tank, 13); progression_boot(&tank);
     if (fabsf(tank_bubble_x(&tank) - bubble_x_set) > 0.5f) { printf("FAIL: the bubble column did not come back from the save (%.0f)\n", tank_bubble_x(&tank)); return 1; }
+    if (decor_z(&tank, DK_AIRSTONE) != DECOR_Z_MIDDLE) { printf("FAIL: the bubbles came back at depth %d, not woven\n", decor_z(&tank, DK_AIRSTONE)); return 1; }
     if (progression_setup_pending() || strcmp(tank.fish[0].name, "bub") || strcmp(tank.fish[1].name, preset1) ||
         tank.fish[0].color != LOOK_BODY[6] || tank.fish[0].accent != accent0 || strcmp(preset0, tank_roster_name(tank.fish[0].preset))) {
         printf("FAIL: names/looks did not come back from the save ('%s' %06x/%06x, pending %d)\n",
@@ -1160,52 +1170,20 @@ static int selftest_sleep(void) {
         printf("selftest-sleep: deep-sleep wake lived through %.0f h (hunger 2.0 -> %.1f, bed 1 %.2f -> %.2f); grew %.0f s asleep, 60 s in the dark\n",
                h, hunger_wake, veg0, tank.veg_growth[1], grew);
     }
-    /* an older build's save is shorter - whatever length that build's struct
-       had, padding included (the seen-masks build wrote 1440, the family
-       build looked for 1436 and replaced a live tank with two fry on
-       2026-09-14) - and must still come back: same fish, same name */
+    /* the save comes back after the night: same fish, same name, its badges
+       seen; a 100-byte one is not ours (layout 3: --selftest-saves has the rest) */
     {
         tank_set_name(&tank, 0, "Fez");
+        tank.fish[0].ms_bits |= MS_ARRIVED | MS_FIRST_MEAL_FROM_YOU; tank.fish[0].ms_seen = tank.fish[0].ms_bits;
+        uint32_t want_seen = tank.fish[0].ms_seen; int want_n = tank.n_fish;
         progression_save(&tank);
-        const char *sav = getenv("AQUA_PETS_SAVE");
-        static const long older[] = { 1480, 1440, 1436, 1408, 1304, 1112, 448 };   /* 1480 = the light-settings build, before the shop */
-        for (size_t k = 0; k < sizeof older / sizeof *older; k++) {
-            if (truncate(sav, older[k])) { printf("FAIL: could not truncate the save to %ld\n", older[k]); return 1; }
-            tank_init(&tank, 8);
-            progression_boot(&tank);
-            if (tank.n_fish != 2 || strcmp(tank.fish[0].name, older[k] >= 1304 + 4 + 8 ? "fez" : tank_roster_name(tank.fish[0].preset))) {
-                printf("FAIL: a %ld-byte save came back as %d fish, %s\n", older[k], tank.n_fish, tank.n_fish ? tank.fish[0].name : "-"); return 1; }
-        }
-        if (truncate(sav, 100)) return 1;
+        tank_init(&tank, 8); progression_boot(&tank);
+        if (tank.n_fish != want_n || strcmp(tank.fish[0].name, "fez") || tank.fish[0].ms_seen != want_seen) {
+            printf("FAIL: the save came back as %d fish, %s, seen %08x\n", tank.n_fish, tank.n_fish ? tank.fish[0].name : "-", tank.fish[0].ms_seen); return 1; }
+        if (truncate(getenv("AQUA_PETS_SAVE"), 100)) return 1;
         tank_init(&tank, 8); progression_boot(&tank);
         if (!progression_setup_pending()) { printf("FAIL: a 100-byte save is not ours\n"); return 1; }
-        printf("selftest-sleep: older saves (1480 .. 448 bytes) load; a 100-byte one starts fresh\n");
-        /* the browser installer's first builds (public 2026-09-13 .. 09-14) wrote
-           1432 bytes with the seen masks at 1404, where bubble_x was inserted the
-           next day: such a save must come back with its badges still seen and the
-           bubble column at the default, not at "mask bits as a float" (= the left edge) */
-        tank_init(&tank, 8); progression_boot(&tank);    /* a fresh pair (setup pending) */
-        tank_set_name(&tank, 0, "Fez");
-        tank.fish[0].ms_bits |= MS_ARRIVED | MS_FIRST_MEAL_FROM_YOU; tank.fish[0].ms_seen = tank.fish[0].ms_bits;
-        tank.tank_ms_bits |= TMS_FIRST_FULL_NIGHT; tank.tank_ms_seen = tank.tank_ms_bits;
-        uint32_t want_seen = tank.fish[0].ms_seen, want_tseen = tank.tank_ms_seen;
-        float bx_default = tank_bubble_x(&tank);
-        progression_save(&tank);
-        {
-            unsigned char buf[4096]; FILE *f = fopen(sav, "rb"); if (!f) return 1;
-            size_t n = fread(buf, 1, sizeof buf, f); fclose(f);
-            if (n < 1436) { printf("FAIL: the save is only %zu bytes\n", n); return 1; }
-            memmove(buf + 1404, buf + 1408, 28);         /* drop bubble_x: masks back to the old spot */
-            f = fopen(sav, "wb"); if (!f) return 1;
-            fwrite(buf, 1, 1432, f); fclose(f);
-        }
-        tank_init(&tank, 8); progression_boot(&tank);
-        if (tank.n_fish != 2 || strcmp(tank.fish[0].name, "fez") || tank.fish[0].ms_seen != want_seen ||
-            tank.tank_ms_seen != want_tseen || tank_bubble_x(&tank) != bx_default) {
-            printf("FAIL: the 1432-byte pre-bubble save came back as %d fish, %s, seen %08x/%08x (want %08x/%08x), bubble %.0f (want %.0f)\n",
-                   tank.n_fish, tank.n_fish ? tank.fish[0].name : "-", tank.fish[0].ms_seen, tank.tank_ms_seen,
-                   want_seen, want_tseen, tank_bubble_x(&tank), bx_default); return 1; }
-        printf("selftest-sleep: a 1432-byte save from the first public installer builds keeps its badges seen and its bubble column\n");
+        printf("selftest-sleep: the save comes back after the night; a 100-byte one starts fresh\n");
     }
     printf("selftest-sleep: dash %.0f px/s at the drop; fed and calmed %.1f s after pellets\n",
            dash_speed, fed_at / 60.0f);
@@ -1214,219 +1192,210 @@ static int selftest_sleep(void) {
     return night_shift_check();
 }
 
-/* --selftest-saves (2026-09-29): the update promise - a browser update never
- * loses the tank. Every save in testdata/saves (frozen: the board's, the
- * sim's, one with every tail set; see the README there) loads, whole and cut
- * to every older build's length (the 1432 cut in the first public
- * installer's pre-bubble layout). What comes back must match the file's own
- * bytes read at the offsets of progression.c's SAVE LAYOUT LOCK, a cut-off
- * tail reading as the defaults - and again after a save and a reload. */
+/* --selftest-saves (layout 3, 2026-10-21): the save keeps the whole tank. A
+ * tank with every field set - a full roster of creatures, names, families,
+ * badges, every piece of decor at a depth of its own, the helpers, the
+ * settings and the money - comes back field for field, and saved again it is
+ * the same bytes. A save from before layout 3 (testdata/saves: PTK2, every
+ * length it ever had) starts a fresh tank, as does anything shorter than
+ * layout 3, another magic, or a roster that cannot be; a newer build's longer
+ * save loads the part this build knows. testdata/saves/ptk3-*.sav are layout 3
+ * saves frozen as they were written: they must always load. */
 #ifndef _MSC_VER
 #include <dirent.h>
-static const size_t SAVE_CUTS[] = { 448, 1112, 1304, 1408, 1432, 1440, 1456, 1480, 1608, 1616, 1624, 1640, 1656, 1664, 1672, 1680, 1688,
-                                    2092, 2096 };   /* (2092: fish 7..10's tail without the struct's closing pad; 2096: that build's sizeof) */
-#define SAVE_NOW 3608                    /* the theme byte (3592) and the shipwreck's tail (3600) after the 3592-byte population save */
-static uint32_t sv_u32(const uint8_t *e, size_t off) { uint32_t v; memcpy(&v, e + off, 4); return v; }
-static float    sv_f32(const uint8_t *e, size_t off) { float v; memcpy(&v, e + off, 4); return v; }
 static int name_cmp(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
-/* where fish i lives in the file (progression.c's sv_fish): the core's arrays
-   for 0..5, its fish_ext record (100 B from 1692) for 6..9 */
-typedef struct { size_t fs, name, body, seen, parent; } sv_at_t;
-static sv_at_t sv_at(int i) {
-    if (i < 6) return (sv_at_t){ 40 + 68 * (size_t)i, 1308 + (FISH_NAME_MAX + 1) * (size_t)i, 1356 + 4 * (size_t)i, 1408 + 4 * (size_t)i, 1437 + 2 * (size_t)i };
-    size_t b = 1692 + 100 * (size_t)(i - 6);
-    return (sv_at_t){ b, b + 68, b + 76, b + 84, b + 88 };
-}
-
-/* the loaded tank vs e (the save's bytes in today's layout, zeros past the cut) */
-static int saves_check(const char *what, const uint8_t *e, float bubble_default) {
+/* every saved field of b against a (a just saved, b just loaded) */
+static int saves_same(const char *what, const tank_t *a, const tank_t *b) {
     #define SV_FAIL(...) do { printf("FAIL: %s: ", what); printf(__VA_ARGS__); printf("\n"); return 1; } while (0)
-    int n = e[23];
-    if (e[1688] > n && e[1688] <= N_FISH_MAX) n = e[1688];   /* the true count (2026-10-05): the tail's, past the core's six */
-    if (tank.n_fish != n && !(e[22] && tank.n_fish == n + 1)) SV_FAIL("%d fish, want %d", tank.n_fish, n);
-    if (progression_setup_pending() != (e[1304] != 0)) SV_FAIL("setup pending %d", progression_setup_pending());
-    uint32_t sp_bits = 0;                                /* the species' shop bits follow who is here (progression_species_sync) */
-    for (int i = 0; i < n; i++) {
-        const fish_t *f = &tank.fish[i]; const sv_at_t at = sv_at(i); const uint8_t *fs = e + at.fs;
-        uint32_t ms = sv_u32(fs, 64) & ~MS_RETIRED_MASK;
-        int sp = fs[2] < SP_COUNT ? fs[2] : SP_FISH;
-        if (sp > SP_FISH) sp_bits |= SD_ITEMS[SD_ITEM_SP_FIRST + sp - 1].bit;
-        char want[FISH_NAME_MAX + 1] = { 0 }; const char *nm = (const char *)e + at.name;
-        for (int k = 0; k < FISH_NAME_MAX && nm[k]; k++) want[k] = (char)tolower((unsigned char)nm[k]);
-        if (!want[0]) snprintf(want, sizeof want, "%s", sp ? SPECIES[sp].names[i % 4] : tank_roster_name(fs[0] % tank_roster_count()));
-        if (f->preset != fs[0] % tank_roster_count()) SV_FAIL("fish %d preset %d, want %d", i, f->preset, fs[0]);
-        if (f->species != sp || (sp && f->variant != fs[3] % SP_VARIANTS)) SV_FAIL("fish %d is %s design %d, want %s / %d", i, SPECIES[f->species % SP_COUNT].token, f->variant, SPECIES[sp].token, fs[3]);
-        if (strcmp(f->name, want)) SV_FAIL("fish %d is %s, want %s", i, f->name, want);
-        if (f->trust != sv_f32(fs, 8) || progression_age_s(&tank, i) != sv_f32(fs, 44))
-            SV_FAIL("fish %d trust %.2f age %.0f s, want %.2f / %.0f", i, f->trust, progression_age_s(&tank, i), sv_f32(fs, 8), sv_f32(fs, 44));
-        if (f->eaten != (int32_t)sv_u32(fs, 56) || f->eaten_player != (int32_t)sv_u32(fs, 60)) SV_FAIL("fish %d meals %d/%d", i, f->eaten, f->eaten_player);
-        if (f->ms_bits != ms || f->ms_seen != (sv_u32(e, at.seen) & ms))
-            SV_FAIL("fish %d badges %03x seen %03x, want %03x / %03x", i, f->ms_bits, f->ms_seen, ms, sv_u32(e, at.seen) & ms);
-        if (sv_u32(e, at.body) && f->color != sv_u32(e, at.body)) SV_FAIL("fish %d color %06x", i, f->color);
-        int pa = e[at.parent] - 1; if (pa >= n) pa = -1;
-        if (f->parent_a != pa) SV_FAIL("fish %d parent %d, want %d", i, f->parent_a, pa);
+    if (b->n_fish != a->n_fish) SV_FAIL("%d fish, want %d", b->n_fish, a->n_fish);
+    for (int i = 0; i < a->n_fish; i++) {
+        const fish_t *f = &a->fish[i], *g = &b->fish[i];
+        if (strcmp(g->name, f->name) || g->preset != f->preset || g->species != f->species || g->variant != f->variant || g->stage != f->stage)
+            SV_FAIL("fish %d is %s (%d, %s %d, stage %d), want %s (%d, %s %d, stage %d)", i, g->name, g->preset, SPECIES[g->species].token, g->variant, g->stage,
+                    f->name, f->preset, SPECIES[f->species].token, f->variant, f->stage);
+        if (g->trust != f->trust || g->bold != f->bold || g->sociable != f->sociable || g->bold0 != f->bold0 || g->sociable0 != f->sociable0
+            || g->hunger != f->hunger || g->energy != f->energy || g->stress != f->stress || g->curiosity != f->curiosity)
+            SV_FAIL("fish %d's drives or traits differ", i);
+        if (g->eaten != f->eaten || g->eaten_player != f->eaten_player || g->ms_bits != f->ms_bits || g->ms_seen != f->ms_seen)
+            SV_FAIL("fish %d meals %d/%d badges %03x seen %03x", i, g->eaten, g->eaten_player, g->ms_bits, g->ms_seen);
+        if (g->color != f->color || g->accent != f->accent || g->parent_a != f->parent_a || g->parent_b != f->parent_b)
+            SV_FAIL("fish %d colours %06x/%06x parents %d/%d", i, g->color, g->accent, g->parent_a, g->parent_b);
+        if (g->drift_acc != f->drift_acc || g->rest_dx != f->rest_dx || g->rest_dy != f->rest_dy || b->sd_paid_fish[i] != a->sd_paid_fish[i])
+            SV_FAIL("fish %d's drift, its spot by the reef or its paid ledger", i);
     }
-    int nb = e[1436] && e[1436] <= n ? e[1436] - 1 : -1;
-    if (progression_newborn() != nb) SV_FAIL("newborn %d, want %d", progression_newborn(), nb);
-    if (tank.player_feedings != (int32_t)sv_u32(e, 28) || tank.tank_ms_bits != sv_u32(e, 36) ||
-        tank.tank_ms_seen != (sv_u32(e, 1432) & sv_u32(e, 36))) SV_FAIL("feedings %d, tank badges %03x seen %03x", tank.player_feedings, tank.tank_ms_bits, tank.tank_ms_seen);
-    if (memcmp(tank.algae, e + 460, ALGAE_CELLS) || tank.trims != (int32_t)sv_u32(e, 1104) || tank.cells_cleaned != (int32_t)sv_u32(e, 1108))
-        SV_FAIL("the glass / the chore counters differ");
-    float bx = bubble_default;
-    if (sv_f32(e, 1404) > 0) {                           /* the file's column, where this board's floor lets it stand (the fixtures are
-                                                            the rectangle's: its 358 is past the end of the watch's floor) */
-        static tank_t probe; tank_init(&probe, 8); tank_set_bubble_x(&probe, sv_f32(e, 1404)); bx = tank_bubble_x(&probe);
+    if (b->tank_ms_bits != a->tank_ms_bits || b->tank_ms_seen != a->tank_ms_seen || b->player_feedings != a->player_feedings
+        || b->hold_approaches != a->hold_approaches || b->feed_spot_x != a->feed_spot_x) SV_FAIL("the tank's badges, meals or holds");
+    if (b->light_idle_s != a->light_idle_s || b->light_auto != a->light_auto || b->light_tip_seen != a->light_tip_seen || b->theme != a->theme
+        || b->autofeed_off != a->autofeed_off || b->orient_lock != a->orient_lock || b->orient_inv != a->orient_inv || b->screen_turned != a->screen_turned)
+        SV_FAIL("the settings: lights %d s auto %d, theme %d, feed off %d, way up %d/%d/%d", b->light_idle_s, b->light_auto, b->theme, b->autofeed_off, b->orient_lock, b->orient_inv, b->screen_turned);
+    if (b->sd_balance != a->sd_balance || b->sd_earned != a->sd_earned || b->sd_unlocks != a->sd_unlocks
+        || b->sd_colonies_paid != a->sd_colonies_paid || b->sd_inches_paid != a->sd_inches_paid)
+        SV_FAIL("sand dollars %d (earned %d), unlocks %06x, want %d / %d / %06x", b->sd_balance, b->sd_earned, b->sd_unlocks, a->sd_balance, a->sd_earned, a->sd_unlocks);
+    if (memcmp(b->algae, a->algae, ALGAE_CELLS) || b->trims != a->trims || b->cells_cleaned != a->cells_cleaned
+        || b->algae_colonies != a->algae_colonies || b->trim_px != a->trim_px) SV_FAIL("the glass or the chore counters");
+    for (int bed = 0; bed < tank_veg_beds(a); bed++)
+        for (int i = 0; i < VEG_FRONDS_MAX; i++) if (b->veg_h[bed][i] != a->veg_h[bed][i]) SV_FAIL("bed %d frond %d", bed, i);
+    for (int k = 0; k < DK_COUNT; k++) {
+        const decor_t *d = &a->decor[k], *e = &b->decor[k];
+        if (decor_x(b, k) != decor_x(a, k) || e->z != d->z || e->variant != d->variant || e->rgb != d->rgb || e->growth != d->growth)
+            SV_FAIL("%s at %.1f depth %d (look %d, %06x, growth %.3f), want %.1f / %d (%d, %06x, %.3f)", DECOR[k].name,
+                    decor_x(b, k), e->z, e->variant, e->rgb, e->growth, decor_x(a, k), d->z, d->variant, d->rgb, d->growth);
     }
-    if (tank_bubble_x(&tank) != bx) SV_FAIL("bubble column %.0f, want %.0f", tank_bubble_x(&tank), bx);
-    int idle = e[1476] | e[1477] << 8;
-    if (tank.light_tip_seen != (e[1684] != 0)) SV_FAIL("the lights-out notice's mark %d", tank.light_tip_seen);
-    if (tank.light_idle_s != (idle ? idle : LIGHT_IDLE_S) || tank.light_auto != (e[1478] != 0)) SV_FAIL("light settings %d s auto %d", tank.light_idle_s, tank.light_auto);
-    if (tank.sd_balance != (int32_t)sv_u32(e, 1480) || tank.sd_earned != (int32_t)sv_u32(e, 1484) ||
-        tank.sd_unlocks != ((sv_u32(e, 1488) & ((1u << SD_ITEM_COUNT) - 1) & ((1u << SD_ITEM_SP_FIRST) - 1)) | sp_bits)) SV_FAIL("sand dollars %d (earned %d), unlocks %02x", tank.sd_balance, tank.sd_earned, tank.sd_unlocks);
-    if (tank.snail_grazed != (int32_t)sv_u32(e, 1612)) SV_FAIL("the snail's tally %d", (int)tank.snail_grazed);
-    if (sv_f32(e, 1616) > 0 && (tank.decor[DK_CASTLE].x != sv_f32(e, 1616) || tank.decor[DK_CASTLE].z != (e[1620] == DECOR_Z_BACK + 1 ? DECOR_Z_BACK : DECOR_Z_FRONT)))
-        SV_FAIL("castle at %.0f depth %d", tank.decor[DK_CASTLE].x, tank.decor[DK_CASTLE].z);
-    if (sv_u32(e, 1632) && tank.decor[DK_CORAL].rgb != (sv_u32(e, 1632) & 0xffffff)) SV_FAIL("coral color %06x", tank.decor[DK_CORAL].rgb);
-    if (tank.decor[DK_CORAL].growth != fmaxf(sv_f32(e, 1636), 0) || tank.decor[DK_CLUSTER].growth != fmaxf(sv_f32(e, 1648), 0)) SV_FAIL("coral / cluster growth %.2f / %.2f", tank.decor[DK_CORAL].growth, tank.decor[DK_CLUSTER].growth);
-    if (tank.decor[DK_CLUSTER].variant != (e[1645] < CLUSTER_SCHEME_N ? e[1645] : CLUSTER_SCHEME_N - 1)) SV_FAIL("cluster look %d", tank.decor[DK_CLUSTER].variant);
-    if (tank.sd_unlocks & SD_ITEM_SHRIMP) {             /* the shrimp tail (09-29): the school, its count, its cooldown */
-        float cool = sv_f32(e, 1656);
-        if (tank.shrimp_n != (e[1652] >= SHRIMP_START ? e[1652] : SHRIMP_START) || tank.shrimp_food != (e[1653] <= SHRIMP_PER_JOIN ? e[1653] : SHRIMP_PER_JOIN)
-            || tank.shrimp_cool != (cool > 0 && cool <= SHRIMP_COOLDOWN_S ? cool : 0) || tank.shrimp_eaten != (int32_t)sv_u32(e, 1660))
-            SV_FAIL("shrimp %d count %d cooldown %.0f eaten %d", tank.shrimp_n, tank.shrimp_food, tank.shrimp_cool, (int)tank.shrimp_eaten);
-    } else if (tank.shrimp_n) SV_FAIL("%d shrimp without the unlock", tank.shrimp_n);
-    if (tank.sd_unlocks & SD_ITEM_URCHIN) {             /* the urchin tail (10-02): its spot (0 = by the reef bed) and its tally */
-        if ((sv_f32(e, 1676) > 0 && tank.urchin_x != sv_f32(e, 1676)) || tank.urchin_x < 0
-            || tank.urchin_grazed_px != fmaxf(sv_f32(e, 1680), 0)) SV_FAIL("urchin at %.0f, %.0f px grazed", tank.urchin_x, tank.urchin_grazed_px);
-    } else if (tank.urchin_x >= 0 || tank.urchin_grazed_px) SV_FAIL("an urchin without the unlock (%.0f)", tank.urchin_x);
+    if (b->snail_x != a->snail_x || b->snail_y != a->snail_y || b->snail_grazed != a->snail_grazed) SV_FAIL("the snail at %.0f,%.0f, %d grazed", b->snail_x, b->snail_y, (int)b->snail_grazed);
+    if (b->urchin_x != a->urchin_x || b->urchin_grazed_px != a->urchin_grazed_px) SV_FAIL("the urchin at %.0f, %.0f px eaten", b->urchin_x, b->urchin_grazed_px);
+    if (b->shrimp_n != a->shrimp_n || b->shrimp_food != a->shrimp_food || b->shrimp_cool != a->shrimp_cool || b->shrimp_eaten != a->shrimp_eaten)
+        SV_FAIL("%d shrimp, %d toward the next, cooldown %.0f, %d eaten", b->shrimp_n, b->shrimp_food, b->shrimp_cool, (int)b->shrimp_eaten);
     return 0;
     #undef SV_FAIL
 }
-
-/* write len bytes as the save, boot it, check it; then save, reload, check again */
-static int saves_load(const char *what, const uint8_t *bytes, size_t len, const uint8_t *e) {
-    const char *sav = getenv("AQUA_PETS_SAVE");
-    FILE *f = fopen(sav, "wb"); if (!f || fwrite(bytes, 1, len, f) != len) { printf("FAIL: could not write %s\n", sav); return 1; }
-    fclose(f);
-    tank_init(&tank, 8); float bx0 = tank_bubble_x(&tank);
-    progression_wake(&tank, 0);                          /* no clock: a plain restore, nothing lived through */
-    if (saves_check(what, e, bx0)) return 1;
-    if (progression_loaded_release() != sv_u32(e, 1664)) { printf("FAIL: %s: the release stamp read %06x, the file says %06x\n", what, progression_loaded_release(), sv_u32(e, 1664)); return 1; }
-    progression_save(&tank);
-    tank_init(&tank, 9); progression_wake(&tank, 0);
-    char again[300]; snprintf(again, sizeof again, "%s, saved and reloaded", what);
-    if (progression_loaded_release() != PT_RELEASE_NUM) { printf("FAIL: %s: re-saved, the stamp is %06x, not this release's %06x\n", again, progression_loaded_release(), PT_RELEASE_NUM); return 1; }
-    return saves_check(again, e, bx0);
+/* a tank with every saved field set, the same on every run */
+static void saves_rich(tank_t *t) {
+    tank_init(t, 77); progression_fresh(t); progression_setup_done(t);
+    for (int sp = 1; sp < SP_COUNT && t->n_fish + 2 <= N_FISH_MAX; sp++) tank_add_species_pair(t, sp);
+    while (t->n_fish < N_FISH_MAX) tank_add_fish(t, 0, 1);
+    for (int i = 0; i < t->n_fish; i++) {
+        fish_t *f = &t->fish[i];
+        char nm[FISH_NAME_MAX + 1]; snprintf(nm, sizeof nm, "f%02d", i); if (i % 3) tank_set_name(t, i, nm);
+        progression_set_age(t, i, 600.0f * (i + 1));
+        f->trust = 1 + (i % 9) * 0.75f; f->hunger = (i % 10) * 0.9f; f->energy = 9 - (i % 7); f->stress = (i % 4) * 1.5f; f->curiosity = (i % 5) * 1.7f;
+        f->eaten = 10 * i; f->eaten_player = 3 * i; f->ms_bits = MS_ARRIVED | (i & 1 ? MS_FIRST_DART : 0) | (i % 3 == 0 ? MS_FIRST_BUBBLES : 0);
+        f->ms_seen = f->ms_bits & ~MS_FIRST_DART; f->drift_acc = 0.01f * i;
+        t->sd_paid_fish[i] = (uint32_t)(i & 7);
+    }
+    t->tank_ms_bits = 0x1a7; t->tank_ms_seen = 0x107; t->player_feedings = 42; t->hold_approaches = 5; t->feed_spot_x = TANK_W * 0.4f;
+    t->light_idle_s = 30; t->light_auto = true; t->light_tip_seen = true; t->theme = 2; t->autofeed_off = true;
+    tank_orient_lock(t, true);
+    t->sd_balance = 321; t->sd_earned = 987; t->sd_colonies_paid = 3; t->sd_inches_paid = 4;
+    t->trims = 17; t->cells_cleaned = 250; t->algae_colonies = 31; t->trim_px = 1234.5f;
+    for (int i = 0; i < ALGAE_CELLS; i++) t->algae[i] = (uint8_t)((i * 37) & 255);
+    for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(t, b, 0.3f + 0.15f * b);
+    t->veg_h[0][2] = 0.21f;
+    /* every piece of decor, each at a spot and a depth of its own */
+    t->sd_unlocks |= SD_ITEM_PLANT | SD_ITEM_CASTLE | SD_ITEM_CORAL | SD_ITEM_CLUSTER | SD_ITEM_WRECK;
+    for (int k = 0; k < DK_COUNT; k++) {
+        if (DECOR[k].shop_bit) decor_place(t, k);
+        decor_set(t, k, TANK_FX0 + (TANK_FX1 - TANK_FX0) * (0.2f + 0.07f * k), decor_z_at(k, (k + 1) % decor_z_count(k)));
+    }
+    tank_veg_set(t, 3, 0.55f); t->veg_h[3][1] = 0.4f;
+    tank_coral_set_rgb(t, CORAL_PAL[5]); t->decor[DK_CORAL].growth = 0.8f;
+    tank_cluster_set_scheme(t, 2); t->decor[DK_CLUSTER].growth = 1.3f;
+    tank_set_bubble_x(t, TANK_FX0 + (TANK_FX1 - TANK_FX0) * 0.6f);
+    /* the helpers */
+    t->sd_unlocks |= SD_ITEM_SNAIL | SD_ITEM_URCHIN | SD_ITEM_SHRIMP | SD_ITEM_FROGMAN | SD_ITEM_SUB;
+    tank_snail_place(t); t->snail_x = 140; t->snail_y = 120; t->snail_grazed = 77;
+    tank_urchin_place(t); t->urchin_x = TANK_FX0 + 90; t->urchin_grazed_px = 456;
+    tank_shrimp_place(t, 9); t->shrimp_food = 4; t->shrimp_cool = 12; t->shrimp_eaten = 88;
+    tank_frogman_place(t); tank_sub_place(t);
+    progression_species_sync(t);
 }
-
+static const char *saves_dir(void) {
+    DIR *d = opendir("testdata/saves"); if (d) { closedir(d); return "testdata/saves"; }
+    d = opendir("sim/testdata/saves"); if (d) { closedir(d); return "sim/testdata/saves"; }
+    return NULL;
+}
+static size_t saves_read(const char *path, uint8_t *buf, size_t max) {
+    FILE *f = fopen(path, "rb"); if (!f) return 0;
+    size_t n = fread(buf, 1, max, f); fclose(f); return n;
+}
+static bool saves_write(const char *path, const uint8_t *buf, size_t len) {
+    FILE *f = fopen(path, "wb"); if (!f) return false;
+    bool ok = fwrite(buf, 1, len, f) == len; fclose(f); return ok;
+}
+static bool saves_fresh(void) { return progression_setup_pending() && tank.n_fish == 2; }
 static int selftest_saves(void) {
-    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest-saves.sav", 1);   /* never touch the real save */
+    const char *sav = "/tmp/aqua-pets-selftest-saves.sav";
+    setenv("AQUA_PETS_SAVE", sav, 1);                   /* never touch the real save */
     if (strcmp(SAVE_NVS_NS, "tank") || strcmp(SAVE_NVS_KEY, "save")) {
-        printf("FAIL: the device's save moved to %s/%s - every keeper's tank stays behind in tank/save\n", SAVE_NVS_NS, SAVE_NVS_KEY); return 1; }
-    const char *dir = "testdata/saves";
-    DIR *d = opendir(dir); if (!d) d = opendir(dir = "sim/testdata/saves");
-    if (!d) { printf("FAIL: no testdata/saves (run from sim/ or the repo root)\n"); return 1; }
-    char *names[64]; int nf = 0; struct dirent *de;
-    while ((de = readdir(d)) && nf < 64) { size_t l = strlen(de->d_name); if (l > 4 && !strcmp(de->d_name + l - 4, ".sav")) names[nf++] = strdup(de->d_name); }
-    closedir(d);
+        printf("FAIL: the device's save moved to %s/%s\n", SAVE_NVS_NS, SAVE_NVS_KEY); return 1; }
+    static tank_t rich, back;
+    static uint8_t first[8192], again[8192], buf[8192];
+    /* the whole tank, field for field, and the same bytes saved again */
+    saves_rich(&rich);
+    if (!progression_save(&rich)) { printf("FAIL: the rich tank did not save\n"); return 1; }
+    size_t len = saves_read(sav, first, sizeof first);
+    if (len < 3848) { printf("FAIL: layout 3 is 3848 bytes or more, the save is %zu\n", len); return 1; }
+    tank_init(&back, 9); progression_wake(&back, 0);     /* no clock: a plain restore, nothing lived through */
+    if (progression_setup_pending() || progression_loaded_release() != PT_RELEASE_NUM) { printf("FAIL: the rich tank loaded as fresh, or stamped %06x\n", progression_loaded_release()); return 1; }
+    if (saves_same("the rich tank", &rich, &back)) return 1;
+    for (int i = 0; i < rich.n_fish; i++)
+        if (progression_age_s(&back, i) != 600.0f * (i + 1)) { printf("FAIL: fish %d is %.0f s old\n", i, progression_age_s(&back, i)); return 1; }
+    /* a loaded tank saves the bytes it loaded (a fish's size is not read back - its growth rebuilds it - so
+       the first reload's save is the reference) */
+    if (!progression_save(&back) || saves_read(sav, first, sizeof first) != len) { printf("FAIL: the reloaded tank saved at another length\n"); return 1; }
+    tank_init(&back, 9); progression_wake(&back, 0);
+    if (!progression_save(&back) || saves_read(sav, again, sizeof again) != len) { printf("FAIL: the reloaded tank saved at another length\n"); return 1; }
+    memset(first + 8, 0, 8); memset(again + 8, 0, 8);    /* the wall clock */
+    if (memcmp(first, again, len)) { size_t at = 0; while (first[at] == again[at]) at++; printf("FAIL: loaded and saved again, the bytes differ from %zu on\n", at); return 1; }
+    printf("selftest-saves: a tank with every field set (%d creatures, %d pieces of decor, the helpers, the settings) comes back whole and saves the same %zu bytes\n",
+           rich.n_fish, DK_COUNT, len);
+    /* a newer build's longer save: the part this build knows */
+    progression_save(&rich); len = saves_read(sav, buf, sizeof buf);
+    memset(buf + len, 0xa5, 200);
+    saves_write(sav, buf, len + 200);
+    tank_init(&back, 9); progression_wake(&back, 0);
+    if (saves_same("a newer build's save, 200 bytes longer", &rich, &back)) return 1;
+    progression_save(&back);
+    if (saves_read(sav, again, sizeof again) != len) { printf("FAIL: a longer save did not save back at %zu\n", len); return 1; }
+    /* not ours: short of layout 3, another magic, a roster that cannot be */
+    saves_write(sav, buf, 3847);
+    tank_init(&tank, 8); progression_wake(&tank, 0);
+    if (!saves_fresh()) { printf("FAIL: a save short of layout 3 loaded\n"); return 1; }
+    buf[0] ^= 1; saves_write(sav, buf, len); buf[0] ^= 1;
+    tank_init(&tank, 8); progression_wake(&tank, 0);
+    if (!saves_fresh()) { printf("FAIL: a save with another magic loaded\n"); return 1; }
+    static const uint8_t BAD_N[3] = { 0, 1, N_FISH_MAX + 1 };
+    for (int i = 0; i < 3; i++) {
+        uint8_t keep = buf[20]; buf[20] = BAD_N[i]; saves_write(sav, buf, len); buf[20] = keep;
+        tank_init(&tank, 8); progression_wake(&tank, 0);
+        if (!saves_fresh()) { printf("FAIL: a save of %d fish loaded\n", BAD_N[i]); return 1; }
+    }
+    printf("selftest-saves: a save short of layout 3, another magic, 0 / 1 / %d fish start fresh; a longer one loads its first %zu bytes\n", N_FISH_MAX + 1, len);
+    /* the fixtures: every PTK2 save starts fresh; every layout 3 one loads, and again after a save */
+    const char *dir = saves_dir();
+    if (!dir) { printf("FAIL: no testdata/saves (run from sim/ or the repo root)\n"); return 1; }
+    const char *fixture = getenv("AQUA_PETS_SAVE_FIXTURE");    /* write the rich tank as a new layout 3 fixture */
+    if (fixture) {                                        /* (progression's own state - the ages, setup - is the rich tank's again) */
+        saves_rich(&rich); progression_save(&rich); len = saves_read(sav, buf, sizeof buf);
+        saves_write(fixture, buf, len); printf("selftest-saves: wrote %s\n", fixture);
+    }
+    char *names[64]; int nf = 0; DIR *d = opendir(dir); struct dirent *de;
+    while (d && (de = readdir(d)) && nf < 64) { size_t l = strlen(de->d_name); if (l > 4 && !strcmp(de->d_name + l - 4, ".sav")) names[nf++] = strdup(de->d_name); }
+    if (d) closedir(d);
     qsort(names, nf, sizeof *names, name_cmp);
-    if (nf == 0) { printf("FAIL: %s holds no .sav fixtures\n", dir); return 1; }
-    int loads = 0;
-    static uint8_t file[4096], cur[4096], e[4096], cut[4096];
+    int old = 0, ours = 0;
     for (int k = 0; k < nf; k++) {
         char path[600]; snprintf(path, sizeof path, "%s/%s", dir, names[k]);
-        FILE *f = fopen(path, "rb"); if (!f) { printf("FAIL: %s\n", path); return 1; }
-        size_t len = fread(file, 1, sizeof file, f); fclose(f);
-        if (len < 448 || sv_u32(file, 0) != 0x50544b32u) { printf("FAIL: %s is not a PTK2 save (%zu bytes)\n", names[k], len); return 1; }
-        /* today's layout: a 1432-byte save is the pre-bubble one - bubble_x (4 zero bytes) goes back in at 1404 */
-        memset(cur, 0, sizeof cur); size_t curlen = len;
-        if (len == 1432) { memcpy(cur, file, 1404); memcpy(cur + 1408, file + 1404, 28); curlen = 1436; }
-        else memcpy(cur, file, len);
-        size_t ats[sizeof SAVE_CUTS / sizeof *SAVE_CUTS + 1]; int na = 0; bool whole = false;   /* every older length it holds, then the file as it
-                                                                                                    is (sized by SAVE_CUTS: a 16 overflowed when the urchin made it 17) */
-        for (size_t c = 0; c < sizeof SAVE_CUTS / sizeof *SAVE_CUTS; c++)
-            if (SAVE_CUTS[c] <= curlen) { ats[na++] = SAVE_CUTS[c]; whole |= SAVE_CUTS[c] == len; }
-        if (!whole) ats[na++] = len;
-        char cuts[400] = ""; size_t cl = 0;
-        for (int c = 0; c < na; c++) {
-            size_t at = ats[c];
-            memset(e, 0, sizeof e);
-            if (at == 1432) {                                    /* the first public installer's layout */
-                memcpy(e, cur, 1436); memset(e + 1404, 0, 4);
-                memcpy(cut, cur, 1404); memcpy(cut + 1404, cur + 1408, 28);
-            } else { memcpy(e, cur, at); memcpy(cut, cur, at); }
-            char what[300]; snprintf(what, sizeof what, "%s cut to %zu bytes", names[k], at);
-            if (saves_load(what, cut, at, e)) return 1;
-            loads++;
-            cl += snprintf(cuts + cl, sizeof cuts - cl, "%s%zu", cl ? " " : "", at);
-        }
-        char who[120] = ""; size_t wl = 0;
-        for (int i = 0; i < tank.n_fish && wl < sizeof who - 12; i++) wl += snprintf(who + wl, sizeof who - wl, "%s%s", i ? " " : "", tank.fish[i].name);
-        printf("selftest-saves: %s: %d fish (%s), %d sand dollars - loads at %s, and again after a save\n",
-               names[k], tank.n_fish, who, (int)tank.sd_balance, cuts);
+        size_t n = saves_read(path, buf, sizeof buf); uint32_t magic = 0; if (n >= 4) memcpy(&magic, buf, 4);
+        if (magic == 0x50544b32u) {                       /* PTK2: every length it had, whole and cut */
+            static const size_t CUTS[] = { 448, 1432, 1688, 2092, 3592 };
+            for (size_t c = 0; c <= sizeof CUTS / sizeof *CUTS; c++) {
+                size_t at = c < sizeof CUTS / sizeof *CUTS ? CUTS[c] : n;
+                if (at > n) continue;
+                saves_write(sav, buf, at);
+                tank_init(&tank, 8); progression_wake(&tank, 0);
+                if (!saves_fresh()) { printf("FAIL: %s cut to %zu loaded (%d fish)\n", names[k], at, tank.n_fish); return 1; }
+            }
+            old++;
+        } else if (magic == 0x50544b33u) {         /* layout 3: it loads, and the reload of its re-save is the same tank */
+            saves_write(sav, buf, n);
+            tank_init(&back, 9); progression_wake(&back, 0);
+            if (!progression_loaded_release() || back.n_fish < 2) { printf("FAIL: %s did not load\n", names[k]); return 1; }
+            progression_save(&back);
+            tank_init(&tank, 9); progression_wake(&tank, 0);
+            char what[300]; snprintf(what, sizeof what, "%s, saved and reloaded", names[k]);
+            if (saves_same(what, &back, &tank)) return 1;
+            ours++;
+            printf("selftest-saves: %s: %d creatures, %d sand dollars, unlocks %06x - loads, and again after a save\n", names[k], back.n_fish, (int)back.sd_balance, back.sd_unlocks);
+        } else { printf("FAIL: %s is neither PTK2 nor layout 3\n", names[k]); return 1; }
     }
-    /* the species' ten (2026-10-05): a save with more than six creatures keeps
-     * the core's count at six (what an older build loads) and the true count
-     * in the tail; an older build's view of it - the core alone, the species
-     * bytes read as the pad they were - is a valid tank of six classic fish;
-     * a ten-creature tank saved today writes it that way again */
-    {
-        int tens = 0;
-        for (int k = 0; k < nf; k++) {
-            char path[600]; snprintf(path, sizeof path, "%s/%s", dir, names[k]);
-            FILE *f = fopen(path, "rb"); size_t len = f ? fread(file, 1, sizeof file, f) : 0; if (f) fclose(f);
-            if (len < 1692 || file[1688] <= 6) continue;
-            tens++;
-            if (file[23] != 6 || file[1688] > N_FISH_MAX) { printf("FAIL: %s: the core holds %d fish, the tail %d (want 6 and <= %d)\n", names[k], file[23], file[1688], N_FISH_MAX); return 1; }
-            int species = 0; for (int i = 0; i < file[1688]; i++) species += file[sv_at(i).fs + 2] != 0;
-            if (!species) { printf("FAIL: %s: no creature of a species in it\n", names[k]); return 1; }
-            memset(e, 0, sizeof e); memcpy(e, file, 1688);
-            for (int i = 0; i < 6; i++) e[40 + 68 * i + 2] = e[40 + 68 * i + 3] = 0;   /* an older build: the species bytes are its pad */
-            memcpy(cut, e, 1688);
-            if (saves_load("an older build's view of the species' ten (the core, the pad zeroed)", cut, 1688, e)) return 1;
-            if (tank.n_fish != 6 || tank_species_n(&tank, SP_FISH) != 6) { printf("FAIL: the older view is %d fish, %d classic\n", tank.n_fish, tank_species_n(&tank, SP_FISH)); return 1; }
-            /* and today's build, the whole file: ten back, the save rewritten as six + the tail */
-            memset(e, 0, sizeof e); memcpy(e, file, len);
-            if (saves_load("the species' ten, whole", file, len, e)) return 1;
-            FILE *g = fopen(getenv("AQUA_PETS_SAVE"), "rb"); size_t gl = g ? fread(cut, 1, sizeof cut, g) : 0; if (g) fclose(g);
-            if (gl != SAVE_NOW || cut[23] != 6 || cut[1688] != tank.n_fish || tank.n_fish != file[1688]) { printf("FAIL: the ten re-saved as %zu bytes, core %d, tail %d (tank %d)\n", gl, cut[23], cut[1688], tank.n_fish); return 1; }
-            for (int i = 0; i < tank.n_fish; i++)
-                if (tank.fish[i].species != file[sv_at(i).fs + 2] || tank.fish[i].variant != file[sv_at(i).fs + 3]) { printf("FAIL: creature %d came back %d/%d\n", i, tank.fish[i].species, tank.fish[i].variant); return 1; }
-            loads += 2;
-            printf("selftest-saves: %s: %d creatures (%d of a species) - the core says 6, the tail %d; an older build's view is 6 classic fish; re-saved the same way\n",
-                   names[k], tank.n_fish, species, file[1688]);
-        }
-        if (!tens) { printf("FAIL: no fixture with more than six creatures (the species' ten)\n"); return 1; }
-    }
-    /* a rollback: a NEWER build's save (today's layout + 200 bytes of tail
-     * this build never heard of) loads its head, and the next save writes
-     * today's length. Before 2026-09-29 it started a fresh tank over it. */
-    {
-        memset(e, 0, sizeof e); memcpy(e, cur, SAVE_NOW);
-        memcpy(cut, cur, SAVE_NOW); memset(cut + SAVE_NOW, 0xa5, 200);
-        if (saves_load("a newer build's save, 200 bytes longer (a rollback)", cut, SAVE_NOW + 200, e)) return 1;
-        FILE *f = fopen(getenv("AQUA_PETS_SAVE"), "rb"); fseek(f, 0, SEEK_END); long l = ftell(f); fclose(f);
-        if (l != SAVE_NOW) { printf("FAIL: after a rollback the save is %ld bytes, want %d\n", l, SAVE_NOW); return 1; }
-        loads++;
-        printf("selftest-saves: a rollback: a newer build's %d-byte save loads its first %d and saves back at %d\n", SAVE_NOW + 200, SAVE_NOW, SAVE_NOW);
-    }
-    /* not ours: shorter than the smallest PTK2, or another magic -> a fresh tank (setup owed) */
-    {
-        FILE *f = fopen(getenv("AQUA_PETS_SAVE"), "wb"); fwrite(cur, 1, 447, f); fclose(f);
-        tank_init(&tank, 8); progression_wake(&tank, 0);
-        if (!progression_setup_pending() || tank.n_fish != 2) { printf("FAIL: a 447-byte save loaded\n"); return 1; }
-        memcpy(cut, cur, SAVE_NOW); cut[0] ^= 1;
-        f = fopen(getenv("AQUA_PETS_SAVE"), "wb"); fwrite(cut, 1, SAVE_NOW, f); fclose(f);
-        tank_init(&tank, 8); progression_wake(&tank, 0);
-        if (!progression_setup_pending() || tank.n_fish != 2) { printf("FAIL: a save with another magic loaded\n"); return 1; }
-    }
-    remove(getenv("AQUA_PETS_SAVE"));
     for (int k = 0; k < nf; k++) free(names[k]);
-    printf("selftest-saves ok (%d fixtures, %d loads; a 447-byte save and a foreign magic start fresh; NVS %s/%s)\n", nf, loads, SAVE_NVS_NS, SAVE_NVS_KEY);
+    if (!old || !ours) { printf("FAIL: %s holds %d PTK2 and %d layout 3 fixtures (want both)\n", dir, old, ours); return 1; }
+    remove(sav);
+    printf("selftest-saves ok (%d PTK2 fixtures start fresh at every length; %d layout 3 fixtures load; NVS %s/%s)\n", old, ours, SAVE_NVS_NS, SAVE_NVS_KEY);
     return 0;
 }
 #else
-static int selftest_saves(void) { printf("selftest-saves: not in the MSVC build (no dirent; its save layout asserts are off)\n"); return 1; }
+static int selftest_saves(void) { printf("selftest-saves: not in the MSVC build (no dirent)\n"); return 1; }
 #endif
 
 /* upkeep chores + the settled-hold gate, headless: sleep grows the canopy
@@ -2794,7 +2763,7 @@ static int snapshot(const char *prefix, int seconds) {
     setup_begin(&tank);
     static const char *const pg_name[SETUP_PG_N] = { "welcome", "bubbles", "name", "look", "name2", "look2", "care" };
     for (int pg = 0; pg < SETUP_PG_N; pg++) {
-        if (pg == SETUP_PG_BUBBLES) { setup_touch(&tank, 300, 200, true); setup_touch(&tank, 300, 200, false); }
+        if (pg == SETUP_PG_BUBBLES) { setup_touch(&tank, 300, PG_Y(SETUP_PLACE_Y + 40), true); setup_touch(&tank, 300, PG_Y(SETUP_PLACE_Y + 40), false); }
         if (pg == SETUP_PG_NAME_A) { tank_set_name(&tank, 0, "BUB"); setup_activate(&tank, SETUP_HIT_SLOT0 + 1); }
         if (pg == SETUP_PG_LOOK_A) setup_activate(&tank, SETUP_HIT_BODY0 + 6);
         setup_touch(&tank, 0, 0, false);                   /* the stage is set; let the fish get there */
@@ -5364,13 +5333,8 @@ static void dc_render(uint16_t *out) {
     render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
     memcpy(out, fb, sizeof fb);
 }
-/* the piece gone from the tank, as far as the eye goes: unbought, or its bed cut to nubs */
-static void dc_absent(int k) {
-    if (DECOR[k].shop_bit) tank.sd_unlocks &= ~DECOR[k].shop_bit;
-    else if (DECOR[k].veg_bed >= 0) tank_veg_set(&tank, DECOR[k].veg_bed, VEG_NUB);
-}
 static int selftest_decor(void) {
-    static uint16_t none[TANK_W * TANK_H], fish[TANK_W * TANK_H], piece[TANK_W * TANK_H], both[TANK_W * TANK_H], scene[TANK_W * TANK_H];
+    static uint16_t behind[TANK_W * TANK_H], in_front[TANK_W * TANK_H], woven_fb[TANK_W * TANK_H], scene[TANK_W * TANK_H];
     static tank_t back;
     setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest-decor.sav", 1);   /* never touch the real save */
     render_set_scene_cache(scene); render_set_vignette_cache(vig_buf); render_set_card_cache(card_buf); render_set_dirty_mask(dirty_buf);
@@ -5411,15 +5375,15 @@ static int selftest_decor(void) {
             if (tank_decor_hit(&tank, decor_x(&tank, k), TANK_BOT - 6) != d->shop_item) DC_FAIL("the shop's hold finds item %d", tank_decor_hit(&tank, decor_x(&tank, k), TANK_BOT - 6));
             if (decor_hit(&tank, decor_x(&tank, k), decor_top(&tank, k) - 30) == k) DC_FAIL("a hold well above it finds it");
             tank.sd_unlocks = unl;
-            /* the save and the load, at every depth it offers */
-            for (int i = 0; i < n; i++) {
-                float x = TANK_FX0 + (TANK_FX1 - TANK_FX0) * (0.35f + 0.1f * i);
-                decor_set(&tank, k, x, decor_z_at(k, i)); x = decor_x(&tank, k);
-                if (!progression_save(&tank)) DC_FAIL("the save failed");
-                tank_init(&back, 9); progression_boot(&back);
-                if (!decor_owned(&back, k) || fabsf(decor_x(&back, k) - x) > 0.01f || decor_z(&back, k) != decor_z_at(k, i))
-                    DC_FAIL("saved at %.1f depth %d, loaded at %.1f depth %d", x, decor_z_at(k, i), decor_x(&back, k), decor_z(&back, k));
-            }
+        }
+        /* the save and the load, at every depth it offers (and the spot, for a piece the keeper moves) */
+        for (int i = 0; i < n; i++) {
+            float x = TANK_FX0 + (TANK_FX1 - TANK_FX0) * (0.35f + 0.1f * i);
+            decor_set(&tank, k, x, decor_z_at(k, i)); x = decor_x(&tank, k);
+            if (!progression_save(&tank)) DC_FAIL("the save failed");
+            tank_init(&back, 9); progression_boot(&back);
+            if (!decor_owned(&back, k) || fabsf(decor_x(&back, k) - x) > 0.01f || decor_z(&back, k) != decor_z_at(k, i))
+                DC_FAIL("saved at %.1f depth %d, loaded at %.1f depth %d", x, decor_z_at(k, i), decor_x(&back, k), decor_z(&back, k));
         }
         if (d->flags & DF_SELLABLE) {
             /* bought, moved, sold: the money back, the piece gone, its next purchase fresh */
@@ -5432,26 +5396,31 @@ static int selftest_decor(void) {
             if (tank.decor[k].x != 0 || tank.decor[k].z != d->z_default) DC_FAIL("a sold piece is at %.0f depth %d, not its factory state", tank.decor[k].x, tank.decor[k].z);
         }
         if ((d->z_mask >> DECOR_Z_MIDDLE) & 1) {
-            /* woven: a creature in front of it has some of the piece over it and some behind */
+            /* woven: with a column of creatures across it, some of the piece is drawn as IN FRONT
+               draws it (over them) and some as BEHIND does (under them) */
             dc_fresh();
             if (d->shop_bit) { tank.sd_unlocks |= d->shop_bit; decor_place(&tank, k); }
             if (d->veg_bed >= 0) tank_veg_set(&tank, d->veg_bed, 0.6f);
             decor_set(&tank, k, TANK_W * 0.5f, DECOR_Z_MIDDLE);
             float cx = decor_x(&tank, k);
-            tank_make_fish(&tank, 0, 0, 0.5f, 0.5f, STAGE_ADULT); tank.n_fish = 1;
-            fish_t *f = &tank.fish[0]; f->x = cx; f->y = TANK_BOT - 70; f->size = 2.5f; f->heading = 0; tank_fish_face(f);
+            tank.n_fish = 6;
+            for (int i = 0; i < tank.n_fish; i++) {
+                tank_make_fish(&tank, i, i % 6, 0.5f, 0.5f, STAGE_ADULT);
+                fish_t *f = &tank.fish[i]; f->x = cx + (i & 1 ? 6 : -6); f->y = TANK_BOT - 40 - i * (TANK_BOT - 80) / 6.0f; f->size = 2.5f;
+                f->heading = i & 1 ? 3.1f : 0; tank_fish_face(f);
+            }
             tank_t keep = tank;
-            tank.n_fish = 0; dc_absent(k); dc_render(none);
-            tank = keep; dc_absent(k); dc_render(fish);
-            tank = keep; tank.n_fish = 0; dc_render(piece);
-            tank = keep; dc_render(both);
+            if (!((d->z_mask >> DECOR_Z_BACK) & 1) || !((d->z_mask >> DECOR_Z_FRONT) & 1)) DC_FAIL("woven, but not offered BEHIND and IN FRONT to tell its halves by");
+            decor_set(&tank, k, cx, DECOR_Z_BACK); dc_render(behind);
+            tank = keep; decor_set(&tank, k, cx, DECOR_Z_FRONT); dc_render(in_front);
+            tank = keep; dc_render(woven_fb);
             int over = 0, under = 0;
             for (int p = 0; p < TANK_W * TANK_H; p++) {
-                if (fish[p] == none[p]) continue;                         /* not the creature's pixel */
-                if (both[p] != fish[p]) over++;                           /* the piece drawn over it */
-                else if (piece[p] != none[p]) under++;                    /* the piece is there, and the creature over it */
+                if (behind[p] == in_front[p]) continue;                   /* the same whichever depth: not where it meets a creature */
+                if (woven_fb[p] == in_front[p]) over++;                   /* this pixel of it is IN FRONT's */
+                else if (woven_fb[p] == behind[p]) under++;               /* ... BEHIND's */
             }
-            if (!over || !under) DC_FAIL("woven, %d of its pixels are over the creature and %d under it", over, under);
+            if (!over || !under) DC_FAIL("woven, %d of its pixels are drawn as IN FRONT and %d as BEHIND", over, under);
             woven++;
         }
     }

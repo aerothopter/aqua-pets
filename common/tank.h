@@ -567,7 +567,7 @@ typedef struct tank {
      * keeper put it (its centre x along the floor, <= 0 = the default spot) and
      * its depth, and the coral's colour and growth, the cluster's look and growth.
      * The plant's fronds are veg_h[3]; the airstone's x is the bubble column's.
-     * All saved (progression.c), the seagrass's and the airstone's depths aside. */
+     * All saved (progression.c: a record a piece). */
     decor_t  decor[DK_COUNT];
     /* the frogman (2026-10-10, item 8; he hung from the wreck's stern before): a little diver
        who floats SIDEWAYS, horizontal, drifting across the water from glass to glass, turning

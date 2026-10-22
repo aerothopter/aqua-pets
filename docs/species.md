@@ -78,10 +78,8 @@ creature's goal; the species decides how that goal is carried out.
 advisor's queue: at ~3.7 s a decision on the device, ten creatures get a
 fresh decision every ~37 s and a full tank of 25 every ~90 s, against ~22 s
 at six. The reflex layer keeps everyone moving in between; the decisions
-are just older. The save's `fish_ext` tail holds fish 7..25 (19 x 100 B,
-3,592 B in all, inside the 4,000 B NVS budget); a 10-place build reading a
-save with more than ten falls back to the core's six, as an older build
-always has. The gates past ten keep the ladder going (~+70 meals a place,
+are just older. The save keeps all 25 as 100 B records (save layout 3,
+3,848 B in all, inside the 4,000 B NVS budget). The gates past ten keep the ladder going (~+70 meals a place,
 trust 9); the TANK row's tally is three rows of nine dots and the tally
 modal's school two rows.
 
@@ -212,12 +210,10 @@ separation push inside `SP_AVOID_R`. Every creature eats pellets.
 
 ## Persistence
 
-- `fish_save_t.pad` (2 bytes a fish, written 0 by every older build) holds
-  **species** and **variant**: an older save reads every creature as the
-  classic fish, design 0.
-- Fish 7..10 live in a new save tail (`fish_ext`, from offset 1688). The
-  core count `n_fish` stays ≤ 6 and the tail holds the true count, so an
-  older build (an OTA rollback) still loads the tank: its first six, as fish.
+- Each creature's 100 B record (`fish_save_t`, save layout 3 since
+  2026-10-21) holds its **species** and **variant** with the rest of it.
+  The PTK2 layout before it (species in the record's old pad bytes, fish
+  7..25 in a `fish_ext` tail) is no longer loaded.
 - The species' live state (puff, ink, camo, the eel's air, the seahorse's
   frond) is not saved.
 

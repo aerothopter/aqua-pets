@@ -72,6 +72,7 @@ bool  decor_owned(const tank_t *t, int k);
 float decor_x(const tank_t *t, int k);         /* its centre, the default when unplaced */
 int   decor_z(const tank_t *t, int k);
 void  decor_set(tank_t *t, int k, float x, int z);   /* x clamped to the floor, z to what it offers */
+void  decor_restore(tank_t *t, int k, float x, int z);   /* a load: x > 0 is its spot (this board's clamp), z its depth */
 int   decor_z_count(int k);
 int   decor_z_at(int k, int i);
 int   decor_z_index(int k, int z);

@@ -313,10 +313,8 @@ int selftest_themes(const char *prefix) {
     CHECK(!memcmp(first,fb,sizeof fb),"Original framebuffer restored exactly after theme switches");
     CHECK(progression_save(&t),"save before corruption check");
     FILE *f=fopen(save,"r+b"); CHECK(f!=NULL,"saved file exists");
-    CHECK(!fseek(f,3592,SEEK_SET) && fputc(255,f)!=EOF,"write unknown theme fixture"); fclose(f);
-    tank_init(&loaded,2); progression_boot(&loaded); CHECK(loaded.theme==0,"unknown IDs safely fall back to Original");
-    CHECK(!truncate(save,3592),"simulate pre-theme save without touching old offsets");
-    tank_init(&loaded,3); progression_boot(&loaded); CHECK(loaded.theme==0 && loaded.n_fish==count,"old saves keep Original and all fish");
+    CHECK(!fseek(f,56,SEEK_SET) && fputc(255,f)!=EOF,"write unknown theme fixture"); fclose(f);   /* save_t.theme (progression.c's SAVE LAYOUT LOCK) */
+    tank_init(&loaded,2); progression_boot(&loaded); CHECK(loaded.theme==0 && loaded.n_fish==count,"unknown IDs safely fall back to Original, the fish kept");
     CHECK(!flourish_checks(),"occasional creature behaviours");
     CHECK(!art_sheets(&t,prefix),"native art regression sheets");
     CHECK(!jellyfish_checks(),"jellyfish integration");

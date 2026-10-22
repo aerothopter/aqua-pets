@@ -1,14 +1,22 @@
 # Golden saves
 
-Real tank saves, frozen. `./fishsim --selftest-saves` (run from `sim/`) loads
-every `*.sav` here, whole and cut to every older build's length, and checks
-the tank that comes back against the file's own bytes (fish, names, badges,
-sand dollars, unlocks, decorations). It is the test behind the installer's
-promise: updating never loses your tank.
+Tank saves, frozen. `./fishsim --selftest-saves` (run from `sim/`) reads every
+`*.sav` here by its magic:
+
+- **Layout 3** (`ptk3-*.sav`, "PTK3", since 2026-10-21): it must load, and a
+  tank re-saved from it must come back the same. This is the update promise
+  from layout 3 on.
+- **PTK2** (every other file, the layout from 2026-08-30 until 2026-10-21):
+  whole and cut to each length it ever had, it must start a fresh tank,
+  cleanly. Layout 3 replaced it (the decor refactor), and the keeper chose a
+  clean layout over carrying the old one, so a tank saved before it starts
+  over.
 
 **Before every release, run the tank a bit and add its save here as
-`<date>-<size>.sav`.** Never edit or delete a file here: a save that stops
-loading is a bug in the code, not in the fixture.
+`ptk3-<date>-<size>.sav`.** Never edit or delete a file here: a layout 3 save
+that stops loading is a bug in the code, not in the fixture.
+`AQUA_PETS_SAVE_FIXTURE=<path> ./fishsim --selftest-saves` writes the test's
+own tank (every field set) as a new fixture.
 
 - From the sim (the same bytes the board writes): play a while, quit, then
   `cp ~/.cache/aqua-pets/tank.sav sim/testdata/saves/$(date +%F)-$(wc -c < ~/.cache/aqua-pets/tank.sav | tr -d ' ').sav`
@@ -28,6 +36,7 @@ What is here:
 
 | file | from |
 | --- | --- |
+| `ptk3-2026-10-21-rich.sav` | layout 3's first: `--selftest-saves`' own tank, on the rectangle. 25 creatures (the classic fish and a pair of each species but the turtle) with names, ages and families; every decor piece at a depth of its own, including the seagrass and the airstone; the snail, urchin, shrimp, frogman and sub; the settings and 321 sand dollars |
 | `2026-09-04-1304-device.sav` | the board's NVS dump of 2026-09-04 (4 fish, per-frond heights, before names) |
 | `2026-09-13-1432-prebubble.sav` | the first public installer's layout: seen masks at 1404, no bubble_x (built from the 09-29 save) |
 | `2026-09-24-1656-sim.sav` | Strato's sim tank as played on 2026-09-24 |

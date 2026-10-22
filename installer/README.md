@@ -50,23 +50,24 @@ it the dialog erases the chip first, unconditionally. So:
   a keeper who wants a clean flash. The on-device reset (hold BOOT, tap the
   glass) is the normal way to start over and needs no page.
 
-The firmware side of the promise: `common/progression.c` loads a save of any
-older length (the tail only ever appends) and slides the one mid-struct
-insertion (bubble_x, 2026-09-14) into place for saves from the first public
-builds; since 2026-09-29 it also loads the head of a NEWER build's longer
-save, so rolling back to an older release keeps the tank (the newer-only
-tail reads as its defaults when the newer build returns). What guards it:
+The firmware side of the promise: `common/progression.c` writes save layout 3
+(since 2026-10-21) and loads any layout 3 save. Within it a field only ever
+appends, and a NEWER build's longer save loads its head, so rolling back
+keeps the tank. **The one exception is the update that introduced layout 3:**
+a tank saved by an earlier build (PTK2) is not loaded, and the tank starts
+fresh. The keeper chose a clean layout over carrying the old one; the
+release that ships it must say so in its changelog. What guards it:
 
 - **SAVE LAYOUT LOCK** (progression.c): a compile-time assert on every
-  save_t / fish_save_t offset, the magic, the NVS names, and the NVS size
-  budget (4000 B, math in the comment). A field inserted mid-struct, a
-  rename of `tank`/`save`, or a save too big for the partition fails the
-  build, on the device and in the sim.
-- **`sim/fishsim --selftest-saves`**: every save in `sim/testdata/saves/`
-  (the board's, the sim's, one with every tail set) loads whole and cut to
-  every older build's length, checked field by field against the file's
-  own bytes, then again after a save; plus a newer build's longer save (the
-  rollback). Add a save from each release there (its README says how).
+  save_t / fish_save_t / decor and helper record offset, the magic, the NVS
+  names, and the NVS size budget (4000 B, math in the comment). A field
+  inserted mid-struct, a rename of `tank`/`save`, or a save too big for the
+  partition fails the build, on the device and in the sim.
+- **`sim/fishsim --selftest-saves`**: a tank with every field set comes back
+  field by field and re-saves the same bytes; every layout 3 save in
+  `sim/testdata/saves/` loads; every PTK2 save there starts fresh cleanly;
+  a newer build's longer save loads (the rollback). Add a save from each
+  release there (its README says how).
 - **`check_nvs_untouched`** (make_installer.py): the installer build fails
   if the partition table it ships moves or resizes nvs, or if any part it
   writes overlaps 0x9000..0xF000.

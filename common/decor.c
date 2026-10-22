@@ -45,7 +45,7 @@ static float ground_cluster(const tank_t *t, const decor_t *d, float x, float g)
 #define BACK_FRONT (DZ_BIT(DECOR_Z_BACK) | DZ_BIT(DECOR_Z_FRONT))
 #define ALL_Z      (DZ_BIT(DECOR_Z_BACK) | DZ_BIT(DECOR_Z_MIDDLE) | DZ_BIT(DECOR_Z_FRONT))
 #define SEAGRASS(b) { .name = "SEAGRASS", .shop_item = -1, .where = DPLACE_AUTO, \
-                      .z_mask = DZ_BIT(DECOR_Z_MIDDLE), .z_default = DECOR_Z_MIDDLE, .veg_bed = (b) }
+                      .z_mask = ALL_Z, .z_default = DECOR_Z_MIDDLE, .veg_bed = (b) }
 /* the floor pieces' tap boxes: the castle stands on TANK_BOT - 16 and is 146 tall;
    the others sit DECOR_SINK into the pebbles at TANK_BOT - 14 */
 #define SUNK(h) (14 - DECOR_SINK + (h))
@@ -79,8 +79,10 @@ const decor_def_t DECOR[DK_COUNT] = {
                      .x_default = WRECK_X_DEFAULT, .half_w = WRECK_HALF_W, .top_h = SUNK(84), .hit_rank = 5,
                      .den_rank = 3, .den_dx = WRECK_HALF_W - 20,   /* under the hull's holes */
                      .on_buy = buy_floor },
+    /* the airstone: setup's bubbles page places it and picks its depth; woven,
+       every other bubble of the column rises in front of the creatures */
     [DK_AIRSTONE] = { .name = "AIRSTONE", .shop_item = -1, .where = DPLACE_AUTO,
-                      .z_mask = DZ_BIT(DECOR_Z_BACK), .z_default = DECOR_Z_BACK, .veg_bed = -1,
+                      .z_mask = ALL_Z, .z_default = DECOR_Z_BACK, .veg_bed = -1,
                       .x_default = BUBBLE_X_DEFAULT },
 };
 
@@ -145,6 +147,11 @@ void decor_set(tank_t *t, int k, float x, int z) {
         t->decor[k].x = x;
     }
     t->decor[k].z = (uint8_t)z_snap(k, z);
+}
+void decor_restore(tank_t *t, int k, float x, int z) {
+    if (k < 0 || k >= DK_COUNT) return;
+    if (x > 0 && DECOR[k].where == DPLACE_FLOOR) decor_set(t, k, x, z);
+    else t->decor[k].z = (uint8_t)z_snap(k, z);
 }
 float decor_top(const tank_t *t, int k) {
     if (DECOR[k].top_h <= 0 && DECOR[k].veg_bed >= 0) { float top; tank_veg_bed(t, DECOR[k].veg_bed, NULL, NULL, &top, NULL); return top; }
