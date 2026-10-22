@@ -59,6 +59,13 @@ The version-stamped pages differ only by the build id.
 | 1.75C round | passes | yes | no (cross-compiled) | no | no |
 | 2.06 watch | passes | yes | no (cross-compiled) | no | no |
 
+- **`--snapshot` no longer saves over the sim's real tank.** Its staged
+  tank saved on the way (a purchase in the shop shots) to
+  `~/.cache/aqua-pets/tank.sav`. It now uses `/tmp/aqua-pets-snapshot.sav`,
+  as the selftests do. This session's oracle runs had already overwritten the
+  keeper's sim save that way. A sim that was running at the time writes its
+  tank back when it quits with Q or Esc, or at its next autosave.
+
 **Open.**
 - Flash only knowing the tank on it will start fresh (DEVICE.md's in-flight
   table: anything mid-measurement on the board is lost with the save).

@@ -2511,6 +2511,7 @@ static int clip(const char *prefix, int seconds) {
 }
 
 static int snapshot(const char *prefix, int seconds) {
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-snapshot.sav", 1);   /* its staged tank saves on the way (a purchase, a sale): never over the real one */
     tank_init(&tank, 2024);
     tank_new_population(&tank);
     while (tank.n_fish < N_FISH_MAX) tank_add_fish(&tank, 0, 1);
