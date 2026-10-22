@@ -72,10 +72,9 @@ void render_fb_primed(const uint16_t *fb, unsigned epoch);
  * visual bars (drives + personality) and stage pips. No text, no digits —
  * the progression design's "simple and visual" stats view. Personality bars
  * are revealed only after the fish has shown that side of itself (milestone
- * bits): you learn your fish by watching. A MORE button sits at the foot
- * of the card (2026-09-16, Strato: "how do I get to the milestones and
- * settings screen? it's not very obvious") - the label is the only text on
- * it; a tap anywhere on the card, button or not, opens the milestones page.
+ * bits): you learn your fish by watching. The card only shows (2026-10-21):
+ * its MORE button and the toolbox under it went to the main menu (the BOOT
+ * key, render_menu); a tap on the card puts it away.
  * fish_idx == RENDER_CARD_SNAIL (2026-09-16): the SNAIL's card instead - a
  * ring on the snail and a small centred card: the upright sprite at 2x and
  * how much algae it has grazed so far (tank_t.snail_grazed). The platforms
@@ -107,35 +106,19 @@ void render_stats_card(const tank_t *t, int fish_idx, uint16_t *fb, int stride);
 #define RENDER_CARD_Y 8
 #endif
 #define RENDER_CARD_W 124
-#define RENDER_CARD_H 258       /* 228 + the MORE button strip (2026-09-16) */
-/* the card's tap hit box (touch ports): the card itself plus slop, most of
- * it BELOW the MORE button - fingers aiming at a button by the foot land
- * low and wide (Strato, 2026-09-16: "I'm not tapping it reliably"). Since
- * the toolbox (2026-10-01) the slop below is the gap down to it: 56 px of
- * it was for the panel's stretched report, which the calibration (09-30)
- * took out. RENDER_CARD_HIT(x, y) is the test. */
-#define RENDER_TOOLS_GAP 14
-#define RENDER_CARD_HIT_BELOW RENDER_TOOLS_GAP
+#define RENDER_CARD_H 228       /* (258 with the MORE button strip, 2026-09-16 .. 10-21) */
+/* the card's tap hit box (touch ports): the card itself plus a fingertip's
+ * slop - a tap there puts the card away instead of reaching the tank behind
+ * it. RENDER_CARD_HIT(x, y) is the test. */
+#define RENDER_CARD_HIT_BELOW 14
 #define RENDER_CARD_HIT_SIDE  12
 #define RENDER_CARD_HIT(x, y) ((x) >= RENDER_CARD_X - RENDER_CARD_HIT_SIDE && (x) < RENDER_CARD_X + RENDER_CARD_W + RENDER_CARD_HIT_SIDE && \
                                (y) >= RENDER_CARD_Y && (y) < RENDER_CARD_Y + RENDER_CARD_H + RENDER_CARD_HIT_BELOW)
 void render_set_card_cache(uint16_t *buf);
-/* The TOOLBOX (2026-10-01): under a fish's card, a little apart from it so
- * MORE keeps its own ground, a box in the card's dress with two big buttons
- * - the SPONGE and the SCISSORS (tank.h TOOL_*). render_stats_card draws it
- * with a fish's card; the one in hand is lit (a white double edge on a
- * lighter fill - brightness, not hue). render_tools_hit(x, y) is the tap
- * test while a fish's card is up: TOOL_SPONGE / TOOL_SCISSORS, or -1 (the
- * box's half, from its top edge down to the bezel, plus side slop). */
-#define RENDER_TOOLS_X RENDER_CARD_X
-#define RENDER_TOOLS_Y (RENDER_CARD_Y + RENDER_CARD_H + RENDER_TOOLS_GAP)
-#define RENDER_TOOLS_W RENDER_CARD_W
-#define RENDER_TOOLS_H 54       /* the two tool buttons with their icons at 1x (2026-10-12, Alvin: the 2x sponge and scissors were out of proportion with the card's 24 px icons) */
-int  render_tools_hit(float x, float y);
-/* With a tool in hand and no fish card up, a chip at the top left says so:
- * the tool and DONE. A tap on it (render_tool_chip_hit) puts the tool back
- * in the box. render_tool_chip draws nothing with TOOL_HAND, or when
- * fish_idx is a fish (its card shows the box instead). */
+/* With a tool in hand (picked from the main menu's SPONGE / SCISSORS) and no
+ * fish card up, a chip at the top left says so: the tool and DONE. A tap on
+ * it (render_tool_chip_hit) puts the tool back. render_tool_chip draws
+ * nothing with TOOL_HAND, or when fish_idx is a fish. */
 void render_tool_chip(const tank_t *t, int fish_idx, uint16_t *fb, int stride);
 bool render_tool_chip_hit(const tank_t *t, float x, float y);
 
@@ -192,9 +175,8 @@ void render_notice(const tank_t *t, uint16_t *fb, int stride, int kind, int fish
  * the tank's (across its pages), the fry checklist's gates, or, from a fish's name, the
  * fish themselves (wrapping; a group of one shows none). Any other tap
  * closes the modal. A CLOSE button at the
- * bottom right leaves the page; a SETTINGS button at the bottom left
- * leaves it for the settings page; both the settings page's and the shop's
- * CLOSE bring the milestones page BACK (the platforms do that). */
+ * bottom right leaves the page - back to the main menu (render_menu, the
+ * platforms do that), as the shop's and the settings page's CLOSE do. */
 void render_milestones(const tank_t *t, uint16_t *fb, int stride);
 /* a tap on the page (2026-09-13, Strato: with this much to tap, a stray tap
  * must not drop the whole page): MS_TAP_CLOSE = the CLOSE button, bottom
@@ -203,7 +185,7 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride);
  * badge / name / strip opened the detail modal, or the modal was up and
  * this tap closed it; MS_TAP_NONE = nothing here (the caller may try the
  * brightness row). */
-enum { MS_TAP_NONE = 0, MS_TAP_KEPT = 1, MS_TAP_CLOSE = 2, MS_TAP_SETTINGS = 3,   /* SETTINGS: the button bottom left (2026-09-15) opens the settings page */
+enum { MS_TAP_NONE = 0, MS_TAP_KEPT = 1, MS_TAP_CLOSE = 2, MS_TAP_SETTINGS = 3,   /* SETTINGS: no longer returned (its button went to the main menu, 2026-10-21) */
        MS_TAP_SHOP = 4,                                                            /* the sand dollar left of the TANK row opens the shop */
        MS_TAP_RENAME = 16, MS_TAP_SELL = 32 };                                     /* a fish's card (2026-10-01): + the fish's index */
 /* MS_TAP_RENAME + fish: the card's RENAME - the caller leaves the page (ack +
@@ -255,6 +237,19 @@ _Static_assert(SD_ITEM_COUNT <= SHOP_TAP_MOVE - SHOP_TAP_BUY && SD_ITEM_COUNT <=
 void render_shop(const tank_t *t, uint16_t *fb, int stride);
 int  render_shop_tap(const tank_t *t, float x, float y);
 void render_shop_leave(void);
+/* The MAIN MENU (2026-10-21): the BOOT key's page, a grid of six tiles -
+ * TANK (the milestones page), UPGRADES (the shop), SETTINGS; then the
+ * SPONGE, the SCISSORS (tank.h TOOL_*; the one in hand is lit) and an
+ * empty cell. render_menu_tap maps a tap (the frame's coordinates): a tile's
+ * MENU_TAP_*, MENU_TAP_CLOSE off the grid (the platform puts the menu away),
+ * MENU_TAP_NONE on the empty cell or the grid's slop. The platform opens
+ * the page, or puts the tool in hand (the same tool again: back to the hand)
+ * and closes the menu. BOOT on the platforms: from the tank the menu, from
+ * the menu the tank, from any of its pages back to the menu. */
+enum { MENU_TAP_NONE = 0, MENU_TAP_CLOSE, MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS };
+void render_menu(const tank_t *t, uint16_t *fb, int stride);
+int  render_menu_tap(const tank_t *t, float x, float y);
+void render_menu_tile_rect(int i, int *x, int *y, int *w, int *h);   /* tile i (0..MENU_TILES-1, row by row) in the frame's coordinates */
 int  render_coral_cells(float growth);   /* the coral sprite's filled cells at a growth (the sim's selftest) */
 int  render_cluster_cells(float growth); /* the reef cluster's, likewise */
 /* the decor scratch (2026-09-24): the coral's and the cluster's tables in one
@@ -398,29 +393,18 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define MSP_FISH_X    (PAGE_NARROW ? 56 : 52)     /* a row's portrait (the watch: an elder's tail inside the glass) */
 #define MSP_CLOSE_W   92
 #define MSP_CLOSE_H   30
-#define MSP_SET_W     116
 #ifdef TANK_ROUND                       /* (page coordinates: the cap above the page is y < 0) */
-#define MSP_CLOSE_X   242               /* UPGRADES 114..230 and CLOSE 242..334: the pair centred */
+#define MSP_CLOSE_X   ((PAGE_W - MSP_CLOSE_W) / 2)   /* alone at the foot, centred (UPGRADES stood left of it until 2026-10-21) */
 #define MSP_CLOSE_Y   318
-#define MSP_SET_X     ((PAGE_W - MSP_SET_W) / 2)
-#define MSP_SET_Y     (-PAGE_Y + 18)    /* SETTINGS: top dead centre */
 #define SHP_CLOSE_X   259               /* the shop: HOW TO EARN 97..247 beside CLOSE */
 #define SET_CLOSE_X   296               /* settings: UPDATES and CLOSE drawn in from the glass */
 #else
 #define MSP_CLOSE_X   324               /* the CLOSE button, bottom right, inside the bezel curve; clear of the brightness row's number */
 #define MSP_CLOSE_Y   312
-#define MSP_SET_X     32                /* the SETTINGS button, bottom left, where the brightness row was */
-#define MSP_SET_Y     MSP_CLOSE_Y
 #define SHP_CLOSE_X   MSP_CLOSE_X
 #define SET_CLOSE_X   MSP_CLOSE_X
 #endif
 #define MSP_SD_X      36                /* the sand dollar on the TANK row (the shop), centred like the fish portraits */
-#ifdef TANK_ROUND
-#define MSP_UPG_X     114
-#else
-#define MSP_UPG_X     178               /* the UPGRADES button, centred between SETTINGS and CLOSE: the shop too (Strato, 2026-09-15) */
-#endif
-#define MSP_UPG_W     116
 #define MSP_MODAL_X   56
 #define MSP_MODAL_Y   100
 #define MSP_MODAL_W   336
@@ -481,8 +465,17 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define SHP_ARROW_Y  (SHP_COIN_Y + 16)
 #define SHP_ARROW_X1 (PAGE_W - (PAGE_BOWL ? 66 : 28) - SHP_ARROW_W)   /* next (further in on the bowl) */
 #define SHP_ARROW_X0 (SHP_ARROW_X1 - SHP_ARROW_W - 8)     /* previous */
+/* the main menu: three tiles across, two down, inside the area every board shows whole (x 56..392, y 60..300) */
+#define MENU_TILES    6
+#define MENU_X0       56
+#define MENU_Y0       60
+#define MENU_TILE_W   100
+#define MENU_TILE_H   108
+#define MENU_GAP_X    18
+#define MENU_GAP_Y    24
+#define MENU_SLOP     16             /* past the grid's edge a tap is still the grid's (nothing); further out it closes the menu */
 /* the settings page */
-#if TANK_WORN                        /* the watch (2026-10-02): the page uses the glass above and below the PAGE
+#if TANK_WORN                       /* the watch (2026-10-02): the page uses the glass above and below the PAGE
                                         box (page y -67..435 is on the glass; the round corners take the ends of
                                         the first and last 100 px): the title above the box, the rows up by 44,
                                         the foot's pair centred under them */

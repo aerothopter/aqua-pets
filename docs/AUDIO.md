@@ -11,8 +11,8 @@ the tree and both firmware configs build (board 1.1 MB with the 580 KB
 bank embedded, QEMU with the stub). The codec bring-up sequence is written
 from the ES8311 user guide and the Espressif driver, unverified on the
 bench: the first flash is the test. `docs/HANDOFF.md` has the bench list.
-Volume + mute: the settings page (2026-09-15 night; from the milestones
-page's SETTINGS button) - BRIGHTNESS 10 .. 100 by tens between two arrows (since 2026-10-10; four segments before) and VOLUME OFF/QUIET/NORMAL
+Volume + mute: the settings page (2026-09-15 night; from the main menu's
+SETTINGS since 2026-10-21, the milestones page's SETTINGS button before) - BRIGHTNESS 10 .. 100 by tens between two arrows (since 2026-10-10; four segments before) and VOLUME OFF/QUIET/NORMAL
 as segment buttons; director `snd off|quiet|normal` still works.
 
 ## 1. What to hand over (sound files)

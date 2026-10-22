@@ -138,9 +138,16 @@ near level as it rises and sinks.
 ![The stats card](docs/media/sim-stats-card.png)
 
 Tap a fish for its stats card, its name at the top. Needs, traits, and trust are revealed as the
-fish shows that side of itself, so a new fish's card is mostly blank. The
-MORE button at its foot (or a tap anywhere on the card) opens the milestones
-page, where the SETTINGS and UPGRADES buttons live.
+fish shows that side of itself, so a new fish's card is mostly blank. Tap
+the card (or the open water) to put it away.
+
+**The main menu.** Press the BOOT key (the small one) for the main menu: TANK
+(the milestones page), UPGRADES (the shop) and SETTINGS across the top, the
+SPONGE and the SCISSORS below. Each page's CLOSE brings you back to the menu;
+BOOT on a page does the same, and BOOT on the menu (or a tap off its tiles)
+goes back to the tank.
+
+![The main menu](docs/media/sim-menu.png)
 
 ## The living tank
 
@@ -186,17 +193,17 @@ squeegees it clean. Fish like cover: grass calms them, and only a tank truly
 smothered by two beds at the ceiling stresses them.
 
 **The sponge and the scissors.** One stroke can wipe and trim at once, and
-sometimes you only want one. Tap a fish and look under its card: two small
+sometimes you only want one. Press BOOT: the main menu's bottom row holds two
 tools. Pick the sponge and your strokes only wipe algae and leave the grass
 alone; pick the scissors and they only trim. While a tool is in your hand
 the glass takes its strokes and nothing else: no feeding, no cards, no
 light, no moving a decoration. A DONE chip sits top left: tap it to put the
-tool back, or leave it and it goes back by itself after two minutes.
+tool back (or pick it again on the menu), or leave it and it goes back by
+itself after two minutes.
 
-![The sponge and the scissors under a fish's card](docs/media/sim-tools.png)
 ![The scissors in hand: DONE at the top left](docs/media/sim-tool-done.png)
 
-**Milestones.** Tap MORE on the open stats card for the milestones page: a row per
+**Milestones.** Press BOOT and tap TANK for the milestones page: a row per
 fish with its sprite at its real size, its name and a growth strip, then a
 badge for each first it has chosen to do: first meal from you, first
 hold-approach, first reef, first bubbles, first follow, first dart. The
@@ -207,9 +214,9 @@ picture as a gray silhouette; one earned since you last looked wears a
 ring. Tap a badge to read it: a small panel with arrows at its top corners
 that step through the rest of the group without going back to the page (a
 fish's six badges, the tank's six, the fry's gates, or the fish themselves
-from a fish's name); tap anywhere else to dismiss. At the foot of the
-page: SETTINGS, UPGRADES (the shop) and CLOSE. The shop's and the settings
-page's own CLOSE bring you back here, not out to the tank.
+from a fish's name); tap anywhere else to dismiss. CLOSE at the foot of the
+page takes you back to the main menu, as the shop's and the settings page's
+own CLOSE do.
 
 **The next fry.** While the tank can still grow, a NEW FRY row sits under
 the last fish: what the next arrival needs, as badges that light up when
@@ -251,8 +258,8 @@ born 20; a fish that comes to trust you completely 15; every hundred algae
 colonies you wipe away pay 25, and so does every 250 cm of grass you
 cut, again and again. Nothing is ever needed and nothing is lost: a tank with no
 sand dollars is exactly the tank there was before. The coin on the
-milestones page's TANK row shows your balance, and it (or the UPGRADES
-button) opens the shop: a row per item with its price, UNLOCK when you can
+milestones page's TANK row shows your balance, and it (or UPGRADES on the
+main menu) opens the shop: a row per item with its price, UNLOCK when you can
 afford it, IN TANK once you own it, and HOW TO EARN for the list. Three
 things to buy so far. The **sword plant** (40) is a fourth bed of broad
 leaves on the open floor, trimmed and grown and counted as cover like the
@@ -572,7 +579,8 @@ deepest sleep: the only chip still awake is the power-management chip, and
 its rule is that the key must be held for about an eighth of a second
 before it turns the board on - a quick tap does nothing. Press it like you
 mean it. The tank decides how deep it sleeps; you never do. Holding PWR
-powers it off at once. Hold BOOT and tap the glass to reset the tank. Flip
+powers it off at once. A short press of BOOT opens the main menu; hold BOOT
+and tap the glass to reset the tank. Flip
 the device and the screen follows.
 
 **First run.** A new tank, whether a fresh install or a reset, opens with a
@@ -657,13 +665,13 @@ so the restore misses and the shop, sleep and tend tests fail.
 
 In the window, the mouse is your finger: tap the water surface or drag down
 from the top edge to feed, click a fish for its stats card (the shrimp for
-theirs), click the card
-(or its MORE button) for milestones, hold the button to rest a finger on the glass, three quick
+theirs), click the card to put it away, hold the button to rest a finger on the glass, three quick
 clicks to startle, two to toggle the light, drag across the glass to wipe
 algae, and stroke sideways through a bed to trim it. Keys: **F** feed at the
 mouse, **N** light, **A** auto light, **H** handle the tank (moving the
 mouse over the window counts too), **L** switch
-between the rule stub and the LLM brain, **U** overlays, **M** milestones,
+between the rule stub and the LLM brain, **U** overlays, **Space** the BOOT
+key (the main menu), **M** milestones,
 **4** the shop, **D** fifty sand dollars to try it, **5** a pair of the
 next species (free, for a look), **W** the shrimp school
 (again adds one),

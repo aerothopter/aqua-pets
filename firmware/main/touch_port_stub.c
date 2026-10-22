@@ -6,6 +6,9 @@ int  touch_port_selected(void) { return -1; }
 static bool s_ms;
 bool touch_port_milestones(void) { return s_ms; }
 void touch_port_show_milestones(bool on) { s_ms = on; }
+static bool s_menu;   /* the main menu: BOOT still opens and closes it (QEMU has no glass to tap its tiles) */
+bool touch_port_menu(void) { return s_menu; }
+void touch_port_show_menu(bool on) { s_menu = on; if (on) s_ms = false; }
 void touch_port_set_inverted(bool inverted) { (void)inverted; }
 /* no glass to tap: the prompt can only be answered by the director */
 static bool s_cf; static int s_cf_ans;
@@ -28,7 +31,7 @@ static bool s_bat;
 void touch_port_set_pill(bool up) { (void)up; }
 bool touch_port_battery(void) { return s_bat; }
 void touch_port_show_battery(bool on) { s_bat = on; }
-void touch_port_dismiss(void) { s_ms = false; s_bat = false; }
+void touch_port_dismiss(void) { s_ms = false; s_menu = false; s_bat = false; }
 static bool s_upd;
 bool touch_port_updates(void) { return s_upd; }
 void touch_port_show_updates(bool on) { s_upd = on; }
@@ -41,3 +44,4 @@ void touch_port_set_lift(int ms, int said) { (void)ms; (void)said; }
 int  touch_port_lift_ms(void) { return 0; }
 bool touch_port_lift_said(void) { return false; }
 void touch_port_raw_seen(int *x0, int *x1, int *y0, int *y1) { *x0 = *y0 = 0; *x1 = *y1 = -1; }
+void touch_port_home(tank_t *t) { (void)t; if (!s_cf) { s_menu = !s_menu; s_ms = false; s_set = false; s_shop = false; s_upd = false; } }   /* BOOT: menu up / down (no tiles to tap here) */

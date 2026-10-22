@@ -44,12 +44,13 @@ static bool s_down; static int64_t s_press_us; static float s_px, s_py;
 static float s_lx, s_ly;                          /* LAST touched position (release classification) */
 static float s_fx[N_FISH_MAX], s_fy[N_FISH_MAX];  /* fish positions at press time */
 static int s_sel = -1; static int64_t s_sel_us;   /* tapped fish -> stats card */
-static bool s_ms;                                 /* milestones page up (its CLOSE button ends it) */
+static bool s_ms;                                 /* milestones page up (its CLOSE returns to the main menu) */
+static bool s_menu;                               /* the main menu up (2026-10-21: BOOT's page; a tap off its grid ends it) */
 static bool s_cf; static int64_t s_cf_us; static int s_cf_ans;   /* reset confirm prompt */
-static bool s_set;                                /* settings page up (CLOSE returns to the milestones page) */
-static bool s_shop;                               /* the shop page up (CLOSE returns to the milestones page) */
-static bool s_back;                               /* the settings page's CLOSE just brought the milestones page back: that
-                                                     release must not reach the page as a tap on ITS CLOSE (same spot) */
+static bool s_set;                                /* settings page up (CLOSE returns to the main menu) */
+static bool s_shop;                               /* the shop page up (CLOSE returns to the main menu) */
+static bool s_back;                               /* the settings page's CLOSE just brought the main menu back: that
+                                                     release must not reach the menu as a tap */
 static int  s_shop_act;                           /* an UNLOCK / MOVE / SELL tapped: the raw tap code, for main (one-shot) */
 static bool s_held_page;                          /* this press opened a piece's page by holding on it (2026-09-24) */
 static int  s_set_what, s_set_val;                /* a segment tapped: SET_TAP_* + value, for main */
@@ -467,7 +468,7 @@ void touch_port_poll(tank_t *t) {
         if (r) ESP_LOGI(TAG, "settings: %s %d", r == SET_TAP_CLOSE ? "CLOSE" : r == SET_TAP_BRIGHT ? "brightness" : r == SET_TAP_VOLUME ? "volume"
                                                   : r == SET_TAP_THEME ? "theme" : r == SET_TAP_LIGHT ? "lights out" : r == SET_TAP_SCREEN ? "screen (1 = turned)"
                                                   : r == SET_TAP_FEED ? "auto feed (1 = on)" : r == SET_TAP_ROTATE ? "rotation (1 = locked)" : r == SET_TAP_ABOUT ? "about (1 = up)" : r == SET_TAP_RESET ? "reset" : "idle seconds", v);
-        if (r == SET_TAP_CLOSE) { s_set = false; s_ms = true; s_back = true; }   /* back to the milestones page (2026-09-16); the release is spent */
+        if (r == SET_TAP_CLOSE) { s_set = false; s_menu = true; s_back = true; }   /* back to the main menu (2026-10-21); the release is spent */
         else if (r == SET_TAP_UPDATES) { s_set = false; s_upd = true; s_back = true; ESP_LOGI(TAG, "updates page up"); }
         else if (r == SET_TAP_RESET) { s_set = false; s_back = true; touch_port_confirm_open(); ESP_LOGI(TAG, "settings: RESET - the confirm prompt is up (NO / YES, it times out)"); }
         else if (r == SET_TAP_BRIGHT || r == SET_TAP_VOLUME || r == SET_TAP_LIGHT || r == SET_TAP_IDLE || r == SET_TAP_FEED || r == SET_TAP_ROTATE || r == SET_TAP_ABOUT) { s_set_what = r; s_set_val = v; }
@@ -490,8 +491,8 @@ void touch_port_poll(tank_t *t) {
         }
     }
     { int rf = setup_take_renamed();                         /* a rename closed (2026-10-01): back to the milestones page, the fish's card up */
-      if (rf >= 0) { s_ms = true; s_set = false; s_shop = false; s_sel = -1; render_milestones_show_fish(t, rf); } }
-    bool modal = s_ms || s_set || s_shop || s_cf || su || s_bat || s_upd;   /* a page or a prompt owns the glass */
+      if (rf >= 0) { s_ms = true; s_menu = false; s_set = false; s_shop = false; s_sel = -1; render_milestones_show_fish(t, rf); } }
+    bool modal = s_ms || s_menu || s_set || s_shop || s_cf || su || s_bat || s_upd;   /* a page or a prompt owns the glass */
     if (touched) {                                           /* stroke = wipe/slash, reaching the glass (stroke_point above) */
         float dx, dy; stroke_point(!s_down, tx, ty, &dx, &dy);
         if (!s_down) { s_dx0 = s_dx1 = dx; s_frames = 0; s_raw_px = x[0]; s_raw_py = y[0]; }
@@ -543,8 +544,20 @@ void touch_port_poll(tank_t *t) {
             if (s_shop) {                                           /* the shop: a row's modal, UNLOCK, HOW TO EARN, CLOSE */
                 int r = render_shop_tap(t, s_px, s_py);
                 ESP_LOGI(TAG, "shop tap at %.0f,%.0f -> %s", s_px, s_py, r == SHOP_TAP_CLOSE ? "CLOSE" : r >= SHOP_TAP_SELL ? "SELL" : r >= SHOP_TAP_MOVE ? "MOVE" : r >= SHOP_TAP_BUY ? "UNLOCK" : r == SHOP_TAP_KEPT ? "modal" : "nothing");
-                if (r == SHOP_TAP_CLOSE) { s_shop = false; render_shop_leave(); s_ms = true; }   /* back to the milestones page (2026-09-16) */
+                if (r == SHOP_TAP_CLOSE) { s_shop = false; render_shop_leave(); s_menu = true; }   /* back to the main menu (2026-10-21) */
                 else if (r >= SHOP_TAP_BUY) s_shop_act = r;   /* main.c buys (and plays the cue) or opens the placement page */
+                goto released;
+            }
+            if (s_menu) {                                           /* the main menu (2026-10-21): a page, a tool, or off the grid */
+                int r = render_menu_tap(t, s_px, s_py);
+                ESP_LOGI(TAG, "menu tap at %.0f,%.0f -> %s", s_px, s_py, r == MENU_TAP_TANK ? "TANK" : r == MENU_TAP_UPGRADES ? "UPGRADES" : r == MENU_TAP_SETTINGS ? "SETTINGS"
+                         : r == MENU_TAP_SPONGE ? "SPONGE" : r == MENU_TAP_SCISSORS ? "SCISSORS" : r == MENU_TAP_CLOSE ? "off the grid: closed" : "nothing");
+                if (r == MENU_TAP_TANK || r == MENU_TAP_UPGRADES || r == MENU_TAP_SETTINGS) {
+                    s_menu = false; s_ms = r == MENU_TAP_TANK; s_shop = r == MENU_TAP_UPGRADES; s_set = r == MENU_TAP_SETTINGS;
+                } else if (r == MENU_TAP_SPONGE || r == MENU_TAP_SCISSORS) {
+                    int tl = r == MENU_TAP_SPONGE ? TOOL_SPONGE : TOOL_SCISSORS;
+                    tank_set_tool(t, t->tool == tl ? TOOL_HAND : tl); s_menu = false;   /* the same tool again: back to bare hands */
+                } else if (r == MENU_TAP_CLOSE) s_menu = false;
                 goto released;
             }
             if (s_ms) {                                             /* the page: badges open a modal, the CLOSE
@@ -564,8 +577,8 @@ void touch_port_poll(tank_t *t) {
                     setup_begin_rename(t, r - MS_TAP_RENAME);
                     goto released;
                 }
-                if (r != MS_TAP_CLOSE && r != MS_TAP_SETTINGS && r != MS_TAP_SHOP) goto released;   /* only a button leaves the page */
-                s_ms = false; s_sel = -1; s_set = r == MS_TAP_SETTINGS; s_shop = r == MS_TAP_SHOP;
+                if (r != MS_TAP_CLOSE && r != MS_TAP_SHOP) goto released;   /* only CLOSE (back to the main menu) or the sand dollar leaves the page */
+                s_ms = false; s_sel = -1; s_menu = r == MS_TAP_CLOSE; s_shop = r == MS_TAP_SHOP;
                 progression_ack_milestones(t); render_milestones_leave();   /* everything shown is now "seen" */
                 goto released;
             }
@@ -580,21 +593,14 @@ void touch_port_poll(tank_t *t) {
                 ESP_LOGI(TAG, "battery pill tapped at %.0f,%.0f: battery page up", s_px, s_py);
                 goto released;
             }
-            if (s_sel >= 0 && s_sel < t->n_fish && render_tools_hit(s_px, s_py) >= 0) {   /* the toolbox under the card (2026-10-01):
-                                                                                     pick a tool up, or put the one in hand back */
-                int tl = render_tools_hit(s_px, s_py);
-                tank_set_tool(t, t->tool == tl ? TOOL_HAND : tl); s_sel = -1;
-                ESP_LOGI(TAG, "toolbox tap at %.0f,%.0f -> %s", s_px, s_py, t->tool == TOOL_SPONGE ? "SPONGE" : t->tool == TOOL_SCISSORS ? "SCISSORS" : "bare hands");
-                goto released;
-            }
             if ((s_sel < 0 || s_sel >= t->n_fish) && render_tool_chip_hit(t, s_px, s_py)) {   /* the tool chip's DONE */
                 tank_set_tool(t, TOOL_HAND);
                 ESP_LOGI(TAG, "tool chip tapped at %.0f,%.0f: back to bare hands", s_px, s_py);
                 goto released;
             }
-            if (s_sel >= 0 && s_sel != RENDER_CARD_SNAIL && s_sel != RENDER_CARD_SHRIMP && s_sel != RENDER_CARD_URCHIN && RENDER_CARD_HIT(s_px, s_py)) {   /* a tap ON the card (or the slop
-                ESP_LOGI(TAG, "card tap at %.0f,%.0f -> milestones", s_px, s_py);         under its MORE button) = milestones page */
-                s_ms = true; goto released;
+            if (s_sel >= 0 && s_sel != RENDER_CARD_SNAIL && s_sel != RENDER_CARD_SHRIMP && s_sel != RENDER_CARD_URCHIN && RENDER_CARD_HIT(s_px, s_py)) {   /* a tap ON the card puts it away
+                ESP_LOGI(TAG, "card tap at %.0f,%.0f -> card down", s_px, s_py);         (2026-10-21: the pages are the BOOT key's menu) */
+                s_sel = -1; goto released;
             }
             /* fish first; only an empty tap reaches the water. Each creature's
                own reach (tank_fish_hit_r: its species' hit_r at its size, 38 px
@@ -653,16 +659,34 @@ released:
 
 int touch_port_selected(void) { return s_sel; }
 bool touch_port_milestones(void) { return s_ms; }
-void touch_port_show_milestones(bool on) { if (s_ms && !on) render_milestones_leave(); s_ms = on; }
-void touch_port_dismiss(void) { s_sel = -1; if (s_ms) render_milestones_leave(); if (s_shop) render_shop_leave(); s_ms = false; s_set = false; s_shop = false; s_bat = false; s_upd = false; }
+void touch_port_show_milestones(bool on) { if (s_ms && !on) render_milestones_leave(); s_ms = on; if (on) s_menu = false; }
+void touch_port_dismiss(void) { s_sel = -1; if (s_ms) render_milestones_leave(); if (s_shop) render_shop_leave(); s_ms = false; s_menu = false; s_set = false; s_shop = false; s_bat = false; s_upd = false; }
 bool touch_port_updates(void) { return s_upd; }
-void touch_port_show_updates(bool on) { s_upd = on; if (on) { s_ms = false; s_set = false; s_shop = false; s_sel = -1; s_bat = false; } }
+void touch_port_show_updates(bool on) { s_upd = on; if (on) { s_ms = false; s_menu = false; s_set = false; s_shop = false; s_sel = -1; s_bat = false; } }
+
+/* ---- the main menu (2026-10-21) ---- */
+bool touch_port_menu(void) { return s_menu; }
+void touch_port_show_menu(bool on) {
+    if (on) { if (s_ms) render_milestones_leave(); if (s_shop) render_shop_leave(); s_ms = false; s_set = false; s_shop = false; s_upd = false; s_sel = -1; s_bat = false; }
+    s_menu = on;
+}
+void touch_port_home(tank_t *t) {                 /* BOOT's short press (main.c sleep_button_poll) */
+    if (s_cf || setup_active()) { ESP_LOGI(TAG, "BOOT: ignored (%s has the glass)", s_cf ? "the reset prompt" : "the setup"); return; }
+    if (s_menu) { s_menu = false; ESP_LOGI(TAG, "BOOT: menu closed"); return; }
+    if (s_ms) { progression_ack_milestones(t); render_milestones_leave(); }   /* as its CLOSE: everything shown is now "seen" */
+    if (s_shop) render_shop_leave();
+    if (s_set) { render_settings_leave(); s_set_what = SET_TAP_ABOUT; s_set_val = 0; }   /* main stops the ABOUT page's jingle, if it played */
+    bool from_page = s_ms || s_shop || s_set || s_upd;
+    s_ms = false; s_set = false; s_shop = false; s_upd = false; s_sel = -1; s_bat = false;
+    s_menu = true;
+    ESP_LOGI(TAG, "BOOT: menu up%s", from_page ? " (back from a page)" : "");
+}
 int  touch_port_take_update(void) { int r = s_upd_act; s_upd_act = 0; return r; }
 
 /* ---- reset confirm prompt ---- */
 void touch_port_confirm_open(void) {
     s_cf = true; s_cf_us = esp_timer_get_time(); s_cf_ans = 0;
-    s_sel = -1; s_ms = false; s_set = false; s_shop = false; s_bat = false; s_upd = false; render_shop_leave();   /* it replaces the card / the pages */
+    s_sel = -1; s_ms = false; s_menu = false; s_set = false; s_shop = false; s_bat = false; s_upd = false; render_shop_leave();   /* it replaces the card / the pages */
     ESP_LOGI(TAG, "reset prompt up (YES / NO on the glass; NO by itself in %d s)", (int)(CONFIRM_TIMEOUT_US / 1000000));
 }
 bool touch_port_confirm_answer(int ans) {
@@ -680,11 +704,11 @@ float touch_port_confirm_frac(void) {
 int  touch_port_confirm_take(void)  { int a = s_cf_ans; s_cf_ans = 0; return a; }
 bool touch_port_pressed_since(int64_t us) { return s_down && s_press_us > us; }
 bool touch_port_settings(void) { return s_set; }
-void touch_port_show_settings(bool on) { s_set = on; if (on) { s_ms = false; s_sel = -1; s_bat = false; } }
+void touch_port_show_settings(bool on) { s_set = on; if (on) { s_ms = false; s_menu = false; s_sel = -1; s_bat = false; } }
 int  touch_port_take_setting(int *value) { int w = s_set_what; *value = s_set_val; s_set_what = 0; return w; }
 bool touch_port_shop(void) { return s_shop; }
-void touch_port_show_shop(bool on) { if (s_shop && !on) render_shop_leave(); s_shop = on; if (on) { s_ms = false; s_set = false; s_sel = -1; s_bat = false; } }
+void touch_port_show_shop(bool on) { if (s_shop && !on) render_shop_leave(); s_shop = on; if (on) { s_ms = false; s_menu = false; s_set = false; s_sel = -1; s_bat = false; } }
 int  touch_port_take_shop(void) { int r = s_shop_act; s_shop_act = 0; return r; }
 void touch_port_set_pill(bool up) { s_pill = up; }
 bool touch_port_battery(void) { return s_bat; }
-void touch_port_show_battery(bool on) { s_bat = on; if (on) { s_bat_us = esp_timer_get_time(); s_sel = -1; } }
+void touch_port_show_battery(bool on) { s_bat = on; if (on) { s_bat_us = esp_timer_get_time(); s_sel = -1; s_menu = false; } }

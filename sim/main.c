@@ -8,6 +8,8 @@
  *                          the window counts too - still 15 s = lights out, once
  *                          settings has LIGHTS OUT on AUTO; MANUAL is the default),
  *                          L brain, U overlays, M milestones view,
+ *                          SPACE the BOOT key: the main menu (TANK / UPGRADES /
+ *                          SETTINGS, SPONGE / SCISSORS; again: back, or closed),
  *                          X reset prompt (device: hold BOOT + tap the glass),
  *                          S the first-run setup flow (welcome / names / colours),
  *                          R force an arrival (the birth flow opens: announce /
@@ -36,6 +38,7 @@
  *                                    tokenizer (default the shipped firmware/main/tokenizer.bin)
  *   ./fishsim --selftest-pop         headless population/arrival/save check
  *   ./fishsim --selftest-card [pfx]  headless fish card: RENAME and SELL (pfx: also writes its pages as PPMs)
+ *   ./fishsim --selftest-menu        headless main menu (the BOOT key): its tiles, the tool in hand, the card's tap box
  *   ./fishsim --selftest-sleep       headless sleep metabolism + ravenous begging
  *   ./fishsim --selftest-tend        headless canopy/algae/hold-attract check
  *   ./fishsim --selftest-hunger      headless hunger economy (untended tank never ravenous)
@@ -1803,7 +1806,7 @@ static int selftest_tend(void) {
     /* the TOOLBOX (2026-10-01): the SPONGE - the floor sweep that mows a bed
      * only wipes the glass; the SCISSORS - a stroke begun in open water, on
      * no frond, cuts every frond it crosses at its height and wipes nothing;
-     * a tool left alone goes back in the box; the box's tap test */
+     * a tool left alone goes back in the box; the main menu's tool tiles */
     {
         float x0, x1, ty; tank_veg_bed(&tank, 1, &x0, &x1, &ty, NULL);
         for (int i = 0; i < ALGAE_CELLS; i++) tank.algae[i] = 200;   /* a fouled glass, every cell */
@@ -1841,10 +1844,11 @@ static int selftest_tend(void) {
           printf("selftest-tend: a tool in hand - a surface tap, a double tap and a hold did nothing\n"); }
         for (int i = 0; i < (int)(TOOL_IDLE_S * 60) + 120; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
         if (tank.tool != TOOL_HAND) { printf("FAIL: the scissors stayed in hand after %.0f s untouched\n", TOOL_IDLE_S); return 1; }
-        const int by = RENDER_TOOLS_Y + RENDER_TOOLS_H / 2;
-        if (render_tools_hit(RENDER_TOOLS_X + 20, by) != TOOL_SPONGE || render_tools_hit(RENDER_TOOLS_X + RENDER_TOOLS_W - 20, by) != TOOL_SCISSORS ||
-            render_tools_hit(RENDER_TOOLS_X + 20, RENDER_CARD_Y + RENDER_CARD_H - 4) >= 0 || !RENDER_CARD_HIT(RENDER_TOOLS_X + 20, RENDER_TOOLS_Y - 2)) {
-            printf("FAIL: the toolbox's tap test\n"); return 1; }
+        {   /* the tools' tiles on the main menu (the toolbox under the card until 2026-10-21) */
+            int sx, sy, sw, sh, cx, cy, cw, ch;
+            render_menu_tile_rect(3, &sx, &sy, &sw, &sh); render_menu_tile_rect(4, &cx, &cy, &cw, &ch);
+            if (render_menu_tap(&tank, sx + sw / 2.0f, sy + sh / 2.0f) != MENU_TAP_SPONGE || render_menu_tap(&tank, cx + cw / 2.0f, cy + ch / 2.0f) != MENU_TAP_SCISSORS) {
+                printf("FAIL: the menu's tool tiles\n"); return 1; } }
         for (int i = 0; i < ALGAE_CELLS; i++) tank.algae[i] = 0;
         tank_veg_set(&tank, 1, 1.0f);
     }
@@ -2040,9 +2044,10 @@ static bool llm_active = false;
 static int  selected_fish = -1;      /* click a fish for its stat card */
 static bool ui_visible = true;       /* U toggles all overlays */
 static bool milestones_view = false; /* M toggles the milestones screen */
+static bool menu_view = false;       /* the main menu (2026-10-21): SPACE is the device's BOOT key */
 static bool confirm_view = false;    /* X: the reset prompt (YES wipes the save) */
-static bool settings_view = false;   /* the settings page (from the milestones page's SETTINGS button) */
-static bool shop_view = false;       /* the shop (the sand dollar on the milestones page's TANK row; $ key) */
+static bool settings_view = false;   /* the settings page (the main menu's SETTINGS) */
+static bool shop_view = false;       /* the shop (the main menu's UPGRADES, the sand dollar on the milestones page's TANK row; $ key) */
 static bool updates_view = false;    /* the UPDATES page (the settings page's UPDATES button; no radio) */
 static bool update_mode = false;     /* update mode (2026-09-30): what the device runs at boot, before the tank - here the
                                         tank pauses and the pages run over a pretend radio (net_port_sim.c); E enters it */
@@ -2055,7 +2060,7 @@ static bool sim_worn_turned = false;
 static bool sim_view_turned(void) { return (!update_mode && tank_screen_turned(&tank)) != sim_worn_turned; }   /* update mode: no tank, no turn (the device's) */
 static void sim_flip_canvas(void);
 static bool s_canvas_flipped;
-static bool ms_back = false;         /* the settings page's CLOSE just brought the milestones page back (2026-09-16,
+static bool ms_back = false;         /* the settings page's CLOSE just brought the main menu back (2026-09-16,
                                         Strato: a submenu's CLOSE returns to the menu, not the tank): this release is spent */
 static int  sim_bright = 100;        /* the settings page's brightness (device setting; cosmetic here) */
 static uint32_t confirm_ms;          /* when it opened; it gives up after CONFIRM_MS */
@@ -2072,7 +2077,7 @@ static uint32_t battery_view_ms, bat_popup_ms;
 #define BATTERY_VIEW_MS 30000
 static int sim_bat_gauge(void) { return (int)(sim_bat_pct + 0.5f); }
 static bool sim_pill_up(void) {
-    return !milestones_view && !settings_view && !shop_view && !battery_view && !confirm_view && !setup_active() &&
+    return !milestones_view && !menu_view && !settings_view && !shop_view && !battery_view && !confirm_view && !setup_active() &&
            ((ui_visible && selected_fish >= 0) || (!BAT_ON_POWER(sim_bat_state) && sim_bat_gauge() <= 10) ||
             (bat_popup_ms && SDL_GetTicks() - bat_popup_ms < BAT_POPUP_S * 1000));
 }
@@ -2133,7 +2138,7 @@ static void sound_init(void) {
 }
 /* per frame: the notice queue, the bubble loop, the card cue, night */
 static void sound_frame(uint32_t now, float dt) {
-    notice_tick(&tank, dt, setup_active() || setup_birth_due() || confirm_view || milestones_view || settings_view || shop_view || battery_view);
+    notice_tick(&tank, dt, setup_active() || setup_birth_due() || confirm_view || milestones_view || menu_view || settings_view || shop_view || battery_view);
     int cue = notice_take_cue();
     if (cue >= 0) snd(cue, AUDIO_PITCH_ONE);
     bool loop = setup_active() && !setup_is_birth() && setup_page() == SETUP_PG_BUBBLES;
@@ -2147,6 +2152,19 @@ static void sound_frame(uint32_t now, float dt) {
     if (selected_fish < 0 && s_prev_sel >= 0) snd(SND_CARD_CLOSE, AUDIO_PITCH_ONE);
     s_prev_sel = selected_fish;
     if (s_adev) { SDL_LockAudioDevice(s_adev); audio_set_night(tank.night); SDL_UnlockAudioDevice(s_adev); }
+}
+
+/* the BOOT key (SPACE here; 2026-10-21, as the device's touch_port_home): the main menu from the
+   tank, the tank from the menu, back to the menu from any of its pages; nothing while the setup,
+   the reset prompt or update mode has the glass (hold BOOT + tap is still the reset chord) */
+static void sim_home(void) {
+    if (update_mode || confirm_view || setup_active()) return;
+    if (menu_view) { menu_view = false; printf("menu: closed (BOOT)\n"); return; }
+    if (milestones_view) { progression_ack_milestones(&tank); render_milestones_leave(); }
+    if (shop_view) render_shop_leave();
+    if (settings_view) { render_settings_leave(); if (s_adev) { SDL_LockAudioDevice(s_adev); audio_jingle(false); SDL_UnlockAudioDevice(s_adev); } }
+    milestones_view = shop_view = settings_view = updates_view = battery_view = false; selected_fish = -1;
+    menu_view = true; printf("menu: up (BOOT) - TANK / UPGRADES / SETTINGS, SPONGE / SCISSORS\n");
 }
 
 /* brain indicator, top-right: teal square = rules, amber = LLM */
@@ -2204,7 +2222,7 @@ static void frame_cb(lv_timer_t *timer) {
         return;
     }
     tank.hold_light = setup_active() || confirm_view;   /* no lights-out mid-name */
-    tank.ui_cover = tank.hold_light || milestones_view || settings_view || shop_view || battery_view || updates_view;   /* a fry's spawning waits */
+    tank.ui_cover = tank.hold_light || milestones_view || menu_view || settings_view || shop_view || battery_view || updates_view;   /* a fry's spawning waits */
     tank_tick(&tank, dt, llm_active ? advisor_llm : advisor_rules);
     {   /* the pretend cell, and the battery page's history fed once a second, as the device feeds it */
         if (sim_bat_state == BAT_ON_BATTERY) sim_bat_pct = fmaxf(0, sim_bat_pct - BAT_DRAIN_DEFAULT / 3600 * dt);
@@ -2219,13 +2237,14 @@ static void frame_cb(lv_timer_t *timer) {
     progression_tick(&tank, dt);
     if (!confirm_view) {                          /* an arrival owed its welcome: the birth flow (setup.c) */
         int nb = setup_poll_birth(&tank);
-        if (nb >= 0) { selected_fish = -1; milestones_view = false; snd(SND_ARRIVAL, AUDIO_PITCH_ONE);
+        if (nb >= 0) { selected_fish = -1; milestones_view = false; menu_view = false; snd(SND_ARRIVAL, AUDIO_PITCH_ONE);
                        printf("a new fry, %s: the birth flow is up (announce / name / family; S drops it)\n", tank.fish[nb].name); }
     }
     { int rf = setup_take_renamed();              /* a rename closed: back to the milestones page, the fish's card up */
       if (rf >= 0) { milestones_view = true; render_milestones_show_fish(&tank, rf); printf("milestones: back on %s's card\n", tank.fish[rf].name); } }
     sound_frame(now, dt);
     if (milestones_view) render_milestones(&tank, canvas_buf, TANK_W);
+    else if (menu_view) render_menu(&tank, canvas_buf, TANK_W);
     else if (settings_view) render_settings(&tank, canvas_buf, TANK_W, sim_bright, audio_volume());
     else if (updates_view) render_updates_page(canvas_buf, TANK_W);
     else if (shop_view) render_shop(&tank, canvas_buf, TANK_W);
@@ -2564,10 +2583,10 @@ static int snapshot(const char *prefix, int seconds) {
     snprintf(path, sizeof path, "%s_card.ppm", prefix); write_ppm(path, fb);
     render_tank(&tank, fb, TANK_W); render_stats_card(&tank, 1, fb, TANK_W);
     snprintf(path, sizeof path, "%s_card1.ppm", prefix); write_ppm(path, fb);   /* partly unrevealed */
-    /* the toolbox (2026-10-01): the card with the scissors in hand, then the chip on the open tank */
+    /* the main menu (2026-10-21, the BOOT key) with the scissors in hand, then the chip on the open tank */
     tank_set_tool(&tank, TOOL_SCISSORS);
-    render_tank(&tank, fb, TANK_W); render_stats_card(&tank, 0, fb, TANK_W);
-    snprintf(path, sizeof path, "%s_tools.ppm", prefix); write_ppm(path, fb);
+    render_menu(&tank, fb, TANK_W);
+    snprintf(path, sizeof path, "%s_menu.ppm", prefix); write_ppm(path, fb);
     render_tank(&tank, fb, TANK_W); render_tool_chip(&tank, -1, fb, TANK_W);
     snprintf(path, sizeof path, "%s_tool_chip.ppm", prefix); write_ppm(path, fb);
     tank_set_tool(&tank, TOOL_HAND);
@@ -3316,8 +3335,8 @@ static int selftest_shop(void) {
         static uint16_t fb[TANK_W * TANK_H];
         render_milestones(&tank, fb, TANK_W);
         if (ms_tap(MSP_SD_X + MSP_ICON / 2, MS_TANK_Y) != MS_TAP_SHOP) { printf("FAIL: the sand dollar did not open the shop\n"); return 1; }
-        if (ms_tap(MSP_UPG_X + MSP_UPG_W / 2, MS_FOOT_Y) != MS_TAP_SHOP) { printf("FAIL: UPGRADES did not open the shop\n"); return 1; }
-        if (ms_tap(MSP_SET_X + MSP_SET_W / 2, MSP_SET_Y + 10) != MS_TAP_SETTINGS || ms_tap(MSP_CLOSE_X + MSP_CLOSE_W / 2, MS_FOOT_Y) != MS_TAP_CLOSE) { printf("FAIL: SETTINGS / CLOSE moved\n"); return 1; }
+        if (ms_tap(MSP_CLOSE_X - 100, MS_FOOT_Y) != MS_TAP_NONE) { printf("FAIL: the foot left of CLOSE still opens a page (UPGRADES went to the main menu)\n"); return 1; }
+        if (ms_tap(MSP_CLOSE_X + MSP_CLOSE_W / 2, MS_FOOT_Y) != MS_TAP_CLOSE) { printf("FAIL: CLOSE moved\n"); return 1; }
         render_milestones_leave();
         tank.sd_unlocks = 0; tank.sd_balance = SD_PRICE_PLANT + 5; want = tank.sd_balance;
         render_shop(&tank, fb, TANK_W);
@@ -3463,7 +3482,7 @@ static int selftest_shop(void) {
         if (shop_tap(SHOP_BTN_X, SHP_EARN_MODAL_Y + SHP_EARN_MODAL_H / 2) != SHOP_TAP_KEPT) { printf("FAIL: the earn modal did not close\n"); return 1; }
         if (shop_tap(SHP_CLOSE_X + 40, MS_FOOT_Y) != SHOP_TAP_CLOSE) { printf("FAIL: CLOSE\n"); return 1; }
         render_shop_leave();
-        printf("selftest-shop: pages: the sand dollar and UPGRADES open the shop; a row -> modal -> UNLOCK buys; a dim UNLOCK does not; HOW TO EARN; CLOSE\n");
+        printf("selftest-shop: pages: the sand dollar opens the shop (UPGRADES is the main menu's now); a row -> modal -> UNLOCK buys; a dim UNLOCK does not; HOW TO EARN; CLOSE\n");
     }
     /* the coral (2026-09-23): the fourth item at 100, placeable with all three
        depths (AMONG by default, in the reef bed's grass), its colour picked on
@@ -4646,6 +4665,56 @@ static int species_px_check(void) {
  * the armed card and the rename page as PPMs - the same three pictures per
  * board, to be looked at side by side before anything is flashed. */
 #define CARD_FAIL(...) do { printf("FAIL: " __VA_ARGS__); printf("\n"); return 1; } while (0)
+/* the main menu (2026-10-21, the BOOT key's page): each tile where the layout says, the empty cell
+ * nothing, off the grid closes it; the grid inside the area every board shows whole; the tool in hand
+ * lit; the card's tap box only the card (no MORE, no toolbox under it) */
+static int selftest_menu(void) {
+    static uint16_t fb[TANK_W * TANK_H];
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest-menu.sav", 1);
+    (void)system("rm -f /tmp/aqua-pets-selftest-menu.sav");
+    tank_init(&tank, 91);
+    progression_boot(&tank);
+    progression_setup_done(&tank);
+    static const int WANT[MENU_TILES] = { MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS, MENU_TAP_NONE };
+    static const char *const NAME[MENU_TILES] = { "TANK", "UPGRADES", "SETTINGS", "SPONGE", "SCISSORS", "the empty cell" };
+    for (int i = 0; i < MENU_TILES; i++) {
+        int x, y, w, h; render_menu_tile_rect(i, &x, &y, &w, &h);
+        int px = x - PAGE_X, py = y - PAGE_Y;
+        if (px < 56 || py < 60 || px + w > 392 || py + h > 300) CARD_FAIL("%s's tile (page %d,%d %dx%d) is outside the area every board shows", NAME[i], px, py, w, h);
+        float cx = x + w / 2.0f, cy = y + h / 2.0f;
+        int r = render_menu_tap(&tank, cx, cy);
+        if (r != WANT[i]) CARD_FAIL("a tap on %s returned %d (want %d)", NAME[i], r, WANT[i]);
+        if (render_menu_tap(&tank, x + 3, y + 3) != WANT[i] || render_menu_tap(&tank, x + w - 4, y + h - 4) != WANT[i]) CARD_FAIL("%s's corners miss it", NAME[i]);
+    }
+    if (render_menu_tap(&tank, PAGE_X + 10, PAGE_Y + 10) != MENU_TAP_CLOSE || render_menu_tap(&tank, PAGE_X + PAGE_W / 2, PAGE_Y + PAGE_H - 12) != MENU_TAP_CLOSE)
+        CARD_FAIL("a tap off the grid did not close the menu");
+    {   /* the scissors in hand: their tile lit, the sponge's not */
+        int x, y, w, h; render_menu_tile_rect(4, &x, &y, &w, &h);
+        uint32_t hash[2];
+        for (int k = 0; k < 2; k++) {
+            tank_set_tool(&tank, k ? TOOL_SCISSORS : TOOL_HAND);
+            render_menu(&tank, fb, TANK_W);
+            uint32_t q = 2166136261u;
+            for (int yy = y; yy < y + h; yy++) for (int xx = x; xx < x + w; xx++) q = (q ^ fb[yy * TANK_W + xx]) * 16777619u;
+            hash[k] = q;
+        }
+        if (hash[0] == hash[1]) CARD_FAIL("the scissors' tile looks the same in hand and in the box");
+        int lit = 0; for (int yy = y; yy < y + h; yy++) for (int xx = x; xx < x + w; xx++) lit += fb[yy * TANK_W + xx] == 0xffff;
+        if (lit < 40) CARD_FAIL("the scissors' tile drew no label (%d white px)", lit);
+        tank_set_tool(&tank, TOOL_HAND);
+    }
+    /* the fish card: its tap box is the card and a fingertip's slop - nothing under it any more */
+    if (!RENDER_CARD_HIT(RENDER_CARD_X + RENDER_CARD_W / 2, RENDER_CARD_Y + RENDER_CARD_H - 4)) CARD_FAIL("the card's foot is not the card's");
+    if (RENDER_CARD_HIT(RENDER_CARD_X + RENDER_CARD_W / 2, RENDER_CARD_Y + RENDER_CARD_H + RENDER_CARD_HIT_BELOW + 2)) CARD_FAIL("the card's tap box runs on below it");
+    /* the milestones page's foot: only CLOSE (SETTINGS and UPGRADES are the menu's) */
+    render_milestones(&tank, fb, TANK_W);
+    if (ms_tap(MSP_CLOSE_X - 100, MS_FOOT_Y) != MS_TAP_NONE || ms_tap(MSP_CLOSE_X - 200, MS_FOOT_Y) != MS_TAP_NONE) CARD_FAIL("the milestones foot still opens a page left of CLOSE");
+    if (ms_tap(MSP_CLOSE_X + MSP_CLOSE_W / 2, MS_FOOT_Y) != MS_TAP_CLOSE) CARD_FAIL("the milestones page's CLOSE moved");
+    render_milestones_leave();
+    printf("selftest-menu: six tiles where the layout says (inside the common area), the empty cell nothing, off the grid closes; "
+           "the tool in hand lit; the card's tap box is the card; the milestones foot is CLOSE alone\n");
+    return 0;
+}
 static int selftest_card(const char *prefix) {
     const float DT = 1.0f / 60.0f;
     static uint16_t fb[TANK_W * TANK_H];
@@ -5203,6 +5272,7 @@ int main(int argc, char **argv) {
         if (strcmp(argv[a], "--selftest-saves") == 0) return selftest_saves();
         if (strcmp(argv[a], "--selftest-pop") == 0) return selftest_pop();
         if (strcmp(argv[a], "--selftest-card") == 0) return selftest_card(a + 1 < argc ? argv[a + 1] : NULL);
+        if (strcmp(argv[a], "--selftest-menu") == 0) return selftest_menu();
         if (strcmp(argv[a], "--selftest-sleep") == 0) return selftest_sleep();
         if (strcmp(argv[a], "--selftest-tend") == 0) return selftest_tend();
         if (strcmp(argv[a], "--selftest-update") == 0) return selftest_update();
@@ -5312,7 +5382,7 @@ int main(int argc, char **argv) {
             }
         } else if (settings_view && !confirm_view) {             /* the settings page: segments, LIGHTS OUT's arrows, CLOSE */
             int v = 0, r = render_settings_touch(&tank, (float)mx, (float)my, mpress, &v);
-            if (r == SET_TAP_CLOSE) { settings_view = false; milestones_view = true; ms_back = true; }   /* back to the milestones page */
+            if (r == SET_TAP_CLOSE) { settings_view = false; menu_view = true; ms_back = true; }   /* back to the main menu */
             else if (r == SET_TAP_UPDATES) { settings_view = false; updates_view = true; ms_back = true; printf("updates page\n"); }
             else if (r == SET_TAP_BRIGHT) sim_bright = v;
             else if (r == SET_TAP_VOLUME) { if (s_adev) { SDL_LockAudioDevice(s_adev); audio_set_volume(v); SDL_UnlockAudioDevice(s_adev); } if (v) snd(SND_CONFIRM, AUDIO_PITCH_ONE);
@@ -5337,7 +5407,7 @@ int main(int argc, char **argv) {
                 printf("update mode: the tank would save and restart now (pretend radio; AQUA_PETS_FAKE_UPDATE steers the check)\n");
             }
         }
-        bool modal = confirm_view || setup_up || settings_view || shop_view || battery_view || updates_view;
+        bool modal = confirm_view || setup_up || settings_view || shop_view || battery_view || updates_view || menu_view;
         if (mpress && !modal) tank_touch_drag(&tank, (float)mx, (float)my);   /* stroke -> wipe/slash */
         if (mpress && !modal && !held_page && tank.tool == TOOL_HAND && now_ms - press_ms > 700 && abs(mx - press_x) < 24 && abs(my - press_y) < 24) {   /* tap-and-hold on a piece: its page (2026-09-24); not with a tool in hand */
             int it = tank_decor_hit(&tank, (float)press_x, (float)press_y);
@@ -5360,10 +5430,21 @@ int main(int argc, char **argv) {
             else if (notice_current() && notice_dismiss()) { }   /* an announcement up: the tap closes it (the lights-out notice lets it through: notice.h) */
             else if (battery_view) battery_view = false;      /* the battery page: any click closes it */
             else if (settings_view || updates_view || ms_back) ms_back = false;   /* the page owns the glass: render_settings_touch took it
-                                                                    (and its CLOSE already brought the milestones page back) */
+                                                                    (and its CLOSE already brought the main menu back) */
+            else if (menu_view) {                       /* the main menu: a page, a tool, or off the grid back to the tank */
+                int r = render_menu_tap(&tank, (float)press_x, (float)press_y);
+                if (r == MENU_TAP_TANK || r == MENU_TAP_UPGRADES || r == MENU_TAP_SETTINGS) {
+                    menu_view = false; milestones_view = r == MENU_TAP_TANK; shop_view = r == MENU_TAP_UPGRADES; settings_view = r == MENU_TAP_SETTINGS;
+                    printf("menu: %s\n", r == MENU_TAP_TANK ? "TANK (the milestones page)" : r == MENU_TAP_UPGRADES ? "UPGRADES (the shop)" : "SETTINGS");
+                } else if (r == MENU_TAP_SPONGE || r == MENU_TAP_SCISSORS) {
+                    int tl = r == MENU_TAP_SPONGE ? TOOL_SPONGE : TOOL_SCISSORS;
+                    tank_set_tool(&tank, tank.tool == tl ? TOOL_HAND : tl); menu_view = false;
+                    printf("menu: %s\n", tank.tool == TOOL_SPONGE ? "the SPONGE - strokes only wipe" : tank.tool == TOOL_SCISSORS ? "the SCISSORS - strokes only cut" : "back to bare hands");
+                } else if (r == MENU_TAP_CLOSE) { menu_view = false; printf("menu: closed\n"); }
+            }
             else if (shop_view) {                       /* the shop: a row's modal, UNLOCK, HOW TO EARN, CLOSE */
                 int r = render_shop_tap(&tank, (float)press_x, (float)press_y);
-                if (r == SHOP_TAP_CLOSE) { shop_view = false; render_shop_leave(); milestones_view = true; }   /* back to the milestones page */
+                if (r == SHOP_TAP_CLOSE) { shop_view = false; render_shop_leave(); menu_view = true; }   /* back to the main menu */
                 else if (r >= SHOP_TAP_SELL) {              /* sold back (the second tap on SELL) */
                     int item = r - SHOP_TAP_SELL;
                     if (progression_sell(&tank, item)) { snd(SND_CONFIRM, AUDIO_PITCH_ONE); printf("shop: %s sold back for %d, balance %d\n", SD_ITEMS[item].name, progression_sell_value(item), tank.sd_balance); }
@@ -5397,8 +5478,8 @@ int main(int argc, char **argv) {
                     setup_begin_rename(&tank, r - MS_TAP_RENAME);
                     printf("milestones: renaming %s (the wheel; CANCEL / DONE)\n", tank.fish[r - MS_TAP_RENAME].name);
                 }
-                else if (r == MS_TAP_CLOSE || r == MS_TAP_SETTINGS || r == MS_TAP_SHOP) {
-                    milestones_view = false; settings_view = r == MS_TAP_SETTINGS; shop_view = r == MS_TAP_SHOP;
+                else if (r == MS_TAP_CLOSE || r == MS_TAP_SHOP) {   /* CLOSE: back to the main menu; the sand dollar: the shop */
+                    milestones_view = false; menu_view = r == MS_TAP_CLOSE; shop_view = r == MS_TAP_SHOP;
                     progression_ack_milestones(&tank); render_milestones_leave(); }
                 /* MS_TAP_KEPT: a badge / name opened the detail modal, or the modal closed; anything else: nothing */
             }
@@ -5415,8 +5496,6 @@ int main(int argc, char **argv) {
                     float d2 = (d2a < d2b ? d2a : d2b) / (r * r);
                     if (d2 < bd) { bd = d2; best = i; }
                 }
-                /* a click ON the open card (its MORE button, or any of it): the
-                   milestones page, as the device's touch port does (2026-09-16) */
                 if (tank.tool != TOOL_HAND) {   /* a tool in hand owns the glass (2026-10-04): only its chip's DONE answers a click */
                     selected_fish = -1;
                     if (render_tool_chip_hit(&tank, (float)press_x, (float)press_y)) { tank_set_tool(&tank, TOOL_HAND); printf("toolbox: DONE - back to bare hands\n"); }
@@ -5426,15 +5505,9 @@ int main(int argc, char **argv) {
                     battery_view = true; battery_view_ms = now_ms; selected_fish = -1;
                     printf("battery page: %d%%, %s\n", sim_bat_gauge(), sim_bat_state == BAT_CHARGING ? "charging" : sim_bat_state == BAT_FULL ? "full" : "on battery");
                 }
-                else if (selected_fish >= 0 && selected_fish < tank.n_fish && render_tools_hit((float)press_x, (float)press_y) >= 0) {
-                    /* the toolbox under the card (2026-10-01): pick a tool up (or put the one in hand back), the card goes */
-                    int tl = render_tools_hit((float)press_x, (float)press_y);
-                    tank_set_tool(&tank, tank.tool == tl ? TOOL_HAND : tl); selected_fish = -1;
-                    printf("toolbox: %s\n", tank.tool == TOOL_SPONGE ? "the SPONGE - strokes only wipe" : tank.tool == TOOL_SCISSORS ? "the SCISSORS - strokes only cut" : "back to bare hands");
-                }
                 else if (selected_fish >= 0 && selected_fish != RENDER_CARD_SNAIL && selected_fish != RENDER_CARD_SHRIMP && selected_fish != RENDER_CARD_URCHIN
                          && RENDER_CARD_HIT(press_x, press_y))
-                    milestones_view = true;
+                    selected_fish = -1;                    /* a click ON the card puts it away (2026-10-21: the pages are the BOOT key's menu) */
                 else if ((selected_fish < 0 || selected_fish >= tank.n_fish) && render_tool_chip_hit(&tank, (float)press_x, (float)press_y)) {
                     tank_set_tool(&tank, TOOL_HAND); printf("toolbox: DONE - back to bare hands\n");
                 }
@@ -5468,18 +5541,20 @@ int main(int argc, char **argv) {
           } tdown = k[SDL_SCANCODE_T]; }
         if (confirm_view && now_ms - confirm_ms > CONFIRM_MS) { confirm_view = false; printf("reset prompt: timed out, tank kept\n"); }
         if (k[SDL_SCANCODE_X] && !xdown && !confirm_view) {   /* the keeper's reset prompt (device: hold BOOT + tap) */
-            confirm_view = true; confirm_ms = now_ms; selected_fish = -1; milestones_view = false; settings_view = false; shop_view = false; render_shop_leave();
+            confirm_view = true; confirm_ms = now_ms; selected_fish = -1; milestones_view = false; menu_view = false; settings_view = false; shop_view = false; render_shop_leave();
             printf("reset prompt: click YES or NO (it gives up after %d s)\n", CONFIRM_MS / 1000);
         }
         xdown = k[SDL_SCANCODE_X];
+        { static bool spdown; if (k[SDL_SCANCODE_SPACE] && !spdown) sim_home();   /* SPACE: the BOOT key's short press - the main menu (2026-10-21) */
+          spdown = k[SDL_SCANCODE_SPACE]; }
         { static bool edown; if (k[SDL_SCANCODE_E] && !edown && !update_mode) {   /* E: update mode, as CHECK FOR UPDATES enters it */
-            progression_save(&tank); milestones_view = settings_view = updates_view = shop_view = false; selected_fish = -1;
+            progression_save(&tank); milestones_view = menu_view = settings_view = updates_view = shop_view = false; selected_fish = -1;
             update_mode = true; update_clock = 0; update_begin(sim_bat_gauge(), sim_bat_state != BAT_ON_BATTERY);
             printf("update mode (E): the pages over a pretend radio; AQUA_PETS_FAKE_UPDATE=none|cable|fail|downloadfail|otherboard|boardimage|<x.y.z> steers the check\n"); }
           edown = k[SDL_SCANCODE_E]; }
         if (k[SDL_SCANCODE_S] && !sdown) {                    /* the first-run flow, on cue */
             if (setup_active()) { setup_cancel(&tank); printf("setup: closed (still owed if it was pending)\n"); }
-            else { setup_begin(&tank); selected_fish = -1; milestones_view = false; printf("setup: welcome page (click through; BEGIN saves)\n"); }
+            else { setup_begin(&tank); selected_fish = -1; milestones_view = false; menu_view = false; printf("setup: welcome page (click through; BEGIN saves)\n"); }
         }
         sdown = k[SDL_SCANCODE_S];
         if (k[SDL_SCANCODE_V] && !vdown) { int v = (audio_volume() + 1) % 3; if (s_adev) { SDL_LockAudioDevice(s_adev); audio_set_volume(v); SDL_UnlockAudioDevice(s_adev); }
@@ -5494,7 +5569,7 @@ int main(int argc, char **argv) {
         }
         pdown = k[SDL_SCANCODE_P];
         if (k[SDL_SCANCODE_4] && !fourdown && !confirm_view && !setup_up) {   /* $: the shop page */
-            shop_view = !shop_view; if (!shop_view) render_shop_leave(); milestones_view = false; settings_view = false; selected_fish = -1;
+            shop_view = !shop_view; if (!shop_view) render_shop_leave(); milestones_view = false; menu_view = false; settings_view = false; selected_fish = -1;
             printf("shop: %s (%d sand dollars)\n", shop_view ? "up" : "closed", tank.sd_balance);
         }
         fourdown = k[SDL_SCANCODE_4];
@@ -5560,7 +5635,7 @@ int main(int argc, char **argv) {
         if (k[SDL_SCANCODE_U] && !udown) { ui_visible = !ui_visible; }
         udown = k[SDL_SCANCODE_U];
         if (k[SDL_SCANCODE_M] && !mkdown) {
-            milestones_view = !milestones_view;
+            milestones_view = !milestones_view; menu_view = false;
             if (!milestones_view) { progression_ack_milestones(&tank); render_milestones_leave(); }
         }
         mkdown = k[SDL_SCANCODE_M];

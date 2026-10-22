@@ -20,7 +20,7 @@ make check-all       # every selftest on all three boards (required gate for any
 make NOMODEL=1 check-all   # skip --selftest-llm when model/out/model_q4.bin is absent
 ```
 
-**Run a single test:** run one selftest flag on the built binary, e.g. `./fishsim --selftest-shop` or `./fishsim-round --selftest-pop`. The full list is `SELFTESTS` in [sim/Makefile](sim/Makefile): `--selftest-themes`, `--selftest`, `--selftest-hunger`, `--selftest-shop`, `--selftest-battery`, `--selftest-pop`, `--selftest-card`, `--selftest-sleep`, `--selftest-tend`, `--selftest-llm`, `--selftest-saves`, `--selftest-update`, `--selftest-species`, `--selftest-encoder`.
+**Run a single test:** run one selftest flag on the built binary, e.g. `./fishsim --selftest-shop` or `./fishsim-round --selftest-pop`. The full list is `SELFTESTS` in [sim/Makefile](sim/Makefile): `--selftest-themes`, `--selftest`, `--selftest-hunger`, `--selftest-shop`, `--selftest-battery`, `--selftest-pop`, `--selftest-card`, `--selftest-menu`, `--selftest-sleep`, `--selftest-tend`, `--selftest-llm`, `--selftest-saves`, `--selftest-update`, `--selftest-species`, `--selftest-encoder`.
 
 Useful sim flags: `--fresh`, `--fast N`, `--greedy`, `--narrate` (prints every model decision), `--snapshot <prefix>` (writes PPM frames of every page), `--bench`.
 

@@ -7,12 +7,19 @@ bool touch_port_init(void);
 bool touch_port_deep_sleep(void);   /* the night's deep sleep: the chip's own sleep, its reset left high (true = it took it); the wake is a reboot */
 void touch_port_poll(tank_t *t);
 int  touch_port_selected(void);   /* tapped fish for the stats card, RENDER_CARD_SNAIL for the snail's, -1 = none */
-/* milestones page: a tap ON the open stats card (its MORE button, or any of
- * it) flips to it; it has no
- * auto-dismiss - the next tap anywhere closes it (and the card, if still up).
- * touch_port_show_milestones is the director's cue (needs no card). */
+/* milestones page: the main menu's TANK opens it; its CLOSE goes back to the
+ * menu. touch_port_show_milestones is the director's cue. */
 bool touch_port_milestones(void);
 void touch_port_show_milestones(bool on);
+/* the MAIN MENU (2026-10-21, render_menu): the BOOT key's page. touch_port_home
+ * is BOOT's short press (main.c): from the tank the menu, from the menu the
+ * tank, from any of its pages (milestones, shop, settings, updates) back to the
+ * menu; nothing while the setup or the reset prompt has the glass. The menu's
+ * tiles open those pages or put a tool in hand; a tap off the grid closes it.
+ * touch_port_show_menu is the director's cue. */
+bool touch_port_menu(void);
+void touch_port_show_menu(bool on);
+void touch_port_home(tank_t *t);
 void touch_port_dismiss(void);    /* drop the card and the page: a flow (the birth flow) took the glass */
 void touch_port_set_inverted(bool inverted);   /* mirror coords when the screen is flipped */
 /* reset confirm prompt (render_confirm_reset): opened by main.c's chord -
@@ -28,8 +35,8 @@ bool touch_port_down(void);                    /* a finger is on the glass right
 float touch_port_confirm_frac(void);           /* time left before it gives up, 1 -> 0 */
 int  touch_port_confirm_take(void);            /* +1 / -1 once, then 0 */
 bool touch_port_pressed_since(int64_t us);     /* a finger is down and landed after `us` */
-/* the settings page (2026-09-15): opened from the milestones page's SETTINGS
- * button; a tap on a segment is handed to main as SET_TAP_BRIGHT / _VOLUME
+/* the settings page (2026-09-15): opened from the main menu's SETTINGS (the
+ * milestones page's SETTINGS button until 2026-10-21); a tap on a segment is handed to main as SET_TAP_BRIGHT / _VOLUME
  * with its value (one-shot), CLOSE ends the page */
 bool touch_port_settings(void);
 void touch_port_show_settings(bool on);

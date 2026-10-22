@@ -4302,7 +4302,6 @@ static void slider(ctx_t *c, int x, int y, int w, float frac, uint32_t rgb,
 
 static void button(ctx_t *c, int x, int y, int W, int H, uint32_t fill, uint32_t edge, const char *label, int scale);   /* below */
 static void draw_text(ctx_t *c, int x, int y, int scale, uint32_t rgb, const char *s);                                  /* the pixel font, below */
-#define CARD_MORE_H 22
 static void draw_text_8px(ctx_t *c, int x, int y, uint32_t rgb, const char *s);                                       /* below */
 /* the card's species line (NULL for the classic fish): the first of
    "SPECIES - DESIGN", "DESIGN SPECIES", "TOKEN - DESIGN" that fits the card */
@@ -4338,8 +4337,8 @@ static void card_draw(ctx_t c, const tank_t *t, int fish_idx) {
     /* identity row: the fish's NAME and the certainty dot - bright = the
      * model was sure of its last decision, dim = torn. (2026-09-29, Strato:
      * the name at the top; the stage pips and growth bar are gone - "a bit
-     * ambiguous", the keeper sees the fish's size, and the milestones page a
-     * tap deeper names the stage. The colour swatch went with them: the
+     * ambiguous", the keeper sees the fish's size, and the milestones page
+     * names the stage. The colour swatch went with them: the
      * border is the fish's colour, and a 7-letter name needs the row.) */
     /* a creature of a species (2026-10-05) says what it is under its name, in
        the 8 px font: "SEAHORSE - GOLDEN" - or, too long for the card, the
@@ -4375,13 +4374,8 @@ static void card_draw(ctx_t c, const tank_t *t, int fish_idx) {
     slider(&c, X + 8, Y + 152, W - 16, f->bold,             0xffffff, &icon_shy,      &icon_bold,    saw_bold);
     slider(&c, X + 8, Y + 178, W - 16, f->sociable,         0x38dcc7, &icon_solo,     &icon_social,  saw_social);
     slider(&c, X + 8, Y + 204, W - 16, f->curiosity / 10.0f, 0x6db9ff, &icon_cautious, &icon_curious, saw_curious);
-
-    /* the way onward (2026-09-16): a MORE button in the pages' dress at the
-       foot of the card. The whole card was already the tap that opens the
-       milestones page (and from there SETTINGS / UPGRADES), but nothing said
-       so - a keeper asked Strato how to get there. The button is the sign;
-       the hit box is still the card (touch ports, RENDER_CARD_H). */
-    button(&c, X + 8, Y + H - 8 - CARD_MORE_H, W - 16, CARD_MORE_H, 0x1c2f36, 0x9fd8e2, "MORE", 2);
+    /* (the MORE button that stood at the foot until 2026-10-21 went with the
+       main menu: the BOOT key is the way to the pages now, the card only shows) */
 }
 
 /* ---- stats card cache (2026-09-01) ----
@@ -4508,7 +4502,6 @@ static void shrimp_card_draw(ctx_t *c, const tank_t *t) {
     draw_text(c, X + (W - text_w(line, 2)) / 2, Y + 158, 2, 0xffffff, line);
 }
 
-static void tools_draw(ctx_t *c, const tank_t *t);   /* the toolbox, below */
 void render_stats_card(const tank_t *t, int fish_idx, uint16_t *fb, int stride) {
     render_use_theme(t->theme);
     if (fish_idx == RENDER_CARD_SHRIMP) {
@@ -4548,14 +4541,13 @@ void render_stats_card(const tank_t *t, int fish_idx, uint16_t *fb, int stride) 
             memcpy(fb + (RENDER_CARD_Y + y) * stride + RENDER_CARD_X,
                    g_card + y * RENDER_CARD_W, RENDER_CARD_W * 2);
     } else card_draw(c, t, fish_idx);
-    tools_draw(&c, t);
 }
 
-/* ---- the toolbox (2026-10-01) ----
+/* ---- the tool chip (2026-10-01; the toolbox that stood under the card is
+ * the main menu's bottom row since 2026-10-21) ----
  * Drawn every frame, uncached - so the backdrop is the card's look by bit
  * shifts, not blends: an eighth of the water through, the rest the card's
- * dark (~8.7k pixels for the price of a copy; blended, the card's 28k cost
- * ~7 ms on the device). */
+ * dark. */
 static void shade_box(ctx_t *c, int x, int y, int w, int h) {
     const uint16_t base = rgb565(theme_ui_color(0x04141a), 0.875f);
     for (int yy = y; yy < y + h; yy++) {
@@ -4566,29 +4558,6 @@ static void shade_box(ctx_t *c, int x, int y, int w, int h) {
     }
 }
 static void rect_fill(ctx_t *c, int x, int y, int w, int h, uint32_t rgb);   /* below */
-#define TOOL_BTN_W ((RENDER_TOOLS_W - 16 - 6) / 2)
-#define TOOL_BTN_H (RENDER_TOOLS_H - 16)
-static void tools_draw(ctx_t *c, const tank_t *t) {
-    const int X = RENDER_TOOLS_X, Y = RENDER_TOOLS_Y, W = RENDER_TOOLS_W, H = RENDER_TOOLS_H;
-    shade_box(c, X, Y, W, H);
-    rect_edge(c, X, Y, W, H, 0x9fd8e2); rect_edge(c, X + 1, Y + 1, W - 2, H - 2, 0x1c2f36);
-    static const icon_t *const ICON[2] = { &icon_tool_sponge, &icon_tool_scissors };
-    for (int k = 0; k < 2; k++) {
-        int bx = X + 8 + k * (TOOL_BTN_W + 6), by = Y + 8;
-        bool held = t->tool == (k ? TOOL_SCISSORS : TOOL_SPONGE);
-        rect_fill(c, bx, by, TOOL_BTN_W, TOOL_BTN_H, held ? 0x356670 : 0x14252b);
-        uint32_t edge = held ? 0xffffff : 0x4d6a72;
-        rect_edge(c, bx, by, TOOL_BTN_W, TOOL_BTN_H, edge);
-        if (held) rect_edge(c, bx + 1, by + 1, TOOL_BTN_W - 2, TOOL_BTN_H - 2, edge);
-        const icon_t *ic = ICON[k];
-        blit_icon(c, bx + (TOOL_BTN_W - ic->w) / 2, by + (TOOL_BTN_H - ic->h) / 2, ic, 255);   /* 1x, as the card's icons (2026-10-12) */
-    }
-}
-int render_tools_hit(float x, float y) {
-    const int X = RENDER_TOOLS_X, W = RENDER_TOOLS_W;
-    if (y < RENDER_TOOLS_Y || x < X - RENDER_CARD_HIT_SIDE || x >= X + W + RENDER_CARD_HIT_SIDE) return -1;
-    return x < X + W / 2 ? TOOL_SPONGE : TOOL_SCISSORS;
-}
 
 /* the chip: the tool at 1x and DONE, top left where the card would be */
 #ifdef TANK_ROUND                                    /* the bowl: up in the left shoulder, inside the glass */
@@ -4944,8 +4913,8 @@ void render_battery_info(uint16_t *fb, int stride, const bat_info_t *bi, float c
  * portrait and its last badge were cut by the circle - "nudge this down",
  * SETTINGS "to the top, dead center as it would fit in that opening",
  * UPGRADES and CLOSE "closer together centered"): the rows start where the
- * circle is wide enough for them and stand 34 px apart, SETTINGS sits alone
- * in the cap above them, the other two side by side at the foot. */
+ * circle is wide enough for them and stand 34 px apart. (SETTINGS and
+ * UPGRADES left the page for the main menu, 2026-10-21; CLOSE stays put.) */
 /* (the page's numbers, MSP_*: render.h) */
 #define MSP_INK       0x031015
 #define MSP_DIM       0x2a3f45
@@ -5295,8 +5264,7 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
     /* the way out: a CLOSE button in the prompt's calm dress (a tap anywhere
        else never drops the page - too much to tap for that) */
     button(&c, MSP_CLOSE_X, MSP_CLOSE_Y, MSP_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
-    button(&c, MSP_SET_X, MSP_SET_Y, MSP_SET_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "SETTINGS", 2);   /* bottom left (2026-09-15) */
-    button(&c, MSP_UPG_X, MSP_CLOSE_Y, MSP_UPG_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "UPGRADES", 2);   /* the shop, between them */
+    /* (SETTINGS and UPGRADES stood beside it, 2026-09-15 .. 10-21: the main menu has them now) */
     /* a modal up: the page under it is out of reach (any tap only closes the
        modal), so it LOOKS out of reach - every pixel at half (Strato: with
        CLOSE lit it looked like you could still tap it). One shift per
@@ -5411,14 +5379,7 @@ int render_milestones_tap(const tank_t *t, float x, float y) {
         }
         ms_close(); return MS_TAP_KEPT;                  /* any other tap: back to the page */
     }
-#ifdef TANK_ROUND                                    /* the bowl: SETTINGS has the cap above the rows; the foot is UPGRADES | CLOSE */
-    if (y < MSP_SET_Y + MSP_CLOSE_H + 14) return x >= MSP_SET_X - 24 && x < MSP_SET_X + MSP_SET_W + 24 ? MS_TAP_SETTINGS : MS_TAP_NONE;
-    if (y >= MSP_CLOSE_Y - 4) return x >= MSP_CLOSE_X - 6 ? MS_TAP_CLOSE : MS_TAP_SHOP;
-#else
-    if (x >= MSP_CLOSE_X - 8 && y >= MSP_CLOSE_Y - 4) return MS_TAP_CLOSE;      /* slop out to the glass edge */
-    if (x < MSP_SET_X + MSP_SET_W + 8 && y >= MSP_CLOSE_Y - 4) return MS_TAP_SETTINGS;   /* the settings page */
-    if (y >= MSP_CLOSE_Y - 4) return MS_TAP_SHOP;                                        /* UPGRADES: the rest of the strip is the shop */
-#endif
+    if (y >= MSP_CLOSE_Y - 4) return x >= MSP_CLOSE_X - (PAGE_BOWL ? 6 : 8) ? MS_TAP_CLOSE : MS_TAP_NONE;   /* the foot: CLOSE, slop out to the glass edge */
     int row = -1; bool tank_row = false, fry_row = false;
     fry_req_t req[FRY_REQ_MAX]; bool staged;
     int nreq = progression_next_fry(t, req, &staged);
@@ -5791,6 +5752,58 @@ int render_shop_tap(const tank_t *t, float x, float y) {
     return SHOP_TAP_NONE;
 }
 void render_shop_leave(void) { g_shp_modal = -1; g_shp_earn = false; g_shp_page = 0; g_shp_sell_armed = false; }
+
+/* ---- the main menu (2026-10-21): the BOOT key's page ----
+ * Six tiles, three across: TANK (the milestones page), UPGRADES (the shop),
+ * SETTINGS; then the SPONGE, the SCISSORS and an empty cell. The page
+ * icons are placeholders (the bubbles badge) until their own art lands:
+ * assets/icons/menu_*.png through tools/gen_icons.py, then the table below.
+ * The tool in hand is lit (the toolbox's look: a white double edge on a
+ * lighter fill). */
+static const icon_t *const MENU_ICON[MENU_TILES] = {
+    &icon_ms_first_bubbles, &icon_ms_first_bubbles, &icon_ms_first_bubbles,   /* TANK, UPGRADES, SETTINGS (placeholders) */
+    &icon_tool_sponge, &icon_tool_scissors, NULL,
+};
+static const char *const MENU_LABEL[MENU_TILES] = { "TANK", "UPGRADES", "SETTINGS", "SPONGE", "SCISSORS", NULL };
+static void menu_tile_page(int i, int *x, int *y) {
+    *x = MENU_X0 + (i % 3) * (MENU_TILE_W + MENU_GAP_X);
+    *y = MENU_Y0 + (i / 3) * (MENU_TILE_H + MENU_GAP_Y);
+}
+void render_menu_tile_rect(int i, int *x, int *y, int *w, int *h) {
+    menu_tile_page(i, x, y); *x += PAGE_X; *y += PAGE_Y; *w = MENU_TILE_W; *h = MENU_TILE_H;
+}
+void render_menu(const tank_t *t, uint16_t *fb, int stride) {
+    render_use_theme(t->theme);
+    ctx_t c = ctx_page(fb, stride);
+    rect_fill(&c, -PAGE_X, -PAGE_Y, TANK_W, TANK_H, MSP_INK);
+    draw_text(&c, (PAGE_W - text_w("MENU", 3)) / 2, MENU_Y0 - 38, 3, MSP_TEAL, "MENU");
+    for (int i = 0; i < MENU_TILES; i++) {
+        if (!MENU_ICON[i]) continue;                 /* the empty cell */
+        int x, y; menu_tile_page(i, &x, &y);
+        bool held = (i == 3 && t->tool == TOOL_SPONGE) || (i == 4 && t->tool == TOOL_SCISSORS);
+        rect_fill(&c, x, y, MENU_TILE_W, MENU_TILE_H, held ? 0x356670 : 0x14252b);
+        uint32_t edge = held ? 0xffffff : MSP_TEAL;
+        rect_edge(&c, x, y, MENU_TILE_W, MENU_TILE_H, edge);
+        if (held) rect_edge(&c, x + 1, y + 1, MENU_TILE_W - 2, MENU_TILE_H - 2, edge);
+        const icon_t *ic = MENU_ICON[i];
+        blit_icon_scaled(&c, x + (MENU_TILE_W - ic->w * 2) / 2, y + 10 + (64 - ic->h * 2) / 2, ic, 2, true);
+        draw_text(&c, x + (MENU_TILE_W - text_w(MENU_LABEL[i], 2)) / 2, y + MENU_TILE_H - 24, 2, 0xffffff, MENU_LABEL[i]);
+    }
+}
+int render_menu_tap(const tank_t *t, float x, float y) {
+    (void)t;
+    x -= PAGE_X; y -= PAGE_Y;                    /* the page's own coordinates */
+    const int gw = 3 * MENU_TILE_W + 2 * MENU_GAP_X, gh = 2 * MENU_TILE_H + MENU_GAP_Y;
+    if (x < MENU_X0 - MENU_SLOP || x >= MENU_X0 + gw + MENU_SLOP || y < MENU_Y0 - MENU_SLOP || y >= MENU_Y0 + gh + MENU_SLOP)
+        return MENU_TAP_CLOSE;                   /* off the grid: back to the tank */
+    static const int CODE[MENU_TILES] = { MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS, MENU_TAP_NONE };
+    for (int i = 0; i < MENU_TILES; i++) {       /* each tile with half the gap around it, so a near miss still lands */
+        int tx, ty; menu_tile_page(i, &tx, &ty);
+        if (x >= tx - MENU_GAP_X / 2 && x < tx + MENU_TILE_W + MENU_GAP_X / 2 && y >= ty - MENU_GAP_Y / 2 && y < ty + MENU_TILE_H + MENU_GAP_Y / 2)
+            return CODE[i];
+    }
+    return MENU_TAP_NONE;                        /* the grid's slop */
+}
 
 /* the toast: "+N" by a coin, top centre, for TOAST_S on the tank clock */
 #define TOAST_S 2.5f

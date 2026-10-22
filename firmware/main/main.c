@@ -53,9 +53,10 @@
 #include "esp_sleep.h"
 #include "driver/rtc_io.h"
 
-/* BOOT (GPIO0, active low, RTC-wake capable): the reset chord (held + a tap
- * on the glass), the director's deep-sleep wake, and the sleep key only on a
- * board with no PMIC. Since 2026-09-16 the sleep key is the PWR key (the
+/* BOOT (GPIO0, active low, RTC-wake capable; on all three boards): the reset
+ * chord (held + a tap on the glass), the director's deep-sleep wake, and
+ * since 2026-10-21 the HOME key - a short press opens the main menu (it was
+ * the sleep key on a board with no PMIC until then). Since 2026-09-16 the sleep key is the PWR key (the
  * AXP2101's PWRON, polled over I2C): the night mode is a PMIC power-off,
  * from which ONLY that key (or USB) can bring the board back, so it has to
  * be the one key the keeper ever presses - press to sleep, press to wake. */
@@ -440,13 +441,17 @@ static void pwr_key_poll(int64_t now) {
 
 /* BOOT: the RESET chord (2026-09-11) - while it is held, a finger landing on
  * the glass opens the confirm prompt; a finger already resting there doesn't
- * count. With no PMIC (so no PWR key) a short press, at RELEASE, is the sleep
- * key as it was until 2026-09-16; a chord press never is. */
+ * count. A short press, at RELEASE, is the HOME key (2026-10-21): the main
+ * menu, touch_port_home. A chord press never is. (Until then, a board with no
+ * PMIC - QEMU, bring-up - slept on it; the director's `deepsleep` / `poweroff`
+ * still do that there.) */
 #define BTN_DEBOUNCE_US 50000
 static void sleep_button_poll(int64_t now) {
     if (gpio_get_level(BTN_SLEEP)) {
-        if (!s_pmic && s_btn_armed && s_btn_low_since && !s_btn_used && now - s_btn_low_since >= BTN_DEBOUNCE_US)
-            enter_sleep();
+        if (s_btn_armed && s_btn_low_since && !s_btn_used && now - s_btn_low_since >= BTN_DEBOUNCE_US) {
+            ESP_LOGI(TAG, "BOOT: short press - home");
+            touch_port_home(&tank);
+        }
         s_btn_armed = true; s_btn_low_since = 0; s_btn_used = false;
     } else if (s_btn_armed) {
         if (!s_btn_low_since) s_btn_low_since = now;
@@ -657,7 +662,7 @@ static void tank_task(void *arg) {
             batlog_add(battery_pct(), battery_port_vbat_mv(), display_port_brightness(), false, last_bat ? "" : "boot"); last_bat = now; } }
         int64_t pf_tick = esp_timer_get_time(); polls_us += pf_tick - now;
         tank.hold_light = setup_active() || touch_port_confirm_up();   /* no lights-out mid-name */
-        tank.ui_cover = tank.hold_light || touch_port_milestones() || touch_port_settings() || touch_port_updates() || touch_port_shop() || touch_port_battery();   /* a fry's spawning waits */
+        tank.ui_cover = tank.hold_light || touch_port_milestones() || touch_port_menu() || touch_port_settings() || touch_port_updates() || touch_port_shop() || touch_port_battery();   /* a fry's spawning waits */
         tank_tick(&tank, dt, llm_ok ? advisor_llm_esp : advisor_rules);
         progression_tick(&tank, dt);
         battery_frame(now);
@@ -696,6 +701,9 @@ static void tank_task(void *arg) {
             if (touch_port_milestones()) {       /* milestones page: covers the tank until a tap */
                 render_milestones(&tank, fb[cur], TANK_W);
                 sel = -1;
+            } else if (touch_port_menu()) {      /* the main menu (2026-10-21): the BOOT key's page */
+                render_menu(&tank, fb[cur], TANK_W);
+                sel = -1;
             } else if (touch_port_settings()) {  /* settings page: brightness + volume */
                 render_settings(&tank, fb[cur], TANK_W, brightness_level(), audio_port_volume());
                 sel = -1;
@@ -709,7 +717,7 @@ static void tank_task(void *arg) {
             if (sel >= 0) render_stats_card(&tank, sel, fb[cur], TANK_W);   /* tapped fish: stats card (+ the pill) */
             {   /* the battery pill: with a card, while low, and a few seconds after the cable goes in;
                    the battery page (a tap on the pill) over the live tank in its place */
-                bool pages = touch_port_milestones() || touch_port_settings() || touch_port_updates() || touch_port_shop() || setup_active() || touch_port_confirm_up();
+                bool pages = touch_port_milestones() || touch_port_menu() || touch_port_settings() || touch_port_updates() || touch_port_shop() || setup_active() || touch_port_confirm_up();
                 bool bpage = touch_port_battery() && s_bat_ok && !pages;
                 bool pill = s_bat_ok && !pages && !bpage && (sel >= 0 || s_bat_low || now < s_bat_popup_us);
                 if (bpage) {
@@ -720,7 +728,7 @@ static void tank_task(void *arg) {
                 if (!pages && !bpage) render_tool_chip(&tank, sel, fb[cur], TANK_W);   /* a tool in hand: the chip (2026-10-01) */
                 touch_port_set_pill(pill);
             }
-            if (!touch_port_milestones() && !touch_port_settings() && !touch_port_updates() && !touch_port_shop()) {   /* an announcement over the live tank */
+            if (!touch_port_milestones() && !touch_port_menu() && !touch_port_settings() && !touch_port_updates() && !touch_port_shop()) {   /* an announcement over the live tank */
                 const notice_t *nt = notice_current();
                 if (nt) render_notice(&tank, fb[cur], TANK_W, nt->kind, nt->fish, nt->bit, 1.0f - nt->age / NOTICE_UP_S);
             }
