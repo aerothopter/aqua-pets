@@ -2,6 +2,53 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-22: the decor refactor's firmware builds (ESP-IDF 5.4.4); QEMU limits
+
+**Built.** `refactor/decor` (0365503) builds for all three boards with ESP-IDF
+5.4.4, with no new warnings: the watch's `set_lock_icon` warning is on `main`
+too, and director.c compiles clean. The builds were signed with a THROWAWAY
+key in a scratch directory, not firmware/keys, so they were not flashed and
+must not be.
+
+Against `main` (5dcbee3), the same on every board:
+
+| section | change |
+|---|---|
+| `.dram0.bss` | +304 B (`tank_t` +112, the decor tables' arrays) |
+| `.dram0.data` | −64 B |
+| static D/IRAM | +240 B net (watch: 161,319 → 161,559 of 341,760) |
+| `.flash.text` | about −2.1 to −2.6 KB |
+| `.flash.rodata` | about +1 KB |
+
+The signed app is 0x271000 on both branches, 2% free in the 0x280000 slot (61 KB).
+
+**QEMU (esp_develop 9.2.2) can't test the save on target, for three reasons:**
+- A signed build aborts in IDF's startup check (`check_signature_on_update_check`):
+  QEMU's flash can't read the signature block back. QEMU builds need signing
+  off.
+- The hardware config halts at the I2C probe (no panel). With
+  `sdkconfig.qemu` the app boots through `progression_boot`, but the tank
+  task stalls right after "tank task up" on `main` and on the branch alike:
+  no 10-second status line, so no autosave. This predates the refactor.
+- A save planted in NVS with `nvs_partition_gen.py` (v2 format) is not found by
+  `persist_port_load`, even by `main`, so the PTK2 → fresh and layout-3 →
+  restore boots stayed untested on target.
+
+The save code is the same `common/progression.c` the sim's `--selftest-saves`
+covers on all three boards, and its layout asserts hold on xtensa gcc.
+
+**Board status (phase 1).**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes | yes | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | yes | yes (5.4.4, throwaway key) | no | no |
+| 2.06 watch | passes | yes | yes (5.4.4, throwaway key) | no | no |
+
+**Open.** The first real flash (`tools/flash.sh` with the real key) is the
+save test: the board's tank starts fresh, then a reboot should restore the new
+one. Check the watch's runtime internal heap at boot ("internal heap … free").
+
 ## 2026-10-21: save layout 3; the seagrass and the airstone get depths (refactor phase 1b)
 
 **What changed.**
