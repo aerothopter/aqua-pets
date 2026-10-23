@@ -33,8 +33,8 @@ The native review gallery is `docs/design/implemented-themes.html`; the earlier 
 ## Native art and occasional behaviours
 
 Both modern themes now render their own live procedural artwork, rather than only
-tinting the original creatures. `common/living_lagoon.inc` contains the ten shaded Lagoon species;
-`common/theme_creatures.inc` contains the Tidepool species; the classic fish, snail, shrimp, urchin, vegetation, decorations,
+tinting the original creatures. Every creature's art is in `common/creatures.inc` (2026-10-23): its Lagoon section (`draw_lagoon_species`) holds the ten shaded Lagoon species;
+its Tidepool section (`draw_theme_species`) the Tidepool species; the classic fish, snail, shrimp, urchin, vegetation, decorations,
 food, bubbles, battery and menu treatments live alongside their Original paths in
 `common/render.c`. They need no additional runtime bitmap allocation.
 
@@ -87,7 +87,7 @@ arms trailing with a slight lag. Rest slows the pulse, flight accelerates it. Th
 drawing is centred on the whole body (bell plus arms), so selection rings, cards
 and the milestones rows frame it. Jellyfish have no ink or electric effects.
 
-`common/jellyfish.inc` is the live geometry. Shop thumbnails are generated from
+`draw_jellyfish` in `common/creatures.inc` is the live geometry. Shop thumbnails are generated from
 the approved HTML study by `python3 tools/gen_jellyfish_assets.py` (or `--check`).
 The wreck's, the frogman's and the submarine's thumbnails (one per theme, matching the four
 hulls, the four suits and the four subs) come from `tools/gen_wreck_assets.py`,
@@ -118,7 +118,7 @@ deep indigo falling to black (`0x0d2a56 → 0x07183a → 0x02050f`) with a cold 
 top centre of the glass - the moon through the surface far above - and a still scatter of
 marine snow, both baked (`blackwater_water` in render.c, the lagoon's shaft slot); the sand is
 blue-black with the odd cyan bioluminescent grain and rounded pebbles. The creatures
-(`common/blackwater.inc`) are the realistic anatomy of 2026-10-10 - the other themes'
+(`draw_blackwater_species` / `draw_blackwater_fish` in `common/creatures.inc`) are the realistic anatomy of 2026-10-10 - the other themes'
 skeletons, motion, yaw and live state, drawn as the animals themselves with fin rays, a scale
 lattice, suckers, a cephalofoil, a plated abdomen - lit as deep-sea footage is: a pale cyan
 moonlight rims every back, the flank keeps the keeper's colour, the belly falls into the dark,

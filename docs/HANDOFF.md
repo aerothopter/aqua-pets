@@ -2,6 +2,47 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: every creature's art is one file (refactor phase 3c)
+
+**What changed.** A pure move, in five commits:
+1. render.c's creature drawers move to `common/creatures.inc`, included
+   where they stood: the fish's turn and body (`draw_fish_core`), the
+   species' sketch kit (`sk_*`), every species' Original drawer,
+   `draw_creature` and `draw_fish`.
+2. `living_lagoon.inc` (the Quiet Lagoon looks) folds into it where it was
+   included.
+3. `theme_creatures.inc` (the Tidepool Club looks and the themes' dispatch)
+   folds in.
+4. `blackwater.inc` (the Blackwater looks, the classic fish's too) folds in.
+5. `jellyfish.inc` folds in.
+
+Each step expands, includes and all, to the same text as the one before,
+apart from the new file's header and four comments that named a file now gone.
+`creatures.inc` is 2,346 lines and includes nothing. It keeps the old order:
+the fish, the kit, the themes' looks, each species' Original look, the
+dispatch. docs/THEMES.md and CLAUDE.md point at it.
+
+Both oracles are identical on all three boards. In the firmware every
+section is the same size, byte for byte, as 3b+.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (17 selftests) | both oracles identical | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | both oracles identical | yes | no | no |
+| 2.06 watch | passes | both oracles identical | yes | no | no |
+
+**Open.**
+- Drawing is still a switch: `draw_creature` picks a species' drawer and its
+  `sk_setup` numbers, and each theme's look (`draw_lagoon_species`,
+  `draw_theme_species`, `draw_blackwater_species`) has its own switch. A new
+  species is a row and its hooks in creature.c, plus a case in each of these.
+  Turning `draw_creature` into a render-side table (as `HELPER_DRAW[]`) is
+  small; the themes' switches are each one function of looks and read fine
+  as they are.
+- 3d, `--selftest-creatures`, is next in the plan.
+
 ## 2026-10-23: the creatures' code moves to creature.c (refactor phase 3b+)
 
 **What changed.** A pure move: `--golden-creatures` and `--golden-decor` are

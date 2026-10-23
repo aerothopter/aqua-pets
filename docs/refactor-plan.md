@@ -150,7 +150,12 @@ species' and the fish's motion, `update_fish` - moves from tank.c to
 `common/creature.h` / `creature.c`, the tank.c internals it needs exposed
 through a small internal header.
 
-**3c. `creatures.inc` (pure move).** The art moves into one file. The order
+**3c. `creatures.inc` (pure move; done 2026-10-23).** As built, five
+commits: render.c's creature drawers cut into `creatures.inc` at their
+place, then `living_lagoon.inc`, `theme_creatures.inc`, `blackwater.inc` and
+`jellyfish.inc` each folded in where it was included (2,346 lines, no
+includes left). The order inside is the old include order, so every step
+expands to the same text. The plan was: The art moves into one file. The order
 inside it: the shared kit, the classic fish, the species, then each theme's
 looks (or species by species, whichever keeps the move a move). One commit
 per source file; the oracle is identical after each.
