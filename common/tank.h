@@ -21,57 +21,15 @@
 #include <stdint.h>
 #include "decor.h"
 #include "helper.h"
-
-#ifdef TANK_ROUND               /* the round 466 px glass (Waveshare 1.75C, 2026-10-01): the frame is the square around a bowl */
-#define TANK_W 466
-#define TANK_H 466
-#endif
-#ifdef TANK_WATCH               /* the watch (Waveshare 2.06, 2026-10-02): its 410 x 502 glass as it is worn - a PORTRAIT tank
-                                 * (Strato, with the first landscape picture on his wrist: "I have to turn my head") */
-#define TANK_W 410
-#define TANK_H 502
-#endif
-/* a tank WORN on a wrist (2026-10-02): the picture's way up is the keeper's
- * setting (settings SCREEN), never the live IMU's - the arm swings through
- * every angle (tank_screen_*) */
-#ifdef TANK_WATCH
-#define TANK_WORN 1
-#else
-#define TANK_WORN 0
-#endif
-#ifndef TANK_W                  /* a build may override both (-DTANK_W=480 -DTANK_H=480: a square panel) */
-#define TANK_W 448
-#define TANK_H 368
-#endif
+#include "device.h"             /* the board: its frame, glass, floor, film grid and flags (the devices/ headers) */
 
 /* ---- the glass (2026-10-01). In the rectangle the side walls are x = 0 and
  * TANK_W and the bottom is TANK_H; everything on the floor measures from
- * them. A ROUND build is a BOWL: water fills the circle, and sand lies flat
- * across its bottom - the floor is the chord at TANK_BOT - 16 (the sand
- * line, what TANK_H - 16 is in the rectangle) from TANK_FX0 to TANK_FX1,
- * with sand under it down to the glass. Floor things (the beds, a resting
- * pellet, the snail's walk, the decor) measure from TANK_BOT / TANK_FX0 /
- * TANK_FX1 on both builds - in the rectangle those ARE TANK_H / 0 / TANK_W.
- * Swimmers meet the glass itself: tank_glass_* (tank.c). */
-#ifdef TANK_ROUND
-#define TANK_RAD  233.0f        /* the circle: centre (TANK_RAD, TANK_RAD) */
-#define TANK_BOT  396           /* sand line y 380: the glass is 180.8 px either side of the centre there */
-#define TANK_FX0  54
-#define TANK_FX1  412
-#elif defined(TANK_WATCH)       /* the watch's glass is the rectangle with ROUND CORNERS: ~8 mm of radius on the
-                                 * maker's drawing, 100 px. The bottom stays flat (TANK_BOT is TANK_H); the two
-                                 * lower corners take the ends of the floor - the sand line (y 486) meets the
-                                 * glass 46 px in - so the floor things keep to TANK_FX0..TANK_FX1, and the
-                                 * swimmers, the film and the snail meet the arcs (tank.c, tank_glass_*) */
-#define TANK_CORNER_R 100.0f
-#define TANK_BOT  TANK_H
-#define TANK_FX0  44
-#define TANK_FX1  366
-#else
-#define TANK_BOT  TANK_H
-#define TANK_FX0  0
-#define TANK_FX1  TANK_W
-#endif
+ * them. The bowl's floor is the chord at TANK_BOT - 16 (the sand line, what
+ * TANK_H - 16 is in the rectangle) from TANK_FX0 to TANK_FX1. Floor things
+ * (the beds, a resting pellet, the snail's walk, the decor) measure from
+ * TANK_BOT / TANK_FX0 / TANK_FX1 on every board - in the rectangle those ARE
+ * TANK_H / 0 / TANK_W. Swimmers meet the glass itself: tank_glass_* (tank.c). */
 #define TANK_FW   (TANK_FX1 - TANK_FX0)
 /* a floor x given as the rectangle's (0..448), on this build's floor */
 #define TANK_FLOOR_X(x448) (TANK_FX0 + (x448) * TANK_FW / 448.0f)
@@ -140,32 +98,13 @@ typedef enum { VEG_KIND_GRASS, VEG_KIND_SWORD } veg_kind_t;
                                                 * of the tallest frond touches y~10,
                                                 * just under the surface (render.c
                                                 * VEG_SEG_DY 3.2 px pitch from y=352) */
-#ifdef TANK_ROUND                              /* the bowl: 26 x 22 cells of 18 px over the circle down to TANK_BOT -
-                                                * 572, inside the 644 the save keeps (progression.c) */
-#define ALGAE_CELL 18
-#define ALGAE_COLS 26
-#define ALGAE_ROWS 22
-#elif defined(TANK_WATCH)                      /* the watch: 23 x 28 cells of 18 px (414 x 504: the last column and row hang
-                                                * 4 / 2 px off the glass) - 644 cells, what the save keeps */
-#define ALGAE_CELL 18
-#define ALGAE_COLS 23
-#define ALGAE_ROWS 28
-#else
-#define ALGAE_CELL 16                          /* px per glass-film grid cell */
-#define ALGAE_COLS (TANK_W / ALGAE_CELL)       /* 28 */
-#define ALGAE_ROWS (TANK_H / ALGAE_CELL)       /* 23 */
-#endif
+/* the film grid (ALGAE_CELL / _COLS / _ROWS) is the board's (the devices/ headers) */
 #define ALGAE_CELLS (ALGAE_COLS * ALGAE_ROWS)
-/* a frond segment's height. 3.2 px on the 1.8 puts a full frond's tip just
- * under the surface; the watch's portrait tank is 118 px taller, so its
- * segments are too (107 x 4.3 from y 486: the tip at 26) - growth is still
- * "this much of the way to the surface". What a trim PAYS is counted at the
- * 1.8's pitch on every build (VEG_PAY_PX): the same cut, the same sand dollars. */
-#ifdef TANK_WATCH
-#define VEG_SEG_PX 4.3f
-#else
-#define VEG_SEG_PX 3.2f
-#endif
+/* a frond segment's height, VEG_SEG_PX, is the board's: 3.2 px on the 1.8
+ * puts a full frond's tip just under the surface, and a taller tank has
+ * taller segments - growth is still "this much of the way to the surface".
+ * What a trim PAYS is counted at the 1.8's pitch on every build (VEG_PAY_PX):
+ * the same cut, the same sand dollars. */
 #define VEG_PAY_PX 3.2f
 int tank_algae_cells(void);                    /* the cells that are on the glass: all of them in the rectangle, the circle's in the bowl */
 #define ALGAE_DIRTY 0.15f                      /* film on more of the glass than this =
@@ -391,7 +330,7 @@ typedef struct tank {
     bool     light_tip_seen;       /* a double-tap has turned the light off once: its notice (notice.h
                                     * NOTICE_LIGHTS_OUT) came up then, and never again (saved) */
     uint8_t  theme;                /* theme_id_t: presentation only; persisted in an append-only tail */
-    bool     screen_turned;        /* a worn tank (TANK_WORN): settings SCREEN = TURNED (saved) */
+    bool     screen_turned;        /* a worn tank (DEVICE_WORN): settings SCREEN = TURNED (saved) */
     bool     orient_lock;          /* settings ROTATION = locked (0.3.2, saved): the picture keeps the way up it
                                     * had when the keeper locked it, however the tank is turned (tank_orient) */
     bool     orient_inv;           /* the picture's way up now, true = turned over: the platform's live flip,
@@ -626,7 +565,7 @@ void  tank_handled(tank_t *t);
 void  tank_toggle_light(tank_t *t);
 void  tank_light_auto(tank_t *t);
 
-/* The picture's way up on a WORN tank (TANK_WORN, 2026-10-02). A watch can
+/* The picture's way up on a WORN tank (DEVICE_WORN, 2026-10-02). A watch can
  * go on either wrist, buttons toward the hand or the elbow: the second way
  * shows the tank upside down. Which way it is worn does not change through
  * the day, so it is the keeper's setting - settings SCREEN: NORMAL / TURNED -
@@ -661,13 +600,8 @@ void  tank_orient_lock(tank_t *t, bool lock);
  *    are harmless again and it takes 3 quick taps to re-trigger. Spooking
  *    costs trust; calm holds earn it.
  *  tank_feed: the keeper drops n pellets at x (surface). Player feeding is what
- *    progression counts; the tank's own trickle feed is not. */
-#ifdef TANK_ROUND
-#define FEED_ZONE_Y 45.0f   /* the bowl's surface is its rim: 26 px there is 2.5 mm of glass and a fingertip scatters 9 px (2026-10-03) -
-                               a feed tap that fell short was a tank tap, and two of them the light's double tap */
-#else
-#define FEED_ZONE_Y 26.0f
-#endif
+ *    progression counts; the tank's own trickle feed is not.
+ *  FEED_ZONE_Y is the board's (the devices/ headers: the bowl's rim is deeper). */
 void  tank_touch_hold(tank_t *t, float x, float y);
 void  tank_touch_tap(tank_t *t, float x, float y);
 /* tank_touch_drag: call EVERY FRAME while a finger is down at x,y (moving or
@@ -837,20 +771,9 @@ void  tank_cluster_place(tank_t *t);
  * inside the visible window, DECOR_MARGIN from the glass - and a depth
  * (DECOR_Z_*, the ones its row offers). setup.c's placement page and the
  * shop's MOVE button drive these by shop item (tank_decor_*); the save keeps
- * them. The geometry each piece's row uses: */
-#if defined(TANK_ROUND) || defined(TANK_WATCH)
-#define DECOR_MARGIN    8                  /* the bowl's floor is short and its glass hides nothing (the watch's floor ends where its corners begin) */
-#else
-#define DECOR_MARGIN    30                 /* the snail's margin: inside the panel's rounded bezel */
-#endif
+ * them. The geometry each piece's row uses (DECOR_MARGIN and PLANT_X_DEFAULT
+ * are the board's, the devices/ headers): */
 #define PLANT_HALF_W    21                 /* four leaves at a 14 px pitch: centre to the outer leaf */
-#ifdef TANK_ROUND
-#define PLANT_X_DEFAULT 218.0f             /* the gap between the reef bed and bed 2 on the bowl's floor */
-#elif defined(TANK_WATCH)
-#define PLANT_X_DEFAULT 196.0f             /* the gap between the reef bed and bed 2 on the watch's floor */
-#else
-#define PLANT_X_DEFAULT (208.0f + PLANT_HALF_W)   /* the open floor between the reef bed and bed 2 */
-#endif
 /* the castle (2026-09-16, Strato's castle-v2 mockup, drawn procedurally in
  * render.c): ~184 px wide on the floor, a swim-through arch. Its depths are
  * BEHIND and IN FRONT only (Strato: "no among"), and they mean the PLANT

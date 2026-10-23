@@ -23,7 +23,7 @@ static int safe_page(void) {
     uint16_t bg=fb[0];
     for (int py=0;py<TANK_H;py++) for (int px=0;px<TANK_W;px++) if (fb[py*TANK_W+px]!=bg) {
         if (px<x || px>=x+w || py<y || py>=y+h) { fprintf(stderr,"outside safe page: %d,%d\n",px,py); return 0; }
-#if PAGE_BOWL
+#if DEVICE_PAGE_BOWL
         float dx=px-233,dy=py-233;
         if (dx*dx+dy*dy>224*224) return 0;
 #endif

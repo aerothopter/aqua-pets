@@ -3,7 +3,7 @@
 # board's OTA manifest, and attach the images and the manifests to the GitHub
 # Release for that tag. A tank fetches its own board's
 #   https://aquapets.com/install/latest-<board>.json
-# (amoled18, round175c, watch206: common/version.h PT_BOARD)
+# (amoled18, round175c, watch206: PT_BOARD in common/devices/<board>.h)
 # so a release is live for every tank the moment it is published - and a
 # PRE-RELEASE is skipped by "latest": the private test channel (the
 # director's `ota url` points a tank at a pre-release's own asset URL).

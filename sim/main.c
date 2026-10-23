@@ -1115,7 +1115,7 @@ static int selftest_sleep(void) {
                 r = SET_TAP_AT(SETP_SEG_X(1), feed_y);                               /* OFF, for the save below */
                 render_settings(&tank, sfb, TANK_W, 60, 2);
             }
-#if TANK_WORN
+#if DEVICE_WORN
             /* SCREEN (the watch, 2026-10-02): NORMAL by default, the toggle
                turns the picture and back, and the choice rides in the save */
             {
@@ -2021,7 +2021,7 @@ static bool updates_view = false;    /* the UPDATES page (the settings page's UP
 static bool update_mode = false;     /* update mode (2026-09-30): what the device runs at boot, before the tank - here the
                                         tank pauses and the pages run over a pretend radio (net_port_sim.c); E enters it */
 static float update_clock;
-/* a worn tank (TANK_WORN, the watch, 2026-10-02): the pretend wearer. T puts
+/* a worn tank (DEVICE_WORN, the watch, 2026-10-02): the pretend wearer. T puts
  * the watch on the other way around (buttons toward the elbow instead of the
  * hand); the window then shows the glass as that wearer sees it - upside down
  * until settings SCREEN is TURNED - and the mouse lands where their finger would. */
@@ -6121,7 +6121,7 @@ int main(int argc, char **argv) {
             } else if (tank.tool == TOOL_HAND && press_y - tank_glass_top(press_x) < 60 && dy >= 40) tank_feed(&tank, (float)mx, 3);
         }
         mdown = mpress;
-        if (TANK_WORN) { static bool tdown; if (k[SDL_SCANCODE_T] && !tdown) {
+        if (DEVICE_WORN) { static bool tdown; if (k[SDL_SCANCODE_T] && !tdown) {
             sim_worn_turned = !sim_worn_turned;
             printf("the watch is worn %s (settings SCREEN is %s)\n", sim_worn_turned ? "the OTHER way around - buttons toward the elbow" : "the usual way",
                    tank.screen_turned ? "TURNED" : "NORMAL");

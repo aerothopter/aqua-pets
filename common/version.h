@@ -41,17 +41,9 @@
  * that names another board, and refuses an image whose board marker
  * (firmware/main/net_port_esp.c, right after the app descriptor) is not its
  * own. The installer offers one manifest per board. PT_BOARD is a file-name
- * safe id; PT_BOARD_NAME is the maker's name for it. */
-#if defined(TANK_ROUND)
-#define PT_BOARD         "round175c"
-#define PT_BOARD_NAME    "ESP32-S3-Touch-AMOLED-1.75C"
-#elif defined(TANK_WATCH)
-#define PT_BOARD         "watch206"
-#define PT_BOARD_NAME    "ESP32-S3-Touch-AMOLED-2.06"
-#else
-#define PT_BOARD         "amoled18"
-#define PT_BOARD_NAME    "ESP32-S3-Touch-AMOLED-1.8"
-#endif
+ * safe id; PT_BOARD_NAME is the maker's name for it. Both are the board's
+ * (device.h, the devices/ headers). */
+#include "device.h"
 #define PT_BOARD_MAGIC   "PTBOARD"             /* the image's board marker begins with these 8 bytes (with the NUL) */
 #define PT_BOARD_MARKER_OFFSET 0x120           /* ... at this offset in the app image: the image header (24) + the
                                                   first segment's header (8) + esp_app_desc_t (256) */

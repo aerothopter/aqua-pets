@@ -897,8 +897,8 @@ void tank_toggle_light(tank_t *t) {
 void tank_light_auto(tank_t *t) { t->light_override = false; }
 
 /* the worn tank's way up (tank.h) */
-bool tank_screen_turned(const tank_t *t) { return TANK_WORN && t->screen_turned; }
-void tank_screen_set(tank_t *t, bool turned) { t->screen_turned = TANK_WORN && turned; }
+bool tank_screen_turned(const tank_t *t) { return DEVICE_WORN && t->screen_turned; }
+void tank_screen_set(tank_t *t, bool turned) { t->screen_turned = DEVICE_WORN && turned; }
 bool tank_orient(tank_t *t, bool live_inverted) {
     if (!t->orient_lock) t->orient_inv = live_inverted;
     return t->orient_inv;

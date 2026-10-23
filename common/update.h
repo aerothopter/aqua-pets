@@ -97,8 +97,8 @@ int  updates_page_touch(float x, float y, bool down);       /* every frame: UPD_
 #define UPD_FORGET_Y  264
 #define UPD_FORGET_W  212
 #define UPD_FORGET_H  34
-#define UPD_CLOSE_X   (PAGE_BOWL ? 296 : 324)   /* the settings page's CLOSE, same place (in from the glass on the bowl) */
-#define UPD_CLOSE_Y   (PAGE_BOWL ? 318 : 312)
+#define UPD_CLOSE_X   (DEVICE_PAGE_BOWL ? 296 : 324)   /* the settings page's CLOSE, same place (in from the glass on the bowl) */
+#define UPD_CLOSE_Y   (DEVICE_PAGE_BOWL ? 318 : 312)
 #define UPD_CLOSE_W   92
 #define UPD_CLOSE_H   30
 /* update mode: the keyboard's 7 x 3 keys, the foot's buttons, the network list */
@@ -112,9 +112,9 @@ int  updates_page_touch(float x, float y, bool down);       /* every frame: UPD_
 #define UPD_KB_Y    96
 #define UPD_BTN_H     38
 #define UPD_BTN_Y     296
-#define UPD_BTN_L_X   (PAGE_BOWL ? 62 : 32)       /* (the bowl: the pair drawn in from the glass) */
-#define UPD_BTN_R_X   (PAGE_BOWL ? 230 : 240)
-#define UPD_BTN_W     (PAGE_BOWL ? 156 : 176)
+#define UPD_BTN_L_X   (DEVICE_PAGE_BOWL ? 62 : 32)       /* (the bowl: the pair drawn in from the glass) */
+#define UPD_BTN_R_X   (DEVICE_PAGE_BOWL ? 230 : 240)
+#define UPD_BTN_W     (DEVICE_PAGE_BOWL ? 156 : 176)
 #define UPD_BTN_MID_X ((PAGE_W - UPD_BTN_W) / 2)   /* a button on its own: CANCEL, a lone BACK TO TANK (the PLUG IN page's too,
                                                       Strato 2026-10-01; it stood at the left) - the page's middle
                                                       (until 2026-10-01 it was measured from the left button, which the bowl

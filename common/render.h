@@ -23,11 +23,7 @@ void render_use_theme(int id);
 #define PAGE_H 368
 #define PAGE_X ((TANK_W - PAGE_W) / 2)
 #define PAGE_Y ((TANK_H - PAGE_H) / 2)
-#ifdef TANK_ROUND               /* the bowl's circle cuts the page's corners: a few buttons are drawn in from the glass */
-#define PAGE_BOWL 1
-#else
-#define PAGE_BOWL 0
-#endif
+/* DEVICE_PAGE_BOWL (device.h): the bowl's circle cuts the page's corners, so a few buttons are drawn in from the glass */
 /* the watch (410 x 502, portrait): the glass is 38 px NARROWER than the page.
  * The page still sits centred - PAGE_X is -19, so the glass shows page x
  * 19..428 - in the middle of the glass's height (PAGE_Y 67, where the round
@@ -311,7 +307,7 @@ int  render_confirm_hit(float x, float y);
  * SET_TAP_IDLE (AUTO's time stepped: *value = the seconds now set),
  * SET_TAP_FEED (*value 1 = AUTO FEED on), SET_TAP_ROTATE (*value 1 =
  * locked), SET_TAP_CLOSE, or nothing.
- * A worn tank (TANK_WORN, the watch) has SCREEN NORMAL / TURNED
+ * A worn tank (DEVICE_WORN, the watch) has SCREEN NORMAL / TURNED
  * (tank_screen_*) where the others have ROTATION, applied here like the light's.
  * render_settings_tap is the bare hit test (tests). */
 enum { SET_TAP_NONE = 0, SET_TAP_CLOSE = 1, SET_TAP_BRIGHT = 2, SET_TAP_VOLUME = 3, SET_TAP_LIGHT = 4, SET_TAP_IDLE = 5,
@@ -395,8 +391,8 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define MSP_ROW_BADGE 4
 #define MSP_ROW_BAR   38
 #endif
-#define MSP_BADGE_X0  (PAGE_NARROW || PAGE_BOWL ? 172 : 176)   /* (the watch and the bowl: a 38 px pitch, the tank row's arrow inside the glass) */
-#define MSP_BADGE_DX  (PAGE_NARROW || PAGE_BOWL ? 38 : 40)
+#define MSP_BADGE_X0  (PAGE_NARROW || DEVICE_PAGE_BOWL ? 172 : 176)   /* (the watch and the bowl: a 38 px pitch, the tank row's arrow inside the glass) */
+#define MSP_BADGE_DX  (PAGE_NARROW || DEVICE_PAGE_BOWL ? 38 : 40)
 #define MSP_ICON      32
 #define MSP_FISH_X    (PAGE_NARROW ? 56 : 52)     /* a row's portrait (the watch: an elder's tail inside the glass) */
 #define MSP_CLOSE_W   92
@@ -419,7 +415,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define MSP_MODAL_H   156
 #define MSP_PER_ROW   6
 #define MSP_FISH_ROWS 6              /* fish rows a page holds (N_FISH_MAX was 6 until the species, 2026-10-05) */
-#define MSP_TPG_X     (PAGE_BOWL ? 396 : PAGE_NARROW ? 398 : 412)   /* the arrow's column: right of the sixth badge's slop, out to the glass
+#define MSP_TPG_X     (DEVICE_PAGE_BOWL ? 396 : PAGE_NARROW ? 398 : 412)   /* the arrow's column: right of the sixth badge's slop, out to the glass
                                                                     (the bowl: its "new" ring and the page pips inside the circle) */
 #define MSP_ARROW_W   40             /* the arrow buttons, inset at the modal's top corners */
 #define MSP_ARROW_H   32
@@ -471,7 +467,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define SHP_ARROW_W  36
 #define SHP_ARROW_H  32
 #define SHP_ARROW_Y  (SHP_COIN_Y + 16)
-#define SHP_ARROW_X1 (PAGE_W - (PAGE_BOWL ? 66 : 28) - SHP_ARROW_W)   /* next (further in on the bowl) */
+#define SHP_ARROW_X1 (PAGE_W - (DEVICE_PAGE_BOWL ? 66 : 28) - SHP_ARROW_W)   /* next (further in on the bowl) */
 #define SHP_ARROW_X0 (SHP_ARROW_X1 - SHP_ARROW_W - 8)     /* previous */
 /* the main menu: three tiles across, two down, inside the area every board shows whole (x 56..392, y 60..300) */
 #define MENU_TILES    6
@@ -483,7 +479,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define MENU_GAP_Y    24
 #define MENU_SLOP     16             /* past the grid's edge a tap is still the grid's (nothing); further out it closes the menu */
 /* the settings page */
-#if TANK_WORN                       /* the watch (2026-10-02): the page uses the glass above and below the PAGE
+#if DEVICE_WORN                     /* the watch (2026-10-02): the page uses the glass above and below the PAGE
                                         box (page y -67..435 is on the glass; the round corners take the ends of
                                         the first and last 100 px): the title above the box, the rows up by 44,
                                         the foot's pair centred under them */
@@ -507,10 +503,10 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define SET_FOOT_Y    MSP_CLOSE_Y    /* UPDATES and CLOSE: the milestones page's foot */
 #endif
 #define SET_LABEL_X   32
-#define SET_SEG_X     (PAGE_BOWL ? 172 : PAGE_NARROW ? 178 : 190)   /* first segment (the watch and the bowl: the third one inside the glass -
+#define SET_SEG_X     (DEVICE_PAGE_BOWL ? 172 : PAGE_NARROW ? 178 : 190)   /* first segment (the watch and the bowl: the third one inside the glass -
                                                                     the bowl's circle is narrowest at the BRIGHTNESS row) */
 #define SET_SEG_W     76
-#define SET_SEG_DX    (PAGE_NARROW || PAGE_BOWL ? 80 : 82)
+#define SET_SEG_DX    (PAGE_NARROW || DEVICE_PAGE_BOWL ? 80 : 82)
 #define SET_SEG_H     40
 #define SET_SEG_Y(row) ((row) - 10)  /* the segment sits on the label's line */
 /* LIGHTS OUT (0.3.2): one value between two arrow buttons, across the three
@@ -522,7 +518,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define SET_ROT_WORD_X (SET_SEG_X + SET_SEG_W + 14)
 /* the foot (2026-10-10, one layout for every theme): UPDATES | ABOUT | RESET | CLOSE on a wide
  * glass; the watch has no room for four, so ABOUT and RESET stand above the foot's pair */
-#if TANK_WORN                        /* the watch: UPDATES 114..226 and CLOSE 242..334, clear of the lower corners */
+#if DEVICE_WORN                      /* the watch: UPDATES 114..226 and CLOSE 242..334, clear of the lower corners */
 #define SET_UPD_X     114
 #define SET_UPD_W     112
 #undef  SET_CLOSE_X
@@ -534,7 +530,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define SET_RST_X     242
 #define SET_RST_W     92
 #define SET_RST_Y     338
-#elif PAGE_BOWL                      /* the bowl: in from the glass, four across 60..388 */
+#elif DEVICE_PAGE_BOWL               /* the bowl: in from the glass, four across 60..388 */
 #define SET_UPD_X     60
 #define SET_UPD_W     90
 #define SET_ABT_X     156

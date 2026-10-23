@@ -2575,7 +2575,7 @@ int render_milestones_tap(const tank_t *t, float x, float y) {
         }
         ms_close(); return MS_TAP_KEPT;                  /* any other tap: back to the page */
     }
-    if (y >= MSP_CLOSE_Y - 4) return x >= MSP_CLOSE_X - (PAGE_BOWL ? 6 : 8) ? MS_TAP_CLOSE : MS_TAP_NONE;   /* the foot: CLOSE, slop out to the glass edge */
+    if (y >= MSP_CLOSE_Y - 4) return x >= MSP_CLOSE_X - (DEVICE_PAGE_BOWL ? 6 : 8) ? MS_TAP_CLOSE : MS_TAP_NONE;   /* the foot: CLOSE, slop out to the glass edge */
     int row = -1; bool tank_row = false, fry_row = false;
     fry_req_t req[FRY_REQ_MAX]; bool staged;
     int nreq = progression_next_fry(t, req, &staged);
@@ -3028,7 +3028,7 @@ void render_sd_toast(const tank_t *t, uint16_t *fb, int stride) {
     if (t->clock >= g_toast_until || t->clock < g_toast_until - TOAST_S - 1) return;   /* (a reset sends the clock back) */
     ctx_t c = ctx_full(fb, stride, 1.0f);
     char txt[16]; snprintf(txt, sizeof txt, "+%d", g_toast_n);
-    const int W = 30 + text_w(txt, 2), H = 22, X = (TANK_W - W) / 2, Y = PAGE_BOWL ? 44 : 8;   /* (the bowl's top is a narrow cap: lower) */
+    const int W = 30 + text_w(txt, 2), H = 22, X = (TANK_W - W) / 2, Y = DEVICE_PAGE_BOWL ? 44 : 8;   /* (the bowl's top is a narrow cap: lower) */
     for (int y = Y; y < Y + H; y++)
         for (int x = X; x < X + W; x++) px_blend(&c, x, y, theme_ui_color(0x04141a), 215);
     rect_edge(&c, X, Y, W, H, MSP_TEAL);
@@ -3054,7 +3054,7 @@ static const char *const SET_VOLUME[3] = { "OFF", "QUIET", "NORMAL" };
 static const char *const SET_LIGHT[LIGHT_IDLE_N + 1] = { "DOUBLE-TAP",   /* MANUAL, the default: the row says how the light is worked */
     "5 SEC", "15 SEC", "30 SEC", "1 MIN", "3 MIN", "5 MIN", "10 MIN", "30 MIN" };
 static const char *const SET_FEED[2]   = { "ON", "OFF" };          /* the default first */
-#if TANK_WORN
+#if DEVICE_WORN
 static const char *const SET_SCREEN[2] = { "NORMAL", "TURNED" };   /* the default first */
 #endif
 
@@ -3119,7 +3119,7 @@ static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, 
     draw_text(&c, SET_LABEL_X, SET_NOTE_Y, 2, MSP_DIM, "FISH ARE QUIET AT NIGHT");
     { int ch = tank_light_choice(t); set_arrow_row(&c, SET_ROW3_Y, "LIGHTS OUT", SET_LIGHT[ch], ch > 0, ch < LIGHT_IDLE_N); }   /* < the choice > */
     set_row(&c, SET_ROW4_Y, "AUTO FEED", SET_FEED, 2, t->autofeed_off ? 1 : 0);
-#if TANK_WORN
+#if DEVICE_WORN
     /* SCREEN (2026-10-02): the way up of a watch worn either way round - TURNED
        for buttons toward the elbow. The picture turns as the finger lifts. */
     set_row(&c, SET_ROW5_Y, "SCREEN", SET_SCREEN, 2, t->screen_turned ? 1 : 0);
@@ -3144,10 +3144,10 @@ static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, 
        The installer page shows the version it would write in the same words. */
     /* 2026-09-29: the release number first ("V0.2.0 ALPHA"), the build id after it */
     char ver[64]; snprintf(ver, sizeof ver, "V%s %s  BUILD %s", PT_RELEASE, PT_RELEASE_STAGE, version_port_string());
-#if TANK_WORN                                    /* the watch: centred under the foot, between the lower corners */
+#if DEVICE_WORN                                  /* the watch: centred under the foot, between the lower corners */
     draw_text_8px(&c, (PAGE_W - ((int)strlen(ver) * 6 - 1)) / 2, SET_FOOT_Y + MSP_CLOSE_H + 2, MSP_DIM, ver);
 #else
-    draw_text_8px(&c, SET_LABEL_X + (PAGE_BOWL ? 96 : 0), PAGE_H - 8 - 6, MSP_DIM, ver);
+    draw_text_8px(&c, SET_LABEL_X + (DEVICE_PAGE_BOWL ? 96 : 0), PAGE_H - 8 - 6, MSP_DIM, ver);
 #endif
     button(&c, SET_CLOSE_X, SET_FOOT_Y, SET_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
     /* UPDATES (2026-09-30, docs/OTA.md): bottom left; ABOUT and RESET (2026-10-10) between */
@@ -3244,9 +3244,9 @@ static int original_settings_tap(float x, float y, int *value) {
     if (y >= SET_SEG_Y(SET_ROW2_Y) - 12 && y < SET_SEG_Y(SET_ROW3_Y) - 12) { if (seg < 0) return SET_TAP_NONE; *value = seg; return SET_TAP_VOLUME; }
     if (y >= SET_SEG_Y(SET_ROW3_Y) - 12 && y < SET_SEG_Y(SET_ROW4_Y) - 12) { if (seg < 0) return SET_TAP_NONE; *value = 0; return x < SET_SPAN_MID ? SET_HIT_LIGHT_PREV : SET_HIT_LIGHT_NEXT; }
     if (y >= SET_SEG_Y(SET_ROW4_Y) - 12 && y < SET_SEG_Y(SET_ROW5_Y) - 12) { if (two < 0) return SET_TAP_NONE; *value = two == 0; return SET_TAP_FEED; }
-    if (y >= SET_SEG_Y(SET_ROW5_Y) - 12 && y < (TANK_WORN ? SET_ABT_Y - 6 : SET_FOOT_Y - 4)) {
+    if (y >= SET_SEG_Y(SET_ROW5_Y) - 12 && y < (DEVICE_WORN ? SET_ABT_Y - 6 : SET_FOOT_Y - 4)) {
         if (two < 0) return SET_TAP_NONE;
-#if TANK_WORN
+#if DEVICE_WORN
         *value = two == 1; return SET_TAP_SCREEN;
 #else
         *value = 0; return SET_TAP_ROTATE;       /* the button or its word: one toggle */
@@ -3256,9 +3256,9 @@ static int original_settings_tap(float x, float y, int *value) {
 }
 /* Short pages inside an inscribed rectangle; all targets share these bounds. */
 void render_settings_bounds(int *x, int *y, int *w, int *h) {
-#if PAGE_BOWL
+#if DEVICE_PAGE_BOWL
     *x = 73; *y = 81; *w = 320; *h = 304;
-#elif TANK_WORN
+#elif DEVICE_WORN
     *x = 28; *y = 33; *w = 354; *h = 436;
 #else
     *x = 22; *y = 20; *w = 404; *h = 328;

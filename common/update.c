@@ -650,8 +650,8 @@ void render_update(uint16_t *fb, int stride, float clock) {
         render_button(fb, stride, UPD_BTN_R_X, UPD_BTN_Y, UPD_BTN_W, UPD_BTN_H, C_INNER, C_EDGE, "SCAN AGAIN", 2);
         break; }
     case UPD_PG_PASSWORD:
-        render_text(fb, stride, UX + (PAGE_BOWL ? 30 : 0), 22, 2, C_CAPT, "PASSWORD FOR");
-        update_text(fb, stride, UX + (PAGE_BOWL ? 30 : 0) + render_text_w("PASSWORD FOR", 2) + 12, 22, 2, C_TEXT, s.ssid);
+        render_text(fb, stride, UX + (DEVICE_PAGE_BOWL ? 30 : 0), 22, 2, C_CAPT, "PASSWORD FOR");
+        update_text(fb, stride, UX + (DEVICE_PAGE_BOWL ? 30 : 0) + render_text_w("PASSWORD FOR", 2) + 12, 22, 2, C_TEXT, s.ssid);
         draw_field(fb, stride, clock);
         draw_keyboard(fb, stride);
         break;

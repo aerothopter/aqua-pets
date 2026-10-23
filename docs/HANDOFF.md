@@ -2,6 +2,57 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: a board is a device header (refactor phase 4a)
+
+**The keeper's calls for phase 4** (refactor-plan.md has them):
+- every step is pure: nothing changes on any board
+- no pages oracle: the `--snapshot` frames, hashed, stand in
+- the `-DTANK_W=480` square-panel override goes
+
+Phase 4 is on `refactor/devices`, from `refactor/creatures`.
+
+**What changed.** A pure refactor:
+- `common/device.h` picks one of `common/devices/amoled18.h`, `round175c.h`
+  or `watch206.h` by `TANK_ROUND` / `TANK_WATCH` (both at once is an
+  `#error`). A header holds the board's:
+  - frame, floor and glass (`DEVICE_GLASS`: `GLASS_RECT` / `GLASS_BOWL` /
+    `GLASS_CORNERS`, with `TANK_RAD` or `TANK_CORNER_R`)
+  - film grid, `VEG_SEG_PX`, `FEED_ZONE_Y`, `DECOR_MARGIN` and
+    `PLANT_X_DEFAULT`
+  - `PT_BOARD` / `PT_BOARD_NAME` (version.h includes device.h for them)
+  - `DEVICE_WORN` (was `TANK_WORN`) and `DEVICE_PAGE_BOWL` (was render.h's
+    `PAGE_BOWL`)
+- tank.h, version.h and render.h lost their board blocks, and the
+  firmware's orientation (main.c) now asks `DEVICE_WORN`.
+- The plan's `DEVICE_CAN_TURN` was not added: it would be `!DEVICE_WORN` on
+  every board. Its "feature branches" step folded in here.
+- CLAUDE.md, BOARDS.md, tools/pt_boards.py and release.yml point at the
+  device headers.
+
+**How it was checked.** Three records, each on all three boards:
+- `--golden-decor`
+- `--golden-creatures`
+- md5 of every `--snapshot` frame (118 a board)
+
+The baseline was recorded from 04b15e5 (the edits stashed). Every build had
+`GIT_DIR` pointing nowhere and `persist_port_sim.o` rebuilt, so the settings
+and update pages all print the build id "sim". Before that, those four pages
+differed only by the id: a stale object had kept `26541d3-dirty`. All nine
+records are identical.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | oracles and snapshot pages identical | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | identical | yes | no | no |
+| 2.06 watch | passes | identical | yes | no | no |
+
+Firmware against cd65114: every section byte for byte the same on each board
+(watch `.dram0.bss` 60,168; the app 0x271000), and the same warnings.
+
+**Next:** 4b, one glass module (refactor-plan.md).
+
 ## 2026-10-23: where things stand (end of session; phase 4 next)
 
 **The branches.** Nothing is merged or pushed. They stack:

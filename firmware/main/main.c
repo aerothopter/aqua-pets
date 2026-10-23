@@ -615,7 +615,7 @@ static void tank_task(void *arg) {
         if (imu_port_handled()) tank_handled(&tank);   /* ... and the light stays on (two polls of motion: a bump on the desk is not a pick-up) */
         if (imu_port_shaken() && !tank.ui_cover) { tank_shake(&tank, 1.0f); ESP_LOGI(TAG, "shaken: the creatures are tossed"); }   /* (2026-10-10) */
         bool inv = tank_orient(&tank, imu_port_inverted());   /* the live flip, or the way up settings' ROTATION locked (0.3.2) */
-#ifdef TANK_WATCH
+#if DEVICE_WORN
         inv = tank_screen_turned(&tank);  /* worn on a wrist the live flip never runs (the arm swings through every angle):
                                              the way up is the keeper's setting, or what AUTO learned from the taps (tank.h) */
 #endif

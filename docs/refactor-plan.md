@@ -194,8 +194,21 @@ for the per-species details (dens, camouflage, ground).
 
 ## Phase 4: device architecture
 
-Unchanged from the first plan (its line numbers have drifted; look the places
-up again before starting):
+On `refactor/devices`, from `refactor/creatures`. The keeper's decisions
+(2026-10-23):
+- **Every step is pure.** Nothing on any board changes: both oracles and the
+  `--snapshot` pages stay identical on all three. A behavior change the work
+  turns up (for example, a bed's ceiling measured where the bed isn't) is
+  noted and left for its own step later.
+- **No pages oracle.** The `--snapshot` frames (118 pages a board), hashed,
+  stand in for one. Build every sim with `GIT_DIR` pointing nowhere and
+  `persist_port_sim.o` rebuilt, so that every build prints the same build id
+  ("sim") on the settings and update pages.
+- **The square-panel override goes** (`-DTANK_W=480 -DTANK_H=480`, tank.h).
+  A new panel is a new device header.
+
+The plan was (its line numbers had drifted, so the places were looked up
+again):
 - Compile-time device headers: `common/device.h` includes one of
   `common/devices/{amoled18,round175c,watch206}.h`, each with the world
   geometry, the glass shape, the film grid, the bed table (ending the
@@ -209,6 +222,47 @@ up again before starting):
   of render.h and update.h, and inline literals become named constants.
 - Feature branches become capability checks (the settings SCREEN row, the
   firmware's orientation, sim/theme_test.c's circle).
+
+### Steps
+
+**4a. The device headers (pure; done 2026-10-23).** As built:
+`common/device.h` picks `devices/amoled18.h`, `round175c.h` or `watch206.h`
+from `TANK_ROUND` / `TANK_WATCH` (both at once is an `#error`). A header
+holds:
+- `PT_BOARD` and `PT_BOARD_NAME` (taken from version.h, which includes
+  device.h)
+- the frame, `TANK_BOT` / `TANK_FX0` / `TANK_FX1`, and `DEVICE_GLASS`
+  (`GLASS_RECT`, `GLASS_BOWL` with `TANK_RAD`, `GLASS_CORNERS` with
+  `TANK_CORNER_R`)
+- the film grid, `VEG_SEG_PX`, `FEED_ZONE_Y`, `DECOR_MARGIN`,
+  `PLANT_X_DEFAULT`
+- the flags `DEVICE_WORN` (was `TANK_WORN`) and `DEVICE_PAGE_BOWL` (was
+  render.h's `PAGE_BOWL`)
+
+The firmware's orientation (main.c) asks `DEVICE_WORN`, and the settings
+SCREEN row already did, so the plan's "feature branches" step (4e) folded in
+here. `DEVICE_CAN_TURN` was not added: on every board it would be
+`!DEVICE_WORN`, and the one place that needed it (the live flip) is really
+the worn rule. sim/theme_test.c draws no circle; it only reads the page flag.
+The bed table moves in 4c, with the code that reads it.
+
+**4b. One glass module.** The glass's three shapes and everything that asks
+one of them by board name - `rand_water`, the film's cells, the swimmers'
+reflection and `wall_avoidance` (creature.c), the helpers' clamp
+(helper.c), the sim's glass mask - go through `common/glass.c` and
+`DEVICE_GLASS`. It is compile-time, as now: no shape is dispatched at run
+time (the app slot is 98% full, and the frame budget is tight).
+
+**4c. The bed table.** Each device header's beds (where each one stands, its
+frond count, how far the reef bed gives up fronds) as one table that
+`veg_bed_base` and `tank_veg_cap` both read.
+
+**4d. The layout sections.** render.h's and update.h's per-board blocks move
+into a layout section per device, and the literals (`render_settings_bounds`,
+the tool chip, update.c's calibration targets) become named constants.
+
+The ports (`firmware/main/*_port_*`) keep their board `#ifdef`s: the panels
+differ, and BOARDS.md allows it.
 
 ## Verification, every step
 

@@ -355,7 +355,7 @@ static void run(tank_t *t, char *line) {
         }
     } else if (!strcmp(c, "screen")) {          /* a worn tank's way up (tank.h tank_screen_*): screen [normal|turned] */
         if (argc > 1) { tank_screen_set(t, !strcmp(argv[1], "turned")); progression_settings_changed(); }
-        ESP_LOGI(TAG, "screen: %s%s", tank_screen_turned(t) ? "TURNED" : "NORMAL", TANK_WORN ? "" : " - not a worn build: never turned");
+        ESP_LOGI(TAG, "screen: %s%s", tank_screen_turned(t) ? "TURNED" : "NORMAL", DEVICE_WORN ? "" : " - not a worn build: never turned");
     } else if (!strcmp(c, "settings")) {
         bool on = argc < 2 || strcmp(argv[1], "off");
         touch_port_show_settings(on); ESP_LOGI(TAG, "settings page %s", on ? "up (CLOSE ends it)" : "closed");

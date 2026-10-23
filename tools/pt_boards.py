@@ -8,7 +8,7 @@ the 1.8's image under the bowl's name.
 """
 import os, sys
 
-# id (version.h PT_BOARD), the maker's name, the sdkconfig fragment on top of
+# id (PT_BOARD, common/devices/<board>.h), the maker's name, the sdkconfig fragment on top of
 # sdkconfig.defaults (None = the 1.8, the default build)
 BOARDS = [
     ("amoled18",  "Waveshare ESP32-S3-Touch-AMOLED-1.8",  None),

@@ -19,9 +19,12 @@ board-amoled-2.06-watch.md).
 
 One source tree, one save layout, one model. A board is a compile-time world:
 
-- **The world** (`common/tank.h`): `TANK_W` / `TANK_H`, the floor `TANK_BOT`,
-  the walls `TANK_FX0` / `TANK_FX1`, the film grid, the beds. The game is
-  written against these names.
+- **The world** (`common/devices/<board>.h`, picked by `common/device.h`;
+  since 2026-10-23): `TANK_W` / `TANK_H`, the glass's shape
+  (`DEVICE_GLASS`), the floor `TANK_BOT`, the walls `TANK_FX0` / `TANK_FX1`,
+  the film grid, the board's id and its flags (`DEVICE_WORN`,
+  `DEVICE_PAGE_BOWL`). The game is written against these names. A new board
+  is a new header.
 - **The page** (`common/render.h`): every page is laid out in a 448 x 368
   PAGE space that sits centered on the glass at `PAGE_X` / `PAGE_Y`. The fish
   live in TANK coordinates, the pages draw in PAGE coordinates: anything that
@@ -29,10 +32,12 @@ One source tree, one save layout, one model. A board is a compile-time world:
   fish going out).
 - **The ports** (`firmware/main/*_port_*`, `board_pins.h`): the chips.
 
-A board `#ifdef` belongs in those three places only: the geometry in tank.h,
-a layout-constant block in render.h / render.c / update.c, a port. If a
-feature's LOGIC needs `#ifdef TANK_ROUND`, the feature is written against a
-pixel instead of a name - fix that instead.
+A board `#ifdef` belongs in those places only: device.h's selector, a
+layout-constant block in render.h / render.c / update.c, a port (and, until
+the refactor's phase 4 is through, the glass and bed code in tank.c,
+creature.c and helper.c). If a feature's LOGIC needs `#ifdef TANK_ROUND`,
+the feature is written against a pixel instead of a name - ask the device's
+names and flags instead.
 
 ## The rules for a feature
 
@@ -77,7 +82,7 @@ the bowl and the watch ship in 0.3.0; nothing public until the release):
 
 | piece | how a board is kept to its own image |
 |---|---|
-| the board's id | `common/version.h` `PT_BOARD`: `amoled18`, `round175c`, `watch206` (from `TANK_ROUND` / `TANK_WATCH`) |
+| the board's id | `PT_BOARD`, in the board's header (`common/devices/<board>.h`, read through version.h): `amoled18`, `round175c`, `watch206` (picked by `TANK_ROUND` / `TANK_WATCH`) |
 | the image | a board marker right after the app descriptor (`net_port_esp.c` `pt_board_marker`, at `PT_BOARD_MARKER_OFFSET` 0x120; kept by `-u pt_board_marker` in firmware/main/CMakeLists.txt). `tools/pt_boards.py` reads it back from a `.bin` |
 | over the air | each board fetches `latest-<PT_BOARD>.json`; `common/update.c` refuses a manifest whose `board` is another (WRONG BOARD, never offered); the download reads the marker back from the slot at its first 4 KB and aborts on another board's (`NET_ERR_BOARD`) - all three share the signing key, so the signature alone would let a bowl install the 1.8's image |
 | the release | `.github/workflows/release.yml` builds `firmware/build`, `build-round`, `build-watch`; `make_ota_manifest.py` names both files from the image's marker (`latest-<board>.json`, `aqua_pets-v<rel>-<board>.bin`) |
