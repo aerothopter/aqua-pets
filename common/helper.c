@@ -620,6 +620,7 @@ static void urchin_load(tank_t *t, const helper_rec_t *r) {
         t->urchin.grazed_px = r->amount > 0 ? r->amount : 0;
     } else { t->urchin.x = -1; t->urchin.grazed_px = 0; }
 }
+static void shrimp_init(tank_t *t) { memset(&t->school, 0, sizeof t->school); }   /* (2026-10-22: tank_init left the last tank's school, its tally on its card) */
 static void shrimp_arrive(tank_t *t) { tank_shrimp_place(t, SHRIMP_START); t->school.food = 0; t->school.cool = 0; }
 static void shrimp_shake(tank_t *t, float strength) { (void)strength; shrimp_scatter(t, TANK_W * 0.5f, TANK_H * 0.5f, 10000); }
 static int  shrimp_tap(tank_t *t, float x, float y) {
@@ -668,7 +669,7 @@ const helper_def_t HELPER[HK_COUNT] = {
                      .init = urchin_init, .arrive = tank_urchin_place, .tick = urchin_tick, .sleep_slice = urchin_sleep,
                      .hit = tank_urchin_hit, .body = urchin_body, .save = urchin_save, .load = urchin_load },
     [HK_SHRIMP]  = { .name = "SHRIMP", .shop_bit = SD_ITEM_SHRIMP, .shop_item = 5, .habitat = HAB_FLOOR,
-                     .arrive = shrimp_arrive, .tick = shrimp_tick, .sleep = shrimp_sleep,
+                     .init = shrimp_init, .arrive = shrimp_arrive, .tick = shrimp_tick, .sleep = shrimp_sleep,
                      .startle = shrimp_scatter, .shake = shrimp_shake, .hit = tank_shrimp_hit, .tap = shrimp_tap, .body = shrimp_body,
                      .save = shrimp_save, .load = shrimp_load },
     /* the drifters: no card yet - a tap on one goes through to the water */
