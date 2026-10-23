@@ -2,6 +2,38 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: draw_creature is a table (refactor phase 3, the last piece)
+
+**What changed.** A pure refactor: both oracles are identical on all three
+boards.
+- `draw_creature`'s switch became `CREATURE_DRAW[SP_COUNT]` (creatures.inc).
+  Each species' row holds:
+  - its drawer
+  - `sk_setup`'s body span (`l0`, `l1`) and lean (`pmax`)
+  - a lean level shared between rows: none, with its pace (/25), a slower
+    one's (/20), full, with its jet, or only in its tail-flip
+  - `posed`: whether its look eases into a jet first (`sk_pose`, the octopus
+    and the squid; called before `sk_setup`, as it was, since it keeps state
+    per slot)
+- A new species' art is now its drawer, a row here, and a case in each
+  theme's looks function. Those three switches (`draw_lagoon_species`,
+  `draw_theme_species`, `draw_blackwater_species`) are the only species
+  switches left in the drawing.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | both oracles identical | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | both oracles identical | yes | no | no |
+| 2.06 watch | passes | both oracles identical | yes | no | no |
+
+Firmware against 3c: `.dram0.bss` and `.dram0.data` unchanged, `.flash.text`
+-1.5 KB, `.flash.rodata` +~300 B (the table), the signed app still 0x271000,
+the same three deprecation warnings.
+
+**Next:** phase 4, the device architecture (refactor-plan.md).
+
 ## 2026-10-23: --selftest-creatures (refactor phase 3d)
 
 **What changed.** `--selftest-creatures` (new, in `SELFTESTS`) loops over

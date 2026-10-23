@@ -2314,28 +2314,45 @@ static void draw_jellyfish(sk_t *source) {
     }
 }
 
-/* every species but the classic fish: dispatch on f->species */
+/* ---- every species but the classic fish (draw_fish_core is its own): a row
+ * a species (2026-10-23, the table that was a switch). Its drawer, the body's
+ * span along it for sk_setup (l0..l1, local px) and how far it leans into a
+ * climb (pmax) at what level, and whether its look eases into a jet first
+ * (sk_pose: the octopus, the squid). A new species is a row here. ---- */
+static float lean_none(const fish_t *f, float pose)  { (void)f; (void)pose; return 0; }
+static float lean_full(const fish_t *f, float pose)  { (void)f; (void)pose; return 1; }
+static float lean_swim(const fish_t *f, float pose)  { (void)pose; return clamp01(f->speed / 25); }   /* with its pace */
+static float lean_slow(const fish_t *f, float pose)  { (void)pose; return clamp01(f->speed / 20); }   /* ... a slower one's */
+static float lean_pose(const fish_t *f, float pose)  { (void)f; return pose; }                        /* with its jet */
+static float lean_flip(const fish_t *f, float pose)  { (void)pose; return f->sp_mode == SPM_FLIP ? 1.0f : 0.0f; }   /* only in its tail-flip */
+typedef struct {
+    void  (*draw)(sk_t *k);
+    float l0, l1, pmax;
+    float (*lean)(const fish_t *f, float pose);
+    bool  posed;
+} creature_draw_t;
+static const creature_draw_t CREATURE_DRAW[SP_COUNT] = {
+    [SP_SEAHORSE]  = { draw_seahorse,  -8, 12, 0,     lean_none, false },
+    [SP_OCTOPUS]   = { draw_octopus,  -20, 14, 0.9f,  lean_pose, true  },
+    [SP_PUFFER]    = { draw_puffer,   -20, 14, 0.3f,  lean_swim, false },
+    [SP_ANGLER]    = { draw_angler,   -22, 16, 0.35f, lean_swim, false },
+    [SP_EEL]       = { draw_eel,      -32, 32, 0.5f,  lean_slow, false },
+    [SP_SHARK]     = { draw_shark,    -31, 22, 0.4f,  lean_full, false },
+    [SP_SQUID]     = { draw_squid,    -23, 12, 0.5f,  lean_swim, true  },
+    [SP_CRAB]      = { draw_crab,     -12, 12, 0,     lean_none, false },
+    [SP_LOBSTER]   = { draw_lobster,  -26, 22, 0.3f,  lean_flip, false },
+    [SP_JELLYFISH] = { draw_jellyfish,-18, 18, 0,     lean_none, false },
+    [SP_SWORDFISH] = { draw_swordfish,-34, 32, 0.4f,  lean_full, false },
+    [SP_TURTLE]    = { draw_turtle,   -18, 14, 0.3f,  lean_slow, false },
+};
 static void draw_creature(ctx_t *c, const fish_t *f, float clock, bool asleep) {
+    if (f->species >= SP_COUNT || !CREATURE_DRAW[f->species].draw) return;
+    const creature_draw_t *d = &CREATURE_DRAW[f->species];
     sk_t k;
-    switch (f->species) {
-    case SP_SEAHORSE: sk_setup(&k, c, f, clock, asleep, -8, 12, 0, 0); draw_seahorse(&k); break;
-    case SP_OCTOPUS: {
-        float jk = sk_pose(tank_fish_jetting(f) ? 1.0f : 0.0f, clock);
-        sk_setup(&k, c, f, clock, asleep, -20, 14, 0.9f, jk); k.pose = jk; draw_octopus(&k); break; }
-    case SP_PUFFER:   sk_setup(&k, c, f, clock, asleep, -20, 14, 0.3f, clamp01(f->speed / 25)); draw_puffer(&k); break;
-    case SP_ANGLER:   sk_setup(&k, c, f, clock, asleep, -22, 16, 0.35f, clamp01(f->speed / 25)); draw_angler(&k); break;
-    case SP_EEL:      sk_setup(&k, c, f, clock, asleep, -32, 32, 0.5f, clamp01(f->speed / 20)); draw_eel(&k); break;
-    case SP_SHARK:    sk_setup(&k, c, f, clock, asleep, -31, 22, 0.4f, 1); draw_shark(&k); break;
-    case SP_SQUID: {
-        float jk = sk_pose(tank_fish_jetting(f) ? 1.0f : 0.0f, clock);
-        sk_setup(&k, c, f, clock, asleep, -23, 12, 0.5f, clamp01(f->speed / 25)); k.pose = jk; draw_squid(&k); break; }
-    case SP_CRAB:     sk_setup(&k, c, f, clock, asleep, -12, 12, 0, 0); draw_crab(&k); break;
-    case SP_LOBSTER:  sk_setup(&k, c, f, clock, asleep, -26, 22, 0.3f, f->sp_mode == SPM_FLIP ? 1.0f : 0.0f); draw_lobster(&k); break;
-    case SP_JELLYFISH: sk_setup(&k,c,f,clock,asleep,-18,18,0,0); draw_jellyfish(&k); break;
-    case SP_SWORDFISH: sk_setup(&k, c, f, clock, asleep, -34, 32, 0.4f, 1); draw_swordfish(&k); break;
-    case SP_TURTLE:   sk_setup(&k, c, f, clock, asleep, -18, 14, 0.3f, clamp01(f->speed / 20)); draw_turtle(&k); break;
-    default: break;
-    }
+    float jk = d->posed ? sk_pose(tank_fish_jetting(f) ? 1.0f : 0.0f, clock) : 0;   /* (before sk_setup, as it was) */
+    sk_setup(&k, c, f, clock, asleep, d->l0, d->l1, d->pmax, d->lean(f, jk));
+    if (d->posed) k.pose = jk;
+    d->draw(&k);
 }
 
 /* the tank's fish (the previews below draw a fish of their own) */

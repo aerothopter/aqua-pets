@@ -160,6 +160,11 @@ inside it: the shared kit, the classic fish, the species, then each theme's
 looks (or species by species, whichever keeps the move a move). One commit
 per source file; the oracle is identical after each.
 
+**3c+. `CREATURE_DRAW[]` (done 2026-10-23, the keeper's ask).**
+`draw_creature`'s switch became a row a species in creatures.inc: its drawer,
+`sk_setup`'s span and lean, a shared lean level, and whether it eases into a
+jet. Only the three themes' looks functions still switch on the species.
+
 **3d. `--selftest-creatures` (done 2026-10-23).** As built, for every row on
 every board: the row is whole; a pair arrives as its kind in a design it
 has; it draws in every theme; it stays inside the glass through twenty
