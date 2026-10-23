@@ -245,8 +245,10 @@ void progression_species_sync(tank_t *t);
  * asked (one already here may get company); false = no room. Saved. */
 bool progression_spawn_pair(tank_t *t, int species);
 /* the sale back (2026-09-24, Strato): a placeable piece sells for SD_SELL_PCT
- * of its price (the snail is a permanent resident), goes back to the shop at
- * full price and to its factory state; false = not owned or not for sale.
+ * of its price, goes back to the shop at full price and to its factory state;
+ * a helper too (2026-10-22, the keeper: every helper sells, the snail as
+ * well) - it leaves the tank, and a rebuy starts fresh (a school at
+ * SHRIMP_START, the tallies at zero); false = not owned or not for sale.
  * The refund is balance, not earnings; the toast shows it. */
 #define SD_SELL_PCT 20
 int  progression_sell_value(int item);

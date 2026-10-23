@@ -715,3 +715,6 @@ void helper_startle_all(tank_t *t, float x, float y, float radius) {
 void helper_shake_all(tank_t *t, float strength) {
     for (int k = 0; k < HK_COUNT; k++) if (HELPER[k].shake && helper_owned(t, k)) HELPER[k].shake(t, strength);
 }
+void helper_leave(tank_t *t, int k) {
+    if (k >= 0 && k < HK_COUNT && HELPER[k].init) HELPER[k].init(t);
+}

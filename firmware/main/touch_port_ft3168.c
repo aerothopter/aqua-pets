@@ -598,7 +598,7 @@ void touch_port_poll(tank_t *t) {
                 ESP_LOGI(TAG, "tool chip tapped at %.0f,%.0f: back to bare hands", s_px, s_py);
                 goto released;
             }
-            if (s_sel >= 0 && !render_card_is_helper(s_sel) && RENDER_CARD_HIT(s_px, s_py)) {   /* a tap ON the card puts it away
+            if (s_sel >= 0 && !render_card_is_helper(t, s_sel) && RENDER_CARD_HIT(s_px, s_py)) {   /* a tap ON the card puts it away
                 ESP_LOGI(TAG, "card tap at %.0f,%.0f -> card down", s_px, s_py);         (2026-10-21: the pages are the BOOT key's menu) */
                 s_sel = -1; goto released;
             }
@@ -643,7 +643,7 @@ void touch_port_poll(tank_t *t) {
 released:
     if (!touched) s_held_page = false;
     s_down = touched;
-    if (s_sel >= t->n_fish && !render_card_is_helper(s_sel)) s_sel = -1;   /* fresh tank / save load */
+    if (s_sel >= t->n_fish && !render_card_is_helper(t, s_sel)) s_sel = -1;   /* fresh tank / save load */
     if (s_sel >= 0 && now - s_sel_us > 10 * 1000000) s_sel = -1; /* auto-dismiss */
     if (s_bat && now - s_bat_us > BATTERY_PAGE_US) s_bat = false; /* the battery page too, after a while */
 }

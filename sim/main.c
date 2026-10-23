@@ -2222,6 +2222,7 @@ static void frame_cb(lv_timer_t *timer) {
         render_sd_toast(&tank, canvas_buf, TANK_W);      /* "+N" sand dollars, as they are earned */
         if (ui_visible) {
             draw_brain_dot();
+            if (selected_fish >= tank.n_fish && !render_card_is_helper(&tank, selected_fish)) selected_fish = -1;   /* a helper sold, a tank reset: no card to show */
             if (selected_fish >= 0)
                 render_stats_card(&tank, selected_fish, canvas_buf, TANK_W);
             if (!battery_view) render_tool_chip(&tank, selected_fish, canvas_buf, TANK_W);   /* a tool in hand: the chip (2026-10-01) */
@@ -2670,6 +2671,11 @@ static int snapshot(const char *prefix, int seconds) {
     tank.snail.x = 120; tank.snail.y = 140;
     tank.sd_balance = 12; render_shop(&tank, fb, TANK_W);
     snprintf(path, sizeof path, "%s_shop_owned.ppm", prefix); write_ppm(path, fb);
+    shop_tap(SHOP_ROW_X, SHOP_ROW_Y(1)); render_shop(&tank, fb, TANK_W);       /* a helper's row (2026-10-22): SELL alone, then armed */
+    snprintf(path, sizeof path, "%s_shop_helper.ppm", prefix); write_ppm(path, fb);
+    shop_tap(SHOP_BTN_X, SHOP_BTN_Y); render_shop(&tank, fb, TANK_W);
+    snprintf(path, sizeof path, "%s_shop_helper_sell.ppm", prefix); write_ppm(path, fb);
+    render_shop_leave();
     for (int i = 0; i < 30; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
     progression_sd_grant(&tank, 5);
     render_tank(&tank, fb, TANK_W); render_sd_toast(&tank, fb, TANK_W);
@@ -3264,7 +3270,13 @@ static int selftest_shop(void) {
         if (SD_ITEMS[6].bit != SD_ITEM_URCHIN || !progression_buy(&tank, 6)) { printf("FAIL: could not buy the urchin\n"); return 1; }
         SHOP_WANT("after the urchin");
         if (!(tank.sd_unlocks & SD_ITEM_URCHIN) || tank.urchin.x < 0) { printf("FAIL: no urchin on the floor\n"); return 1; }
-        if (progression_sell(&tank, 6)) { printf("FAIL: the urchin sold back\n"); return 1; }
+        {   /* it sells back (2026-10-22: every helper does) - off the floor, the refund - and is bought again for what follows */
+            int bal = tank.sd_balance;
+            if (!progression_sell(&tank, 6) || (tank.sd_unlocks & SD_ITEM_URCHIN) || tank.urchin.x >= 0 || tank.sd_balance != bal + progression_sell_value(6)) { printf("FAIL: the urchin's sale\n"); return 1; }
+            progression_sd_take_award(); tank.sd_balance = SD_PRICE_URCHIN;
+            if (!progression_buy(&tank, 6) || tank.urchin.x < 0) { printf("FAIL: the urchin bought again\n"); return 1; }
+            tank.sd_balance = bal;
+        }
         float veg_was[VEG_BEDS_MAX][VEG_FRONDS_MAX]; memcpy(veg_was, tank.veg_h, sizeof veg_was);   /* put back after: the tests below place the plant among the beds */
         for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, 0.45f);
         tank_veg_set(&tank, 3, 0.70f);                        /* the sword plant tall: not its food */
@@ -3618,7 +3630,10 @@ static int selftest_shop(void) {
         if (progression_buy(&tank, 5)) { printf("FAIL: the shrimp sold short\n"); return 1; }
         tank.sd_balance = SD_PRICE_SHRIMP;
         if (!progression_buy(&tank, 5) || tank.sd_balance != 0 || tank.school.n != SHRIMP_START) { printf("FAIL: the shrimp did not sell at %d (%d shrimp)\n", SD_PRICE_SHRIMP, tank.school.n); return 1; }
-        if (progression_sell(&tank, 5)) { printf("FAIL: the shrimp sold back\n"); return 1; }
+        /* the school sells back (2026-10-22): every shrimp goes, the refund; bought again, SHRIMP_START of them */
+        if (!progression_sell(&tank, 5) || (tank.sd_unlocks & SD_ITEM_SHRIMP) || tank.school.n != 0 || tank.sd_balance != progression_sell_value(5)) { printf("FAIL: the school's sale (%d shrimp, balance %d)\n", tank.school.n, tank.sd_balance); return 1; }
+        progression_sd_take_award(); tank.sd_balance = SD_PRICE_SHRIMP;
+        if (!progression_buy(&tank, 5) || tank.sd_balance != 0 || tank.school.n != SHRIMP_START) { printf("FAIL: the school bought again (%d shrimp)\n", tank.school.n); return 1; }
         tank.trickle_off = true;
         memset(tank.algae, 0, ALGAE_CELLS);
         /* the fish out of the way (they would eat the test's pellets) */
@@ -3880,7 +3895,19 @@ static int selftest_shop(void) {
         static uint16_t fb[TANK_W * TANK_H];
         tank.sd_unlocks |= SD_ITEM_CASTLE | SD_ITEM_SNAIL; tank_castle_place(&tank); tank.sd_balance = 10; int earned = tank.sd_earned;
         if (progression_sell_value(2) != 30 || progression_sell_value(4) != 48 || progression_sell_value(0) != 8) { printf("FAIL: the sale values\n"); return 1; }
-        if (progression_sell(&tank, 1)) { printf("FAIL: the snail sold\n"); return 1; }
+        /* the snail sells too (2026-10-22, the keeper: every helper does): its row's one button,
+           SELL where UNLOCK was, armed by the first tap; it leaves the glass, its tally with it */
+        tank_snail_place(&tank); tank.snail.grazed = 12;
+        render_shop_leave(); render_shop(&tank, fb, TANK_W);
+        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(1)) != SHOP_TAP_KEPT) { printf("FAIL: the snail's row\n"); return 1; }
+        render_shop(&tank, fb, TANK_W);
+        if (shop_tap(SHOP_BTN_X, SHOP_BTN_Y) != SHOP_TAP_KEPT) { printf("FAIL: the snail's first SELL tap did not arm\n"); return 1; }
+        render_shop(&tank, fb, TANK_W);
+        if (shop_tap(SHOP_BTN_X, SHOP_BTN_Y) != SHOP_TAP_SELL + 1) { printf("FAIL: the snail's second SELL tap\n"); return 1; }
+        if (!progression_sell(&tank, 1) || (tank.sd_unlocks & SD_ITEM_SNAIL) || tank.snail.x >= 0 || tank.snail.grazed != 0
+            || tank.sd_balance != 10 + progression_sell_value(1) || tank.sd_earned != earned) { printf("FAIL: the snail's sale (balance %d)\n", tank.sd_balance); return 1; }
+        if (progression_sd_take_award() != progression_sell_value(1)) { printf("FAIL: the snail's toast\n"); return 1; }
+        tank.sd_balance = 10;
         render_shop_leave(); render_shop(&tank, fb, TANK_W);
         if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(2)) != SHOP_TAP_KEPT) { printf("FAIL: the castle's row\n"); return 1; }
         render_shop(&tank, fb, TANK_W);
@@ -3901,9 +3928,14 @@ static int selftest_shop(void) {
         if (shop_tap(xmove, by) != SHOP_TAP_MOVE + 2) { printf("FAIL: MOVE beside an armed SELL\n"); return 1; }
         if (tank.sd_unlocks & SD_ITEM_CASTLE) {} else { printf("FAIL: MOVE sold the castle\n"); return 1; }
         render_shop_leave();
-        /* the snail's modal: no SELL */
+        /* a helper's armed SELL stands down on a tap off it, and the next open of its row starts unarmed */
+        tank.sd_unlocks |= SD_ITEM_SNAIL; tank_snail_place(&tank);
         render_shop(&tank, fb, TANK_W); shop_tap(SHOP_ROW_X, SHOP_ROW_Y(1)); render_shop(&tank, fb, TANK_W);
-        if (shop_tap(xsell, by) != SHOP_TAP_KEPT || !(tank.sd_unlocks & SD_ITEM_SNAIL)) { printf("FAIL: the snail's modal sold something\n"); return 1; }
+        if (shop_tap(SHOP_BTN_X, by) != SHOP_TAP_KEPT) { printf("FAIL: the snail's SELL did not arm\n"); return 1; }
+        render_shop(&tank, fb, TANK_W);
+        if (shop_tap(SHOP_BTN_X, SHP_MODAL_Y + 20) != SHOP_TAP_KEPT || !(tank.sd_unlocks & SD_ITEM_SNAIL)) { printf("FAIL: a tap off the snail's armed SELL sold it\n"); return 1; }
+        render_shop(&tank, fb, TANK_W); shop_tap(SHOP_ROW_X, SHOP_ROW_Y(1)); render_shop(&tank, fb, TANK_W);
+        if (shop_tap(SHOP_BTN_X, by) != SHOP_TAP_KEPT || !(tank.sd_unlocks & SD_ITEM_SNAIL)) { printf("FAIL: the snail's SELL came back armed\n"); return 1; }
         render_shop_leave();
         /* the hit test: a press on the castle finds it, one on empty water does
            not, and the smaller coral wins where it overlaps the castle */
@@ -3923,7 +3955,7 @@ static int selftest_shop(void) {
         setup_activate(&tank, SETUP_HIT_SELL);
         if (setup_active() || (tank.sd_unlocks & SD_ITEM_CASTLE) || tank.sd_balance != 30) { printf("FAIL: the page's second SELL (balance %d)\n", tank.sd_balance); return 1; }
         progression_sd_take_award();
-        printf("selftest-shop: selling back: the castle for 30 (armed, then sold; earnings untouched), bought again at %d, MOVE beside SELL, the snail unsellable, the hold's hit test, the page's SELL\n", SD_PRICE_CASTLE);
+        printf("selftest-shop: selling back: the castle for 30 (armed, then sold; earnings untouched), bought again at %d, MOVE beside SELL, the snail sold from its row, the hold's hit test, the page's SELL\n", SD_PRICE_CASTLE);
     }
     /* the species' pairs (2026-10-05, docs/species.md): an item per species
        after the things, each a pair of juveniles of that species by the reef;
@@ -3991,7 +4023,10 @@ static int selftest_shop(void) {
         if (tank_decor_placeable(SD_ITEM_FROGMAN_IDX) || progression_item_species(SD_ITEM_FROGMAN_IDX) != -1) { printf("FAIL: the frogman reads as placeable or a species\n"); return 1; }
         tank.sd_unlocks &= ~SD_ITEM_FROGMAN; tank.sd_balance = SD_PRICE_FROGMAN;
         if (!progression_buy(&tank, SD_ITEM_FROGMAN_IDX) || tank.sd_balance != 0 || !(tank.sd_unlocks & SD_ITEM_FROGMAN)) { printf("FAIL: the frogman did not sell at %d\n", SD_PRICE_FROGMAN); return 1; }
-        if (progression_buy(&tank, SD_ITEM_FROGMAN_IDX) || progression_sell(&tank, SD_ITEM_FROGMAN_IDX)) { printf("FAIL: a second frogman, or one sold back\n"); return 1; }
+        if (progression_buy(&tank, SD_ITEM_FROGMAN_IDX)) { printf("FAIL: a second frogman\n"); return 1; }
+        if (!progression_sell(&tank, SD_ITEM_FROGMAN_IDX) || (tank.sd_unlocks & SD_ITEM_FROGMAN) || tank.sd_balance != progression_sell_value(SD_ITEM_FROGMAN_IDX)) { printf("FAIL: the frogman's sale\n"); return 1; }
+        progression_sd_take_award(); tank.sd_balance = SD_PRICE_FROGMAN;   /* (2026-10-22: he sells back) bought again for what follows */
+        if (!progression_buy(&tank, SD_ITEM_FROGMAN_IDX) || tank.sd_balance != 0) { printf("FAIL: the frogman bought again\n"); return 1; }
         { float x0 = tank.frogman.x; int turns = 0, dir = tank.frogman.dir; float lo = 1e9f, hi = -1e9f, ylo = 1e9f, yhi = -1e9f;
           for (int i = 0; i < 180 * 60; i++) { tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
               if (tank.frogman.dir != dir) { turns++; dir = tank.frogman.dir; }
@@ -4012,7 +4047,10 @@ static int selftest_shop(void) {
         if (tank_decor_placeable(SD_ITEM_SUB_IDX) || progression_item_species(SD_ITEM_SUB_IDX) != -1) { printf("FAIL: the submarine reads as placeable or a species\n"); return 1; }
         tank.sd_unlocks &= ~SD_ITEM_SUB; tank.sd_balance = SD_PRICE_SUB;
         if (!progression_buy(&tank, SD_ITEM_SUB_IDX) || tank.sd_balance != 0 || !(tank.sd_unlocks & SD_ITEM_SUB)) { printf("FAIL: the submarine did not sell at %d\n", SD_PRICE_SUB); return 1; }
-        if (progression_buy(&tank, SD_ITEM_SUB_IDX) || progression_sell(&tank, SD_ITEM_SUB_IDX)) { printf("FAIL: a second submarine, or one sold back\n"); return 1; }
+        if (progression_buy(&tank, SD_ITEM_SUB_IDX)) { printf("FAIL: a second submarine\n"); return 1; }
+        if (!progression_sell(&tank, SD_ITEM_SUB_IDX) || (tank.sd_unlocks & SD_ITEM_SUB) || tank.sd_balance != progression_sell_value(SD_ITEM_SUB_IDX)) { printf("FAIL: the submarine's sale\n"); return 1; }
+        progression_sd_take_award(); tank.sd_balance = SD_PRICE_SUB;      /* (2026-10-22: it sells back) bought again for what follows */
+        if (!progression_buy(&tank, SD_ITEM_SUB_IDX) || tank.sd_balance != 0) { printf("FAIL: the submarine bought again\n"); return 1; }
         { int turns = 0, dir = tank.sub.dir, stops = 0; bool stopped = false, peri_up = false; float lo = 1e9f, hi = -1e9f, closest = 1e9f, vmax = 0;
           for (int i = 0; i < 300 * 60; i++) { tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
               if (tank.sub.dir != dir) { turns++; dir = tank.sub.dir; }
@@ -5461,7 +5499,8 @@ static int selftest_decor(void) {
  * rules there through half an hour of the tank (film and tall grass to work,
  * pellets, a shake, a startle) and a night asleep; a second purchase is
  * refused; a tap on one with a card brings the card up (and it draws) and the
- * next tap puts it away; the save and the load keep what it keeps. A new row is
+ * next tap puts it away; the save and the load keep what it keeps; sold, it
+ * leaves (its card too) and a rebuy starts fresh. A new row is
  * checked here with no new code. */
 #define HL_FAIL(...) do { printf("FAIL: helper %s: ", HELPER[k].name); printf(__VA_ARGS__); printf("\n"); return 1; } while (0)
 static bool hl_outside(int k, float *ox, float *oy) {   /* a body of it off the glass: where */
@@ -5487,6 +5526,8 @@ static int selftest_helpers(void) {
         if (progression_buy(&tank, h->shop_item)) HL_FAIL("bought twice");
         if (!h->body(&tank, 0, &x, &y)) HL_FAIL("bought, it is nowhere");
         if (hl_outside(k, &x, &y)) HL_FAIL("arrives at %.0f,%.0f, off the glass", x, y);
+        helper_rec_t fresh; memset(&fresh, 0, sizeof fresh); if (h->save) h->save(&tank, &fresh);   /* what a purchase starts from */
+        int card_id = -1;
         /* half an hour of the tank: film on the glass, the grass grown tall, pellets, a shake, a startle */
         tank_grow_algae(&tank, 40);
         for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, 0.85f);
@@ -5504,7 +5545,8 @@ static int selftest_helpers(void) {
         if (h->hit) {
             int sel = -1;
             h->body(&tank, 0, &x, &y);
-            if (render_helper_tap(&tank, x, y, &sel) != k || !render_card_is_helper(sel)) HL_FAIL("a tap on it at %.0f,%.0f brings no card (%d)", x, y, sel);
+            if (render_helper_tap(&tank, x, y, &sel) != k || !render_card_is_helper(&tank, sel)) HL_FAIL("a tap on it at %.0f,%.0f brings no card (%d)", x, y, sel);
+            card_id = sel;
             render_tank(&tank, fb, TANK_W); memcpy(card, fb, sizeof fb); render_stats_card(&tank, sel, card, TANK_W);
             if (!memcmp(card, fb, sizeof fb)) HL_FAIL("its card draws nothing");
             for (int i = 0; i < 30; i++) tank_tick(&tank, dt, advisor_rules);
@@ -5534,9 +5576,24 @@ static int selftest_helpers(void) {
         }
         tank = back;
         if (!h->body(&tank, 0, &x, &y) || hl_outside(k, &x, &y)) HL_FAIL("loaded at %.0f,%.0f, off the glass", x, y);
+        /* the sale (2026-10-22): the refund, the helper out of the tank and its card down; bought again,
+           it starts fresh - its tallies at zero, a school at SHRIMP_START */
+        int bal = tank.sd_balance;
+        if (!progression_sell(&tank, h->shop_item) || helper_owned(&tank, k)) HL_FAIL("cannot be sold");
+        if (tank.sd_balance != bal + progression_sell_value(h->shop_item)) HL_FAIL("sold for %d, not %d", tank.sd_balance - bal, progression_sell_value(h->shop_item));
+        if (card_id >= 0 && render_card_is_helper(&tank, card_id)) HL_FAIL("sold, its card is still up");
+        progression_sd_take_award();
+        if (!progression_buy(&tank, h->shop_item) || !helper_owned(&tank, k)) HL_FAIL("cannot be bought again");
+        if (!h->body(&tank, 0, &x, &y) || hl_outside(k, &x, &y)) HL_FAIL("bought again, it is at %.0f,%.0f, off the glass", x, y);
+        if (h->save) {
+            helper_rec_t again; memset(&again, 0, sizeof again); h->save(&tank, &again);
+            if (again.n != fresh.n || again.m != fresh.m || again.amount != fresh.amount || again.count != fresh.count)
+                HL_FAIL("bought again, it is not fresh: n %d m %d amount %.2f count %d (new: n %d m %d amount %.2f count %d)",
+                        again.n, again.m, again.amount, (int)again.count, fresh.n, fresh.m, fresh.amount, (int)fresh.count);
+        }
     }
     remove(getenv("AQUA_PETS_SAVE"));
-    printf("selftest-helpers: %d helpers (%d with a card, %d with a record): inside the glass through half an hour and a night, the card, the save; selftest-helpers ok\n",
+    printf("selftest-helpers: %d helpers (%d with a card, %d with a record): inside the glass through half an hour and a night, the card, the save, the sale and a fresh rebuy; selftest-helpers ok\n",
            HK_COUNT, cards, kept);
     return 0;
 }
@@ -5800,7 +5857,7 @@ int main(int argc, char **argv) {
                     battery_view = true; battery_view_ms = now_ms; selected_fish = -1;
                     printf("battery page: %d%%, %s\n", sim_bat_gauge(), sim_bat_state == BAT_CHARGING ? "charging" : sim_bat_state == BAT_FULL ? "full" : "on battery");
                 }
-                else if (selected_fish >= 0 && !render_card_is_helper(selected_fish) && RENDER_CARD_HIT(press_x, press_y))
+                else if (selected_fish >= 0 && !render_card_is_helper(&tank, selected_fish) && RENDER_CARD_HIT(press_x, press_y))
                     selected_fish = -1;                    /* a click ON the card puts it away (2026-10-21: the pages are the BOOT key's menu) */
                 else if ((selected_fish < 0 || selected_fish >= tank.n_fish) && render_tool_chip_hit(&tank, (float)press_x, (float)press_y)) {
                     tank_set_tool(&tank, TOOL_HAND); printf("toolbox: DONE - back to bare hands\n");
@@ -5903,14 +5960,14 @@ int main(int argc, char **argv) {
         if (k[SDL_SCANCODE_W] && !wdown) {         /* the shrimp school (2026-09-29): granted free; again = one more; past SHRIMP_MAX takes them away */
             if (!(tank.sd_unlocks & SD_ITEM_SHRIMP)) { tank.sd_unlocks |= SD_ITEM_SHRIMP; tank_shrimp_place(&tank, SHRIMP_START); }
             else if (tank.school.n < SHRIMP_MAX) tank_shrimp_place(&tank, tank.school.n + 1);
-            else { tank.sd_unlocks &= ~SD_ITEM_SHRIMP; tank.school.n = 0; }
+            else { tank.sd_unlocks &= ~SD_ITEM_SHRIMP; helper_leave(&tank, HK_SHRIMP); }
             printf("shrimp: %d (free; the shop sells the school at %d on page 2; F feeds - pellets on the floor bring more; tap near them to scatter)\n",
                    (tank.sd_unlocks & SD_ITEM_SHRIMP) ? tank.school.n : 0, SD_PRICE_SHRIMP);
         }
         wdown = k[SDL_SCANCODE_W];
         if (k[SDL_SCANCODE_Y] && !ydown) {         /* the urchin (2026-10-02): granted free; again takes it away */
             if (!(tank.sd_unlocks & SD_ITEM_URCHIN)) { tank.sd_unlocks |= SD_ITEM_URCHIN; tank_urchin_place(&tank); }
-            else { tank.sd_unlocks &= ~SD_ITEM_URCHIN; tank.urchin.x = -1; if (selected_fish == RENDER_CARD_URCHIN) selected_fish = -1; }
+            else { tank.sd_unlocks &= ~SD_ITEM_URCHIN; helper_leave(&tank, HK_URCHIN); }
             printf("urchin: %s (free; the shop sells it at %d on page 2; G grows the grass for it, Z sleeps 7 h)\n",
                    (tank.sd_unlocks & SD_ITEM_URCHIN) ? "in the tank" : "gone", SD_PRICE_URCHIN);
         }

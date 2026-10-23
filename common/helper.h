@@ -131,7 +131,7 @@ typedef struct {
     uint32_t shop_bit;             /* SD_ITEM_* */
     int8_t   shop_item;            /* its shop index */
     uint8_t  habitat;              /* HAB_* */
-    void     (*init)(tank_t *t);                   /* tank_init: its factory state */
+    void     (*init)(tank_t *t);                   /* its factory state: tank_init, and a sale (helper_leave) */
     void     (*arrive)(tank_t *t);                 /* bought (or loaded with nothing saved): it appears and starts its rules */
     void     (*tick)(tank_t *t, float dt);         /* awake: its rules */
     void     (*sleep)(tank_t *t, float seconds);   /* asleep: the whole span at once, before the night is lived */
@@ -153,6 +153,7 @@ bool  helper_owned(const tank_t *t, int k);
 int   helper_hit(const tank_t *t, float x, float y);   /* the owned helper a tap on (x, y) reaches, in kind order; -1 = none */
 void  helper_init(tank_t *t);                  /* tank_init */
 void  helper_arrive(tank_t *t, int k);         /* bought */
+void  helper_leave(tank_t *t, int k);          /* sold: it leaves the tank, back at its factory state (init) - a rebuy starts fresh */
 void  helper_tick_all(tank_t *t, float dt);
 void  helper_sleep_all(tank_t *t, float seconds);
 void  helper_sleep_slice_all(tank_t *t, float seconds);

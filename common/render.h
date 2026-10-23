@@ -95,9 +95,10 @@ void render_stats_card(const tank_t *t, int fish_idx, uint16_t *fb, int stride);
 /* a tap on a helper (helper.h), after the fish: the helper under (x, y) - its
  * kind, -1 = none - and the platform's card selection *sel updated (its card up,
  * or down again; the school's third quick tap scares them and drops it).
- * render_card_is_helper: sel is a helper's card, not a fish's. */
+ * render_card_is_helper: sel is a helper's card, not a fish's, and its helper
+ * is in the tank (one sold has nothing to show: the platform drops it). */
 int  render_helper_tap(tank_t *t, float x, float y, int *sel);
-bool render_card_is_helper(int sel);
+bool render_card_is_helper(const tank_t *t, int sel);
 /* Optional card cache (RENDER_CARD_W x RENDER_CARD_H uint16): with the scene
  * cache live, the card is redrawn at most 4x/s and blitted otherwise (~7 ms
  * -> ~1 ms per frame on the device). NULL = draw every frame. */
@@ -235,7 +236,8 @@ enum { SHOP_TAP_NONE = 0, SHOP_TAP_KEPT = 1, SHOP_TAP_CLOSE = 2, SHOP_TAP_BUY = 
  * the sword plant's placement page opened and nothing was bought. 64 apart; the guard keeps it so. */
 _Static_assert(SD_ITEM_COUNT <= SHOP_TAP_MOVE - SHOP_TAP_BUY && SD_ITEM_COUNT <= SHOP_TAP_SELL - SHOP_TAP_MOVE, "shop tap codes: an item index must not reach the next base");
 /* SHOP_TAP_SELL (2026-09-24): an owned placeable piece's modal has SELL next
- * to MOVE; the first tap arms it ("+30 OK?"), the second returns SELL + item
+ * to MOVE, an owned helper's (2026-10-22) SELL alone where UNLOCK was; the
+ * first tap arms it ("+30 OK?"), the second returns SELL + item
  * and the platform calls progression_sell. Test SELL before MOVE before BUY. */
 /* SHOP_TAP_MOVE (2026-09-16): an owned, placeable item's modal carries a MOVE
  * button - the platform closes the shop and opens setup.c's placement page

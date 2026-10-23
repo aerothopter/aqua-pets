@@ -277,14 +277,16 @@ static void sd_tick(tank_t *t) {
 }
 int progression_sell_value(int item) { return item < 0 || item >= SD_ITEM_COUNT ? 0 : SD_ITEMS[item].price * SD_SELL_PCT / 100; }
 bool progression_sell(tank_t *t, int item) {
-    int k = decor_kind_of_item(item);
-    if (item < 0 || item >= SD_ITEM_COUNT || k < 0 || !(DECOR[k].flags & DF_SELLABLE)) return false;   /* the snail stays */
+    int k = decor_kind_of_item(item), h = helper_kind_of_item(item);   /* a sellable piece, or a helper (2026-10-22: the snail too) */
+    bool decor = k >= 0 && (DECOR[k].flags & DF_SELLABLE);
+    if (item < 0 || item >= SD_ITEM_COUNT || (!decor && h < 0)) return false;
     const sd_item_t *it = &SD_ITEMS[item];
     if (!(t->sd_unlocks & it->bit)) return false;
     t->sd_unlocks &= ~it->bit;
     int back = progression_sell_value(item);
     t->sd_balance += back; s_sd_pending += back;
-    decor_reset(t, k);
+    if (decor) decor_reset(t, k);
+    else helper_leave(t, h);                               /* it leaves the tank: a school's grown shrimp with it */
     mark_dirty(); progression_save(t);
     return true;
 }

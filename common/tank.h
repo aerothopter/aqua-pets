@@ -840,8 +840,8 @@ static inline float tank_bubble_x(const tank_t *t) { return t->decor[DK_AIRSTONE
 
 /* ---- the shop (2026-09-15): sand dollars buy things for the tank ----
  * The items are bits in tank_t.sd_unlocks; progression.c sells them
- * (progression_buy) and tank.c gives them their place. A bought thing is in
- * the tank for good. */
+ * (progression_buy) and the decor and the helpers give them their place. A
+ * bought thing stays until it is sold back (progression_sell). */
 enum { SD_ITEM_PLANT = 1u << 0, SD_ITEM_SNAIL = 1u << 1, SD_ITEM_CASTLE = 1u << 2, SD_ITEM_CORAL = 1u << 3, SD_ITEM_CLUSTER = 1u << 4, SD_ITEM_SHRIMP = 1u << 5,
        SD_ITEM_URCHIN = 1u << 6,
        /* the species (2026-10-05, docs/species.md): one juvenile a purchase (2026-10-07;

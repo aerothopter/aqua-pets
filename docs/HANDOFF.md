@@ -2,6 +2,59 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-22: helpers sell back from the shop (refactor phase 2b)
+
+**What changed** (the keeper's decisions, below the 2a entry):
+- **Every helper sells**, the snail included. An owned helper's shop page
+  says IN THE TANK and SELLS BACK FOR N, and has one SELL button where UNLOCK
+  was. The first tap arms it ("+N OK?"), the second sells it, and any other
+  tap disarms it, the same as the decor's SELL. The refund is SD_SELL_PCT,
+  20% of the price, as for decor (I had told the keeper 60%; it is 20%, and
+  the keeper confirmed 20%). The platforms' SELL routing was already generic,
+  so neither port changed for the sale itself.
+- **A sale takes it out of the tank**: `progression_sell` calls `helper_leave`,
+  which is the row's `init`, its factory state. A rebuy starts fresh: a
+  school at SHRIMP_START with its grown shrimp gone, and the snail's,
+  urchin's and school's tallies at zero.
+- **`render_card_is_helper(t, sel)`** now also asks whether the helper is in
+  the tank. A sold helper's card drops by itself on both platforms (the touch
+  port's existing cleanup line, and a new one in the sim's frame), so an
+  invisible card can't swallow the next tap.
+- **`tank_init` resets the shrimp school** (its new `init` hook). Before, the
+  school kept the last tank's count, cooldown and pellet tally: after a reset
+  and a rebuy, its card showed the old tank's pellets until the next boot.
+  This is the one oracle change, made as its own step: on every board exactly
+  7 frames differ, the shrimp card (98) in each stage after the first, which
+  had shown the previous stage's carried-over tally. Every tank frame, every
+  run, the shake, the sleep and the save are unchanged.
+- **Tests:** the five asserts that helpers can't be sold now sell, check the
+  refund and that the helper is gone, then buy it back. The snail's sale
+  goes through its shop page (its row, SELL armed, SELL confirmed), and an
+  armed SELL that is tapped off stands down. `--selftest-helpers` now sells
+  each row and checks the refund, that the card goes, and that a rebuy
+  starts fresh. `--snapshot` adds `_shop_helper` and `_shop_helper_sell`.
+- The sim's free shrimp and urchin keys take them away with `helper_leave`.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (17 selftests) | the snail's page, SELL and armed; oracle as above | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | yes | yes (5.4.4, throwaway key) | no | no |
+| 2.06 watch | passes | yes | yes (5.4.4, throwaway key) | no | no |
+
+Firmware against 2a: `.dram0.bss` unchanged, `.flash.text` +~0.4 KB, the
+signed app still 0x271000 (2% free), the same three deprecation warnings.
+
+**Open.**
+- The shop page's SELLS BACK FOR line sits 2 px above the buttons, decor's
+  and helpers' alike (the 2a layout, unchanged). It reads cramped in a
+  scaled-down picture, but it isn't clipped.
+- The frogman and the sub still have no card; the keeper may give them one
+  when they help with something.
+- Phase 3: creatures. Not flashed: the first real flash is still the layout 3
+  save test (DEVICE.md).
+
 ## 2026-10-22: the helpers are one table (refactor phase 2a)
 
 **What changed.** A pure refactor: every frame and the save are the same as
@@ -69,7 +122,7 @@ warnings. The watch's static RAM rose by those 16 B.
 - **Phase 2b, decided by the keeper:** SELL goes on the shop's item page, and
   every helper is sellable. That includes the snail: the shop's "permanent
   resident" goes, and five tests that assert a helper can't be sold flip. A
-  sale refunds the usual 60% of the price; a sold school loses the shrimp it
+  sale refunds SD_SELL_PCT, 20% of the price, as decor does (this entry said 60% at first: my mistake, the keeper confirmed 20%); a sold school loses the shrimp it
   grew, and a rebuy starts at SHRIMP_START. The frogman and the sub get no
   cards for now ("they're not really helpers yet").
 - **Found, not fixed (it is behavior, so 2b):** `tank_init` never resets the

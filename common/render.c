@@ -2226,7 +2226,7 @@ static int helper_of_card(int card) {
     for (int k = 0; k < HK_COUNT; k++) if (HELPER_DRAW[k].card == card) return k;
     return -1;
 }
-bool render_card_is_helper(int sel) { return helper_of_card(sel) >= 0; }
+bool render_card_is_helper(const tank_t *t, int sel) { int k = helper_of_card(sel); return k >= 0 && helper_owned(t, k); }
 int render_helper_tap(tank_t *t, float x, float y, int *sel) {
     int k = helper_hit(t, x, y);
     if (k < 0) return -1;
@@ -4066,7 +4066,15 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
                                 button(&c, SHP_TWO_X1, by, MSP_HOW_W, MSP_HOW_H, MSP_TEAL, MSP_TEAL, sell, 2);
                                 draw_text(&c, SHP_TWO_X1 + (MSP_HOW_W - text_w(sell, 2)) / 2, by + (MSP_HOW_H - 14) / 2, 2, MSP_INK, sell); }
         else button(&c, SHP_TWO_X1, by, MSP_HOW_W, MSP_HOW_H, 0x1c2f36, MSP_DIM, "SELL", 2);
-    } else if (owned) draw_text(&c, X + (W - text_w("IN THE TANK", 2)) / 2, by + 8, 2, MSP_TEAL, "IN THE TANK");   /* the snail: a permanent resident */
+    } else if (owned && helper_kind_of_item(g_shp_modal) >= 0) {   /* a helper (2026-10-22): SELL alone, where UNLOCK was - tapped twice, it sells it back */
+        char sell[24]; snprintf(sell, sizeof sell, "SELLS BACK FOR %d", progression_sell_value(g_shp_modal));
+        draw_text(&c, X + (W - text_w("IN THE TANK", 2)) / 2, Y + 164, 2, MSP_TEAL, "IN THE TANK");
+        draw_text(&c, X + (W - text_w(sell, 2)) / 2, Y + 184, 2, MSP_DIM, sell);
+        if (g_shp_sell_armed) { snprintf(sell, sizeof sell, "+%d OK?", progression_sell_value(g_shp_modal));
+                                button(&c, bx, by, MSP_HOW_W, MSP_HOW_H, MSP_TEAL, MSP_TEAL, sell, 2);
+                                draw_text(&c, bx + (MSP_HOW_W - text_w(sell, 2)) / 2, by + (MSP_HOW_H - 14) / 2, 2, MSP_INK, sell); }
+        else button(&c, bx, by, MSP_HOW_W, MSP_HOW_H, 0x1c2f36, MSP_DIM, "SELL", 2);
+    } else if (owned) draw_text(&c, X + (W - text_w("IN THE TANK", 2)) / 2, by + 8, 2, MSP_TEAL, "IN THE TANK");
     else {
         char line[32]; snprintf(line, sizeof line, "%d", it->price);
         int pw = 20 + text_w(line, 2);
@@ -4100,6 +4108,11 @@ int render_shop_tap(const tank_t *t, float x, float y) {
             if (on_sell) return SHOP_TAP_SELL + item;
             if (on_move) return SHOP_TAP_MOVE + item;
             return SHOP_TAP_KEPT;
+        }
+        if (owned && helper_kind_of_item(item) >= 0) {           /* a helper: SELL alone, armed then confirmed */
+            if (on_btn && !g_shp_sell_armed) { g_shp_sell_armed = true; return SHOP_TAP_KEPT; }
+            g_shp_sell_armed = false; g_shp_modal = -1;
+            return on_btn ? SHOP_TAP_SELL + item : SHOP_TAP_KEPT;
         }
         g_shp_modal = -1; g_shp_sell_armed = false;
         if (on_btn && !owned && can) return SHOP_TAP_BUY + item;
