@@ -598,7 +598,7 @@ void touch_port_poll(tank_t *t) {
                 ESP_LOGI(TAG, "tool chip tapped at %.0f,%.0f: back to bare hands", s_px, s_py);
                 goto released;
             }
-            if (s_sel >= 0 && s_sel != RENDER_CARD_SNAIL && s_sel != RENDER_CARD_SHRIMP && s_sel != RENDER_CARD_URCHIN && RENDER_CARD_HIT(s_px, s_py)) {   /* a tap ON the card puts it away
+            if (s_sel >= 0 && !render_card_is_helper(s_sel) && RENDER_CARD_HIT(s_px, s_py)) {   /* a tap ON the card puts it away
                 ESP_LOGI(TAG, "card tap at %.0f,%.0f -> card down", s_px, s_py);         (2026-10-21: the pages are the BOOT key's menu) */
                 s_sel = -1; goto released;
             }
@@ -609,7 +609,7 @@ void touch_port_poll(tank_t *t) {
                ~90) against BOTH the press-time snapshot and the current
                position - whichever is closer - so a fish that moved mid-tap
                still registers. The nearest by its own reach wins. */
-            int best = -1; float bd = 1.0f;
+            int best = -1, hk, was = s_sel; float bd = 1.0f;
             for (int i = 0; i < t->n_fish; i++) {
                 float ax = s_fx[i] - s_px, ay = s_fy[i] - s_py;
                 float bx = t->fish[i].x - s_px, by = t->fish[i].y - s_py;
@@ -627,18 +627,9 @@ void touch_port_poll(tank_t *t) {
                 if (again && tank_poke(t, best)) { s_sel = -1; s_poke_fish = -1; ESP_LOGI(TAG, "%s double-tapped: its trick", t->fish[best].name); }
                 else { s_sel = (best == s_sel) ? -1 : best; s_sel_us = now; }
             }
-            else if (tank_snail_hit(t, s_px, s_py)) {   /* the snail: its card (2026-09-16), the fish first */
-                s_sel = s_sel == RENDER_CARD_SNAIL ? -1 : RENDER_CARD_SNAIL; s_sel_us = now;
-                ESP_LOGI(TAG, "snail tapped: card %s (%d spots grazed)", s_sel >= 0 ? "up" : "down", (int)t->snail_grazed); }
-            else if (tank_urchin_hit(t, s_px, s_py)) {  /* the urchin: its card (2026-10-02) */
-                s_sel = s_sel == RENDER_CARD_URCHIN ? -1 : RENDER_CARD_URCHIN; s_sel_us = now;
-                ESP_LOGI(TAG, "urchin tapped: card %s (%.0f cm of grass grazed)", s_sel >= 0 ? "up" : "down", t->urchin_grazed_px / PX_PER_CM); }
-            else if (tank_shrimp_hit(t, s_px, s_py)) {  /* the shrimp school (2026-09-29): a tap its card, the third quick tap scares them */
-                int taps = tank_shrimp_tap(t, s_px, s_py);
-                if (taps == 1) { s_sel = s_sel == RENDER_CARD_SHRIMP ? -1 : RENDER_CARD_SHRIMP; s_sel_us = now; }
-                else if (taps >= 3) s_sel = -1;
-                ESP_LOGI(TAG, "shrimp tapped (%d): card %s | %d shrimp, %d eaten, %d/%d to the next", taps, s_sel == RENDER_CARD_SHRIMP ? "up" : "down",
-                         t->shrimp_n, (int)t->shrimp_eaten, t->shrimp_food, SHRIMP_PER_JOIN); }
+            else if ((hk = render_helper_tap(t, s_px, s_py, &s_sel)) >= 0) {   /* a helper (the fish first): its card */
+                if (s_sel != was) s_sel_us = now;
+                ESP_LOGI(TAG, "%s tapped: card %s", HELPER[hk].name, s_sel >= 0 ? "up" : "down"); }
             else if (s_sel >= 0) s_sel = -1;   /* card up: a tap on empty glass just
                                                   dismisses it - it is NOT a tank tap
                                                   (no feed, no light-toggle burst) */
@@ -652,7 +643,7 @@ void touch_port_poll(tank_t *t) {
 released:
     if (!touched) s_held_page = false;
     s_down = touched;
-    if (s_sel >= t->n_fish && s_sel != RENDER_CARD_SNAIL && s_sel != RENDER_CARD_SHRIMP && s_sel != RENDER_CARD_URCHIN) s_sel = -1;   /* fresh tank / save load */
+    if (s_sel >= t->n_fish && !render_card_is_helper(s_sel)) s_sel = -1;   /* fresh tank / save load */
     if (s_sel >= 0 && now - s_sel_us > 10 * 1000000) s_sel = -1; /* auto-dismiss */
     if (s_bat && now - s_bat_us > BATTERY_PAGE_US) s_bat = false; /* the battery page too, after a while */
 }

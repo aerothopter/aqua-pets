@@ -1896,13 +1896,13 @@ static float g_sng_heading = 1e9f;                     /* the heading sn_glass w
  * or flat ON THE GLASS, its underside to the viewer, drawn after the algae
  * like the film itself (it is on the pane). */
 static void draw_snail(ctx_t *c, const tank_t *t, bool upright_pass) {
-    if (!(t->sd_unlocks & SD_ITEM_SNAIL) || t->snail_x < 0) return;
+    if (!(t->sd_unlocks & SD_ITEM_SNAIL) || t->snail.x < 0) return;
     bool upright = tank_snail_upright(t);
     if (upright != upright_pass) return;
-    int ox = (int)t->snail_x, oy = (int)(t->snail_y + SNAIL_SOLE_DY);
+    int ox = (int)t->snail.x, oy = (int)(t->snail.y + SNAIL_SOLE_DY);
     sn_row_t row = { .y = -(1 << 20) };
     if (upright) {
-        bool flip = cosf(t->snail_heading) < 0;
+        bool flip = cosf(t->snail.heading) < 0;
         sn_sway_t sw = { 0.6f * fast_sin(t->clock * 2.4f), fast_sin(t->clock * 1.7f), fast_sin(t->clock * 1.7f + 2.2f) };
         float top[37];                                             /* the foot's ridge per column, then row by row (one water colour a row) */
         for (int lx = -16; lx <= 20; lx++) {
@@ -1914,13 +1914,13 @@ static void draw_snail(ctx_t *c, const tank_t *t, bool upright_pass) {
             for (int lx = -16; lx <= 20; lx++)
                 snail_put(c, flip ? ox - lx : ox + lx, oy + ly, snail_upright_tone(lx, ly, top[lx + 16], t->clock, &sw), SNAIL_TINT_FLOOR, &row);
     } else {
-        float a = t->snail_heading - 1.5708f;                      /* the head points +y locally */
+        float a = t->snail.heading - 1.5708f;                      /* the head points +y locally */
         float ca = cosf(a), sa = sinf(a);
-        int cx = (int)t->snail_x, cy = (int)t->snail_y;
+        int cx = (int)t->snail.x, cy = (int)t->snail.y;
         float stalk_y[2] = { 11.6f + 0.4f * fast_sin(t->clock * 2 + -1 + TAU), 11.6f + 0.4f * fast_sin(t->clock * 2 + 1 + TAU) };
         uint8_t *cls = ds()->sn_glass;
-        if (g_sng_heading != t->snail_heading) {                   /* it turned: what the heading alone decides, again */
-            g_sng_heading = t->snail_heading;
+        if (g_sng_heading != t->snail.heading) {                   /* it turned: what the heading alone decides, again */
+            g_sng_heading = t->snail.heading;
             for (int dy = -17; dy <= 17; dy++)
                 for (int dx = -17; dx <= 17; dx++) {
                     float lx = ca * dx + sa * dy, ly = -sa * dx + ca * dy;
@@ -2027,10 +2027,10 @@ static int urchin_tone(float lx, float ly, const ur_pose_t *p) {
     return UR_NONE;
 }
 static void draw_urchin(ctx_t *c, const tank_t *t) {
-    if (!(t->sd_unlocks & SD_ITEM_URCHIN) || t->urchin_x < 0) return;
+    if (!(t->sd_unlocks & SD_ITEM_URCHIN) || t->urchin.x < 0) return;
     if(theme_active() && theme_active()!=THEME_BLACKWATER) {   /* Blackwater keeps the Original's fine-spined urchin */
         bool club=theme_active()==THEME_TIDEPOOL_CLUB;
-        float cx=t->urchin_x,cy=URCHIN_FLOOR_Y;
+        float cx=t->urchin.x,cy=URCHIN_FLOOR_Y;
         uint32_t body=club?0xcf9e95:0x849f96,tip=club?0xffdf9a:0xd5dfbd;
         for(int i=0;i<11;i++) {
             float a=3.14159f+i*3.14159f/10,rr=11+1.2f*sinf(t->clock*2+i);
@@ -2041,7 +2041,7 @@ static void draw_urchin(ctx_t *c, const tank_t *t) {
         return;
     }
     ur_pose_t p; urchin_pose(&p, t->clock, tank_urchin_chewing(t));
-    int cx = (int)floorf(t->urchin_x + 0.5f), cy = (int)URCHIN_FLOOR_Y;
+    int cx = (int)floorf(t->urchin.x + 0.5f), cy = (int)URCHIN_FLOOR_Y;
     for (int ly = -16; ly <= (int)UR_BASE; ly++) {
         int y = cy + ly;
         uint32_t w = water_rgb(y < 0 ? 0 : y >= TANK_H ? TANK_H - 1 : y);
@@ -2085,8 +2085,8 @@ static void thick_line(ctx_t *c, float x0, float y0, float x1, float y1, float w
 }
 static void draw_frogman(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *bx1, int *by1) {
     float clock = t->clock;
-    float fx = t->frog_x, fy = t->frog_y + sinf(clock * 1.4f) * 2.5f + sinf(clock * 0.6f + 1) * 1.5f;
-    float d = t->frog_yaw >= 0 ? 1 : -1, sx = fabsf(t->frog_yaw) < 0.15f ? 0.15f : fabsf(t->frog_yaw);
+    float fx = t->frogman.x, fy = t->frogman.y + sinf(clock * 1.4f) * 2.5f + sinf(clock * 0.6f + 1) * 1.5f;
+    float d = t->frogman.yaw >= 0 ? 1 : -1, sx = fabsf(t->frogman.yaw) < 0.15f ? 0.15f : fabsf(t->frogman.yaw);
     int th = theme_active();
     bool bw = th == THEME_BLACKWATER;   /* Blackwater: a real diver - black neoprene, high-vis amber bands and fins, an aluminium tank */
     uint32_t suit  = bw ? 0x202428 : th == THEME_QUIET_LAGOON ? 0x2fb8a6 : th == THEME_TIDEPOOL_CLUB ? 0xff4f9a : 0xf5c242;
@@ -2166,8 +2166,8 @@ static void draw_frogman(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *bx1
  * a black waterline and rust. Live every frame; the rect it and its bubbles cover comes back. */
 static void draw_submarine(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *bx1, int *by1) {
     float clock = t->clock;
-    float fx = t->sub_x, fy = t->sub_y + sinf(clock * 0.9f) * 1.5f;
-    float d = t->sub_yaw >= 0 ? 1 : -1, sx = fabsf(t->sub_yaw) < 0.2f ? 0.2f : fabsf(t->sub_yaw);
+    float fx = t->sub.x, fy = t->sub.y + sinf(clock * 0.9f) * 1.5f;
+    float d = t->sub.yaw >= 0 ? 1 : -1, sx = fabsf(t->sub.yaw) < 0.2f ? 0.2f : fabsf(t->sub.yaw);
     int th = theme_active();
     uint32_t hull  = th == THEME_QUIET_LAGOON ? 0x5f8f62 : th == THEME_TIDEPOOL_CLUB ? 0xe8524a : th == THEME_BLACKWATER ? 0x56606a : 0xf2c230;
     uint32_t belly = th == THEME_QUIET_LAGOON ? 0x3f6a48 : th == THEME_TIDEPOOL_CLUB ? 0xfff4e0 : th == THEME_BLACKWATER ? 0x23282d : 0xd9a520;
@@ -2177,7 +2177,7 @@ static void draw_submarine(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *b
     uint32_t lit   = mix(hull, 0xffffff, 0.35f), metal = th == THEME_TIDEPOOL_CLUB ? 0xffc040 : 0xb8c0c6;
     uint32_t mist  = th == THEME_TIDEPOOL_CLUB ? 0x3d8e83 : th == THEME_BLACKWATER ? 0xc8e8ee : th == THEME_QUIET_LAGOON ? 0xc4e6d1 : 0x9fd8e2;
 #define FX(lx) (fx + (lx) * d * sx)
-    bool moving = t->sub_v > 1.5f;
+    bool moving = t->sub.v > 1.5f;
     /* the bubbles: a stream from the stern while moving (fast, many), a lazy few from the tower at a stop */
     int nb = moving ? 14 : 5;
     for (int i = 0; i < nb; i++) {
@@ -2228,9 +2228,9 @@ static void draw_submarine(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *b
     else fill_ellipse(c, FX(4), fy - 10, 1.5f * sx + 0.3f, 1.5f, glass, 255);
     thick_line(c, FX(-3), fy - 14.5f, FX(6), fy - 14.5f, 1.0f, trim);
     /* the periscope: rises from the tower at a stop, the head turning to look each way */
-    if (t->sub_peri > 0.02f) {
-        float up = t->sub_peri * 13, px = FX(1), top = fy - 14 - up;
-        float look = sinf(t->sub_look * 1.7f);                                                       /* -1 left .. 1 right */
+    if (t->sub.peri > 0.02f) {
+        float up = t->sub.peri * 13, px = FX(1), top = fy - 14 - up;
+        float look = sinf(t->sub.look * 1.7f);                                                       /* -1 left .. 1 right */
         thick_line(c, px, fy - 14, px, top, 1.6f, metal);
         thick_line(c, px, top + 0.5f, px + look * 4.5f, top + 0.5f, 1.8f, metal);                     /* the head, turned */
         fill_ellipse(c, px + look * 4.8f, top + 0.5f, 1.3f, 1.3f, 0x20262a, 255);                     /* the lens */
@@ -2692,6 +2692,81 @@ static void decor_positions(const tank_t *t, dpos_t *pos) {
     for (int k = 0; k < DK_COUNT; k++) { pos[k].k = k; decor_state(t, k, &pos[k].x, &pos[k].z, &pos[k].placing); }
 }
 
+/* ---- the helpers (helper.h): never in the scene, all drawn live. Each frame
+ * every owned one is asked, in kind order, in each of four slots: under the
+ * creatures, over them (under the front fronds), over the decor IN FRONT, and
+ * on the glass over the film. Each answers for itself in each slot - the snail
+ * walks the floor in either lane and grazes the glass. ---- */
+enum { HS_UNDER, HS_OVER, HS_FRONT, HS_GLASS };
+static void snail_paint(dframe_t *f, int slot) {
+    const tank_t *t = f->t;
+    /* on the floor (upright): with the fish, under the front fronds - unless it walks
+       its front lane (snail.front), drawn over the pieces IN FRONT (its rect is marked here) */
+    if (slot == HS_OVER && tank_snail_upright(t)) {
+        if (!t->snail.front) draw_snail(f->c, t, true);
+        dyn_add(f->dr, (int)t->snail.x - 21, (int)t->snail.y - 13, (int)t->snail.x + 21, (int)t->snail.y + 7);
+    }
+    if (slot == HS_FRONT && tank_snail_upright(t) && t->snail.front) draw_snail(f->c, t, true);
+    if (slot == HS_GLASS) draw_snail(f->c, t, false);     /* on the glass, over the film */
+}
+static void urchin_paint(dframe_t *f, int slot) {
+    const tank_t *t = f->t;
+    if (slot != HS_OVER || t->urchin.x < 0) return;       /* with the fish, under the front fronds - at a bed's foot the grass weaves over it */
+    draw_urchin(f->c, t);
+    dyn_add(f->dr, (int)t->urchin.x - 19, (int)URCHIN_FLOOR_Y - 17, (int)t->urchin.x + 19, (int)(URCHIN_FLOOR_Y + UR_BASE) + 1);
+}
+static void shrimp_paint(dframe_t *f, int slot) {
+    if (slot != HS_UNDER) return;                         /* on the sand and in the grass, under the fish and the front fronds (the grass is their cover) */
+    const tank_t *t = f->t;
+    src_t pal[SHRIMP_TONES];
+    for (int k = 0; k < SHRIMP_TONES; k++) pal[k] = src_color(SHRIMP_RGB[k], f->c->dim);
+    for (int i = 0; i < t->school.n; i++) {
+        draw_shrimp(f->c, &t->school.q[i], pal);
+        dyn_add(f->dr, (int)t->school.q[i].x - 10, (int)t->school.q[i].y - 5, (int)t->school.q[i].x + 10, (int)t->school.q[i].y + 5);
+    }
+}
+static void frogman_paint(dframe_t *f, int slot) {        /* (2026-10-10) drifting sideways in mid-water, under the fish */
+    if (slot != HS_UNDER) return;
+    int x0, y0, x1, y1; draw_frogman(f->c, f->t, &x0, &y0, &x1, &y1); dyn_add(f->dr, x0, y0, x1, y1);
+}
+static void sub_paint(dframe_t *f, int slot) {            /* (2026-10-10 night) cruising the water, under the fish */
+    if (slot != HS_UNDER) return;
+    int x0, y0, x1, y1; draw_submarine(f->c, f->t, &x0, &y0, &x1, &y1); dyn_add(f->dr, x0, y0, x1, y1);
+}
+typedef struct {
+    void (*paint)(dframe_t *f, int slot);
+    int  card;                                            /* the RENDER_CARD_* a tap on it opens (0 = none) */
+    void (*card_draw)(ctx_t *c, const tank_t *t);
+} helper_draw_t;
+static void snail_card_draw(ctx_t *c, const tank_t *t);
+static void urchin_card_draw(ctx_t *c, const tank_t *t);
+static void shrimp_card_draw(ctx_t *c, const tank_t *t);
+static const helper_draw_t HELPER_DRAW[HK_COUNT] = {
+    [HK_SNAIL]   = { snail_paint,   RENDER_CARD_SNAIL,  snail_card_draw },
+    [HK_URCHIN]  = { urchin_paint,  RENDER_CARD_URCHIN, urchin_card_draw },
+    [HK_SHRIMP]  = { shrimp_paint,  RENDER_CARD_SHRIMP, shrimp_card_draw },
+    [HK_FROGMAN] = { frogman_paint, 0, NULL },
+    [HK_SUB]     = { sub_paint,     0, NULL },
+};
+static void helper_pass(dframe_t *f, int slot) {
+    for (int k = 0; k < HK_COUNT; k++)
+        if (HELPER_DRAW[k].paint && helper_owned(f->t, k)) HELPER_DRAW[k].paint(f, slot);
+}
+static int helper_of_card(int card) {
+    if (card <= 0) return -1;
+    for (int k = 0; k < HK_COUNT; k++) if (HELPER_DRAW[k].card == card) return k;
+    return -1;
+}
+bool render_card_is_helper(int sel) { return helper_of_card(sel) >= 0; }
+int render_helper_tap(tank_t *t, float x, float y, int *sel) {
+    int k = helper_hit(t, x, y);
+    if (k < 0) return -1;
+    int card = HELPER_DRAW[k].card, act = HELPER[k].tap ? HELPER[k].tap(t, x, y) : 1;
+    if (act > 0) *sel = *sel == card ? -1 : card;
+    else if (act < 0) *sel = -1;
+    return k;
+}
+
 static void draw_scene(const tank_t *t, uint16_t *fb, int stride, float dim) {
     ctx_t c = ctx_full(fb, stride, dim);
     /* water gradient #0a3c46 → #08272f → #031015 */
@@ -2854,20 +2929,7 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
     /* bubbles: the drifting ones, and the column's behind the creatures (the airstone's depth: airstone_front) */
     for (int i = 0; i < MAX_BUBBLE; i++)
         if (!airstone_bubble_front(t, i)) draw_bubble(&c, &t->bubble[i], &dr);
-    /* the shrimp school: on the sand and in the grass, under the fish and
-       the front fronds (the grass is their cover) */
-    if (t->sd_unlocks & SD_ITEM_SHRIMP) {
-        src_t pal[SHRIMP_TONES];
-        for (int k = 0; k < SHRIMP_TONES; k++) pal[k] = src_color(SHRIMP_RGB[k], c.dim);
-        for (int i = 0; i < t->shrimp_n; i++) {
-            draw_shrimp(&c, &t->shrimp[i], pal);
-            DYN_RECT((int)t->shrimp[i].x - 10, (int)t->shrimp[i].y - 5, (int)t->shrimp[i].x + 10, (int)t->shrimp[i].y + 5);
-        }
-    }
-    /* the frogman (2026-10-10): drifting sideways in mid-water, under the fish */
-    if (t->sd_unlocks & SD_ITEM_FROGMAN) { int qx0, qy0, qx1, qy1; draw_frogman(&c, t, &qx0, &qy0, &qx1, &qy1); DYN_RECT(qx0, qy0, qx1, qy1); }
-    /* the submarine (2026-10-10 night): cruising above the frogman's water, under the fish */
-    if (t->sd_unlocks & SD_ITEM_SUB) { int qx0, qy0, qx1, qy1; draw_submarine(&c, t, &qx0, &qy0, &qx1, &qy1); DYN_RECT(qx0, qy0, qx1, qy1); }
+    helper_pass(&df, HS_UNDER);                    /* the shrimp school, the frogman, the sub */
     PROF_ADD(3, p0);
     /* fish */
     for (int i = 0; i < t->n_fish; i++) {
@@ -2876,19 +2938,7 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
         g_bb_on = false;
         if (g_bb_x1 >= g_bb_x0) DYN_RECT(g_bb_x0, g_bb_y0, g_bb_x1, g_bb_y1);
     }
-    /* the snail on the floor (upright): in the scene, under the front fronds -
-       unless it walks its front lane (tank_t.snail_front), drawn below, over
-       the pieces placed IN FRONT */
-    if (tank_snail_upright(t)) {
-        if (!t->snail_front) draw_snail(&c, t, true);
-        DYN_RECT((int)t->snail_x - 21, (int)t->snail_y - 13, (int)t->snail_x + 21, (int)t->snail_y + 7);
-    }
-    /* the urchin on the floor: with the fish, under the front fronds - at a
-       bed's foot the grass weaves over it */
-    if ((t->sd_unlocks & SD_ITEM_URCHIN) && t->urchin_x >= 0) {
-        draw_urchin(&c, t);
-        DYN_RECT((int)t->urchin_x - 19, (int)URCHIN_FLOOR_Y - 17, (int)t->urchin_x + 19, (int)(URCHIN_FLOOR_Y + UR_BASE) + 1);
-    }
+    helper_pass(&df, HS_OVER);                     /* the snail on the floor, the urchin */
     /* the decor over the creatures: the castle's front row (a fish in the arch
        swims THROUGH), the front fronds of the woven beds (each span applies its
        own vignette and untags itself, so the fish rects below skip it), then
@@ -2896,7 +2946,7 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
        only over what was drawn on it this frame; otherwise whole */
     decor_pass(&df, pos, PAINT_FRONT, N_OF(PAINT_FRONT), true, DECOR_Z_MIDDLE);
     decor_pass(&df, pos, PAINT_FRONT, N_OF(PAINT_FRONT), true, DECOR_Z_FRONT);
-    if (tank_snail_upright(t) && t->snail_front) draw_snail(&c, t, true);   /* its front lane: over them (its rect is marked above) */
+    helper_pass(&df, HS_FRONT);                    /* the snail's front lane */
     PROF_ADD(4, p0);
     /* porthole vignette: darken corners toward AMOLED black. With a scene
        cache the full-frame pass is baked into the scene and only the dynamic
@@ -2963,7 +3013,7 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
      * behind it needs repair, and next frame's scene restore erases wiped
      * cells for free) */
     draw_algae(&c, t);
-    draw_snail(&c, t, false);                    /* on the glass, over the film */
+    helper_pass(&df, HS_GLASS);                  /* the snail on the glass, over the film */
     PROF_ADD(6, p0);
 #undef DYN_RECT
 }
@@ -3255,7 +3305,8 @@ static void draw_text(ctx_t *c, int x, int y, int scale, uint32_t rgb, const cha
 static void rect_edge(ctx_t *c, int x, int y, int w, int h, uint32_t rgb);
 static void blit_icon_scaled(ctx_t *c, int x, int y, const icon_t *ic, int s, bool lit);
 static void snail_card_draw(ctx_t *c, const tank_t *t) {
-    ring(c, t->snail_x, t->snail_y, 20, 0x9fd8e2);
+    if (t->snail.x < 0) return;
+    ring(c, t->snail.x, t->snail.y, 20, 0x9fd8e2);
     const int W = SNAIL_CARD_W, H = SNAIL_CARD_H, X = (TANK_W - W) / 2, Y = (TANK_H - H) / 2;
     src_t bg = src_color(theme_ui_color(0x04141a), 1.0f);
     for (int y = Y; y < Y + H; y++) span(c, X, X + W - 1, y, &bg, 235);
@@ -3266,8 +3317,8 @@ static void snail_card_draw(ctx_t *c, const tank_t *t) {
     const char *cap = "ALGAE GRAZED SO FAR";
     draw_text(c, X + (W - text_w(cap, 2)) / 2, Y + 112, 2, 0x9fd8e2, cap);
     char n[24];
-    if (t->snail_grazed <= 0) snprintf(n, sizeof n, "NOTHING YET");
-    else snprintf(n, sizeof n, "%d SPOT%s", (int)t->snail_grazed, t->snail_grazed == 1 ? "" : "S");
+    if (t->snail.grazed <= 0) snprintf(n, sizeof n, "NOTHING YET");
+    else snprintf(n, sizeof n, "%d SPOT%s", (int)t->snail.grazed, t->snail.grazed == 1 ? "" : "S");
     draw_text(c, X + (W - text_w(n, 3)) / 2, Y + 134, 3, 0xffffff, n);
 }
 
@@ -3275,7 +3326,8 @@ static void snail_card_draw(ctx_t *c, const tank_t *t) {
    at 3x with its spines waving, SEA URCHIN, the grass it has eaten so far
    (the trim's centimeters) and what it is up to - in words, never colour. */
 static void urchin_card_draw(ctx_t *c, const tank_t *t) {
-    ring(c, t->urchin_x, URCHIN_FLOOR_Y - 3, 22, 0x9fd8e2);
+    if (t->urchin.x < 0) return;
+    ring(c, t->urchin.x, URCHIN_FLOOR_Y - 3, 22, 0x9fd8e2);
     const int W = URCHIN_CARD_W, H = URCHIN_CARD_H, X = (TANK_W - W) / 2, Y = (TANK_H - H) / 2;
     src_t bg = src_color(theme_ui_color(0x04141a), 1.0f);
     for (int y = Y; y < Y + H; y++) span(c, X, X + W - 1, y, &bg, 235);
@@ -3292,13 +3344,13 @@ static void urchin_card_draw(ctx_t *c, const tank_t *t) {
     draw_text(c, X + (W - text_w("SEA URCHIN", 3)) / 2, Y + 90, 3, 0xffffff, "SEA URCHIN");
     const char *cap = "GRASS GRAZED SO FAR";
     draw_text(c, X + (W - text_w(cap, 2)) / 2, Y + 118, 2, 0x9fd8e2, cap);
-    char n[24]; int cm = (int)(t->urchin_grazed_px / PX_PER_CM);
+    char n[24]; int cm = (int)(t->urchin.grazed_px / PX_PER_CM);
     if (cm < 1) snprintf(n, sizeof n, "NOTHING YET");
     else if (cm < 1000) snprintf(n, sizeof n, "%d CM", cm);
     else snprintf(n, sizeof n, "%d.%dK CM", cm / 1000, cm % 1000 / 100);   /* 1.0K CM and up: the line never outgrows the card (0.3.2) */
     draw_text(c, X + (W - text_w(n, 3)) / 2, Y + 140, 3, 0xffffff, n);
     const char *now = tank_urchin_chewing(t) ? "CHEWING"
-                    : t->urchin_frond >= 0 ? "OFF TO THE TALL GRASS"
+                    : t->urchin.frond >= 0 ? "OFF TO THE TALL GRASS"
                     : "RESTING";
     draw_text(c, X + (W - text_w(now, 2)) / 2, Y + 170, 2, 0x9fd8e2, now);
 }
@@ -3307,11 +3359,12 @@ static void urchin_card_draw(ctx_t *c, const tank_t *t) {
    card to show how much food they've eaten and progress to the next shrimp").
    The pips fill with pellets - filled vs hollow, never colour alone. */
 static void shrimp_card_draw(ctx_t *c, const tank_t *t) {
-    int n = t->shrimp_n;
+    int n = t->school.n;
+    if (n <= 0) return;
     float cx = 0, cy = 0, r = 0;
-    for (int i = 0; i < n; i++) { cx += t->shrimp[i].x; cy += t->shrimp[i].y; }
+    for (int i = 0; i < n; i++) { cx += t->school.q[i].x; cy += t->school.q[i].y; }
     cx /= n; cy /= n;
-    for (int i = 0; i < n; i++) { float d = tank_dist(cx, cy, t->shrimp[i].x, t->shrimp[i].y); if (d > r) r = d; }
+    for (int i = 0; i < n; i++) { float d = tank_dist(cx, cy, t->school.q[i].x, t->school.q[i].y); if (d > r) r = d; }
     ring(c, cx, cy, fminf(fmaxf(r + 14, 22), 90), 0x9fd8e2);
     const int W = SHRIMP_CARD_W, H = SHRIMP_CARD_H, X = (TANK_W - W) / 2, Y = (TANK_H - H) / 2;
     src_t bg = src_color(theme_ui_color(0x04141a), 1.0f);
@@ -3332,12 +3385,12 @@ static void shrimp_card_draw(ctx_t *c, const tank_t *t) {
     char line[32];
     snprintf(line, sizeof line, "%d SHRIMP", n);
     draw_text(c, X + (W - text_w(line, 3)) / 2, Y + 46, 3, 0xffffff, line);
-    snprintf(line, sizeof line, "%d PELLET%s EATEN", (int)t->shrimp_eaten, t->shrimp_eaten == 1 ? "" : "S");
+    snprintf(line, sizeof line, "%d PELLET%s EATEN", (int)t->school.eaten, t->school.eaten == 1 ? "" : "S");
     draw_text(c, X + (W - text_w(line, 2)) / 2, Y + 76, 2, 0x9fd8e2, line);
     const char *cap = "NEXT SHRIMP";
     draw_text(c, X + (W - text_w(cap, 2)) / 2, Y + 104, 2, 0x9fd8e2, cap);
     bool full = n >= SHRIMP_MAX;
-    int have = full ? SHRIMP_PER_JOIN : t->shrimp_food;
+    int have = full ? SHRIMP_PER_JOIN : t->school.food;
     const int pitch = 22, px0 = X + (W - (SHRIMP_PER_JOIN - 1) * pitch) / 2, py = Y + 132;
     for (int i = 0; i < SHRIMP_PER_JOIN; i++) {
         float x = px0 + i * pitch;
@@ -3348,11 +3401,11 @@ static void shrimp_card_draw(ctx_t *c, const tank_t *t) {
     }
     if (full) snprintf(line, sizeof line, "THE SCHOOL IS FULL");
     else if (tank_shrimp_refusing(t)) snprintf(line, sizeof line, "TOO MUCH ALGAE TO EAT");
-    else if (t->shrimp_food >= SHRIMP_PER_JOIN && t->shrimp_cool > 0) {
-        int m = (int)ceilf(t->shrimp_cool / 60.0f);
+    else if (t->school.food >= SHRIMP_PER_JOIN && t->school.cool > 0) {
+        int m = (int)ceilf(t->school.cool / 60.0f);
         snprintf(line, sizeof line, "ARRIVES IN %d MIN", m < 1 ? 1 : m);
     } else {
-        int more = SHRIMP_PER_JOIN - t->shrimp_food;
+        int more = SHRIMP_PER_JOIN - t->school.food;
         snprintf(line, sizeof line, "%d MORE PELLET%s", more, more == 1 ? "" : "S");
     }
     draw_text(c, X + (W - text_w(line, 2)) / 2, Y + 158, 2, 0xffffff, line);
@@ -3360,22 +3413,11 @@ static void shrimp_card_draw(ctx_t *c, const tank_t *t) {
 
 void render_stats_card(const tank_t *t, int fish_idx, uint16_t *fb, int stride) {
     render_use_theme(t->theme);
-    if (fish_idx == RENDER_CARD_SHRIMP) {
-        if (!(t->sd_unlocks & SD_ITEM_SHRIMP) || t->shrimp_n <= 0) return;
+    int hk = helper_of_card(fish_idx);
+    if (hk >= 0) {                                   /* a helper's card (each says when it has nothing to show) */
+        if (!helper_owned(t, hk)) return;
         ctx_t sc = ctx_full(fb, stride, 1.0f);
-        shrimp_card_draw(&sc, t);
-        return;
-    }
-    if (fish_idx == RENDER_CARD_URCHIN) {
-        if (!(t->sd_unlocks & SD_ITEM_URCHIN) || t->urchin_x < 0) return;
-        ctx_t sc = ctx_full(fb, stride, 1.0f);
-        urchin_card_draw(&sc, t);
-        return;
-    }
-    if (fish_idx == RENDER_CARD_SNAIL) {
-        if (!(t->sd_unlocks & SD_ITEM_SNAIL) || t->snail_x < 0) return;
-        ctx_t sc = ctx_full(fb, stride, 1.0f);
-        snail_card_draw(&sc, t);
+        HELPER_DRAW[hk].card_draw(&sc, t);
         return;
     }
     if (fish_idx < 0 || fish_idx >= t->n_fish) return;

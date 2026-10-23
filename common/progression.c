@@ -79,6 +79,10 @@ typedef struct {
     int32_t  count;
 } helper_save_t;
 #define HELPER_SAVE_MAX 8
+/* each helper's record kind (helper.h's rows say what the fields hold); a
+   helper with no save hook keeps nothing (the frogman, the sub) */
+static const uint8_t SVH_OF[HK_COUNT] = { [HK_SNAIL] = SVH_SNAIL, [HK_URCHIN] = SVH_URCHIN, [HK_SHRIMP] = SVH_SHRIMP };
+_Static_assert(HK_COUNT <= HELPER_SAVE_MAX, "a helper without a record in the save");
 
 typedef struct {
     /* the header */
@@ -360,11 +364,7 @@ bool progression_buy(tank_t *t, int item) {
     if (sp > 0 && !add_species(t, sp, 1)) return false;    /* one juvenile, by the reef - or no room */
     t->sd_balance -= it->price; t->sd_unlocks |= it->bit;
     decor_place(t, decor_kind_of_item(item));             /* a piece of decor arrives at its default spot */
-    if (it->bit == SD_ITEM_SNAIL) tank_snail_place(t);
-    if (it->bit == SD_ITEM_SHRIMP) { tank_shrimp_place(t, SHRIMP_START); t->shrimp_food = 0; t->shrimp_cool = 0; }
-    if (it->bit == SD_ITEM_URCHIN) tank_urchin_place(t);
-    if (it->bit == SD_ITEM_FROGMAN) tank_frogman_place(t);
-    if (it->bit == SD_ITEM_SUB) tank_sub_place(t);
+    helper_arrive(t, helper_kind_of_item(item));          /* a helper appears and goes about its rules */
     progression_save(t);                                   /* a purchase sticks at once */
     return true;
 }
@@ -765,26 +765,14 @@ static bool load_save(tank_t *t, int64_t *saved_unix) {
         t->decor[k].rgb = ds->rgb & 0xffffff;
         t->decor[k].growth = ds->growth > 0 ? ds->growth : 0;   /* 0 = full (tank_coral_growth, tank_cluster_growth) */
     }
-    /* the helpers */
-    if (t->sd_unlocks & SD_ITEM_FROGMAN) tank_frogman_place(t);   /* (his motion is not saved) */
-    if (t->sd_unlocks & SD_ITEM_SUB) tank_sub_place(t);
-    {
-        helper_save_t h = sv_helper(&sv, SVH_SNAIL);
-        if (h.x > 0) { t->snail_x = h.x; t->snail_y = h.y; }
-        t->snail_grazed = h.count;
-        h = sv_helper(&sv, SVH_SHRIMP);
-        if (t->sd_unlocks & SD_ITEM_SHRIMP) {             /* the school back in the grass, its count and its progress */
-            tank_shrimp_place(t, h.n >= SHRIMP_START ? h.n : SHRIMP_START);
-            t->shrimp_food = h.m <= SHRIMP_PER_JOIN ? h.m : SHRIMP_PER_JOIN;
-            t->shrimp_cool = h.amount > 0 && h.amount <= SHRIMP_COOLDOWN_S ? h.amount : 0;
-            t->shrimp_eaten = h.count > 0 ? h.count : 0;
-        } else { t->shrimp_n = 0; t->shrimp_eaten = 0; }
-        h = sv_helper(&sv, SVH_URCHIN);
-        if (t->sd_unlocks & SD_ITEM_URCHIN) {             /* back where it was on the floor, its tally */
-            tank_urchin_place(t);
-            if (h.x > 0) t->urchin_x = h.x;
-            t->urchin_grazed_px = h.amount > 0 ? h.amount : 0;
-        } else { t->urchin_x = -1; t->urchin_grazed_px = 0; }
+    /* the helpers: each restores itself from its record (zeros when the save has
+       none); one that keeps nothing arrives fresh when it is owned */
+    for (int k = 0; k < HK_COUNT; k++) {
+        if (HELPER[k].load) {
+            helper_save_t h = sv_helper(&sv, SVH_OF[k]);
+            helper_rec_t r = { h.n, h.m, h.x, h.y, h.amount, h.count };
+            HELPER[k].load(t, &r);
+        } else if (helper_owned(t, k)) helper_arrive(t, k);
     }
     s_sd_prev_feedings = t->player_feedings;         /* meals before this boot are not back-paid */
     s_sd_pending = 0;
@@ -886,7 +874,7 @@ void progression_tick(tank_t *t, float dt) {
     if (t->trims > 0) set_tms(t, TMS_FIRST_TRIM);
     if (t->algae_colonies > 0) set_tms(t, TMS_FIRST_CLEANING);   /* the first colony wiped away, as the first cut is the first trimming
                                                                     (0.3.2; it was 30 cells, hours of film on a new tank) */
-    if ((t->sd_unlocks & SD_ITEM_SHRIMP) && t->shrimp_n >= SHRIMP_MAX) set_tms(t, TMS_FULL_SCHOOL);
+    if ((t->sd_unlocks & SD_ITEM_SHRIMP) && t->school.n >= SHRIMP_MAX) set_tms(t, TMS_FULL_SCHOOL);
     if (reef_visit) set_tms(t, TMS_FIRST_REEF);  /* a fish chose to look at the reef cluster */
     if (t->trims != s_prev_trims || t->cells_cleaned != s_prev_cleaned) {
         s_prev_trims = t->trims; s_prev_cleaned = t->cells_cleaned;
@@ -1008,15 +996,12 @@ bool progression_save(tank_t *t) {
         ds->x = k == DK_AIRSTONE ? tank_bubble_x(t) : d->x > 0 ? d->x : 0;
         ds->growth = d->growth; ds->rgb = d->rgb;
     }
-    {   /* the helpers */
-        helper_save_t *h = &sv.helper[0];
-        h->kind = SVH_SNAIL; h->x = t->snail_x > 0 ? t->snail_x : 0; h->y = t->snail_y > 0 ? t->snail_y : 0; h->count = t->snail_grazed;
-        h = &sv.helper[1];
-        h->kind = SVH_URCHIN; h->x = (t->sd_unlocks & SD_ITEM_URCHIN) && t->urchin_x > 0 ? t->urchin_x : 0;
-        h->amount = t->urchin_grazed_px > 0 ? t->urchin_grazed_px : 0;
-        h = &sv.helper[2];
-        h->kind = SVH_SHRIMP; h->n = (t->sd_unlocks & SD_ITEM_SHRIMP) ? t->shrimp_n : 0; h->m = t->shrimp_food;
-        h->amount = t->shrimp_cool > 0 ? t->shrimp_cool : 0; h->count = t->shrimp_eaten;
+    for (int k = 0, r = 0; k < HK_COUNT; k++) {        /* the helpers, a record each that keeps something */
+        if (!HELPER[k].save) continue;
+        helper_rec_t rec; memset(&rec, 0, sizeof rec);
+        HELPER[k].save(t, &rec);
+        helper_save_t *h = &sv.helper[r++];
+        h->kind = SVH_OF[k]; h->n = rec.n; h->m = rec.m; h->x = rec.x; h->y = rec.y; h->amount = rec.amount; h->count = rec.count;
     }
     sv.setup_pending = s_setup_pending;
     sv.newborn_p1 = (uint8_t)(s_newborn >= 0 && s_newborn < t->n_fish ? s_newborn + 1 : 0);

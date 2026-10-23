@@ -20,6 +20,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "decor.h"
+#include "helper.h"
 
 #ifdef TANK_ROUND               /* the round 466 px glass (Waveshare 1.75C, 2026-10-01): the frame is the square around a bowl */
 #define TANK_W 466
@@ -408,35 +409,6 @@ typedef struct { float x, y, age; bool alive, from_player; float floor_s, nibble
 #define FOOD_LIFE_S   45.0f          /* in the water: gone at this age if it never reached the floor */
 #define FOOD_FLOOR_Y  (TANK_BOT - 14)  /* where a pellet comes to rest */
 #define FOOD_FLOOR_S  15.0f          /* ... and how long it rests there (Strato, 2026-09-29) */
-
-/* the shrimp school (2026-09-29, the shop's sixth item, SD_ITEM_SHRIMP): cherry
- * shrimp that swim as a loose school with a pull toward the grass, swarm the
- * pellets that sink below the grass's top (falling or on the floor), drift up
- * to the canopy now and then, and scatter when the keeper taps near them.
- * Bought as SHRIMP_START grown adults; every SHRIMP_PER_JOIN pellets the school
- * eats brings one more, up to SHRIMP_MAX, never two within SHRIMP_COOLDOWN_S
- * (the count stops at SHRIMP_PER_JOIN while it waits - no burst). Over
- * SHRIMP_REFUSE_COVER of the glass fouled they refuse food: they stay in the
- * grass and turn away from pellets, so the school stops growing (never shrinks).
- * Strato's words throughout (2026-09-29): "they should just swarm pellets that
- * hit the ground", "a user cant spam this", "when there is too much algae,
- * shrimp will refuse to eat". Drawn procedurally (render.c draw_shrimp). */
-#define SHRIMP_START        4
-#define SHRIMP_MAX          10
-#define SHRIMP_PER_JOIN     10
-#define SHRIMP_COOLDOWN_S   (15.0f * 60.0f)
-#define SHRIMP_REFUSE_COVER 0.5f
-#define SHRIMP_PECK_S       8.0f     /* shrimp-seconds of pecking to finish a pellet: a huddle of
-                                      * 3-4 takes 2-3 s - long enough to see them swarm it */
-typedef struct {
-    float  x, y, vx, vy;             /* centre of the body; px/s */
-    float  yaw;                      /* -1..1 as the fish's: the turn foreshortens it */
-    float  behind;                   /* s its way has been behind it (a committed turn, as the fish) */
-    float  ph;                       /* animation phase: legs, the peck, the bob */
-    float  dart;                     /* s left of a tail-flick escape */
-    int8_t facing;
-    uint8_t pecking;                 /* at a floor pellet this frame */
-} shrimp_t;
 typedef struct { float x, y, vy, wobble; bool column; } bubble_t;
 
 typedef struct tank {
@@ -537,74 +509,18 @@ typedef struct tank {
     uint32_t sd_unlocks;
     uint32_t sd_paid_fish[N_FISH_MAX];
     int32_t  sd_colonies_paid, sd_inches_paid;
-    /* the snail (SD_ITEM_SNAIL): crawls the glass toward the nearest film and
-     * grazes it - the one creature in the tank that is not the model's. Its
-     * position is saved; heading / target are not. */
-    float    snail_x, snail_y, snail_heading;
-    int16_t  snail_cell;           /* the algae cell it is heading for, -1 = wandering */
-    float    snail_graze;          /* seconds on the current cell */
-    bool     snail_front;          /* walking the floor, it passes IN FRONT of a reef cluster or coral placed
-                                    * IN FRONT (0.3.2, Strato: "it marches to the beat of its own drum" - the
-                                    * big cluster hid it for most of its walk). Its own choice, made again at
-                                    * each end of the floor; off the glass it lands in front, where it was.
-                                    * Not saved. */
-    int32_t  snail_grazed;         /* algae cells it has grazed clean, lifetime (its card,
-                                    * 2026-09-16; saved) */
-    float    snail_sleep_acc;      /* the night shift's part-cells: a nap's few minutes still count
-                                    * (not saved; a boot lives the whole absence in one call) */
-    /* the urchin (SD_ITEM_URCHIN, 2026-10-02): grazes the tall GRASS down on
-     * the floor, as the snail grazes the glass. Its x is saved (the floor is
-     * its y); the frond it is after, its appetite and its chewing are not. */
-    float    urchin_x;
-    int8_t   urchin_bed, urchin_frond; /* the frond it is after, -1 = none: it rests or ambles */
-    float    urchin_appetite;      /* frond height it is due to eat (URCHIN_* in tank.c) */
-    float    urchin_chew;          /* seconds at the frond's foot so far */
-    float    urchin_to;            /* an amble's destination x, < 0 = resting */
-    float    urchin_rest;          /* seconds left of the rest */
-    float    urchin_grazed_px;     /* grass it has eaten, lifetime, in the trim's px (VEG_PAY_PX:
-                                    * the same length on every board; its card shows cm). Saved */
+    /* the helpers (helper.h): each its own state, all of it the rules' own -
+     * what is saved is in each one's row (progression.c, a record a kind) */
+    snail_t  snail;
+    urchin_t urchin;
+    school_t school;
+    drift_t  frogman, sub;
     /* the decor (decor.h): every static piece, indexed by decor_kind_t - where the
      * keeper put it (its centre x along the floor, <= 0 = the default spot) and
      * its depth, and the coral's colour and growth, the cluster's look and growth.
      * The plant's fronds are veg_h[3]; the airstone's x is the bubble column's.
      * All saved (progression.c: a record a piece). */
     decor_t  decor[DK_COUNT];
-    /* the frogman (2026-10-10, item 8; he hung from the wreck's stern before): a little diver
-       who floats SIDEWAYS, horizontal, drifting across the water from glass to glass, turning
-       at each end, easing to a new lane now and then, waving at times. His suit is the
-       theme's (render.c). Only the bit is saved: a load puts him mid-tank. */
-    float    frog_x, frog_y;
-    float    frog_yaw;             /* -1 facing left .. 1 facing right; thin through a turn */
-    int8_t   frog_dir;             /* the way he is going */
-    float    frog_lane;            /* the y he eases toward */
-    float    frog_lane_t;          /* seconds until he picks another lane */
-    float    frog_toss, frog_vx, frog_vy;   /* tossed by a shake (tank_shake): seconds left, the throw */
-    /* the submarine (2026-10-10 night, item 9): a little sub that cruises the water from glass to
-       glass like the frogman, propeller turning, bubbles streaming from the stern - and every
-       SUB_CRUISE_LO..HI s it stops, a periscope rises, scans, and sinks before it goes on. The
-       hull is the theme's (render.c). Only the bit is saved: a load puts it mid-tank. */
-    float    sub_x, sub_y;
-    float    sub_yaw;              /* -1 facing left .. 1 facing right */
-    int8_t   sub_dir;
-    float    sub_lane, sub_lane_t;
-    float    sub_v;                /* px/s along its heading: eases to SUB_SPEED, or to 0 for a stop */
-    float    sub_stop;             /* seconds left of a stop (0 = cruising) */
-    float    sub_next;             /* seconds until the next stop */
-    float    sub_peri;             /* the periscope: 0 down .. 1 up */
-    float    sub_look;             /* seconds the periscope has been up (it scans on this) */
-    float    sub_toss, sub_vx, sub_vy;
-    /* the shrimp school (SD_ITEM_SHRIMP, see SHRIMP_*): how many (saved), the
-     * pellets eaten toward the next one (0..SHRIMP_PER_JOIN, saved), the seconds
-     * before another may join (saved), each shrimp's motion (not saved: a load
-     * places them in the grass), and the school's current goal and its timer. */
-    uint8_t  shrimp_n;
-    uint8_t  shrimp_food;
-    float    shrimp_cool;
-    int32_t  shrimp_eaten;         /* pellets the school has eaten, lifetime (its card; saved) */
-    uint8_t  shrimp_taps;          /* quick taps on the school in a row (the third scares them; not saved) */
-    float    shrimp_tap_t;         /* seconds since the last one */
-    shrimp_t shrimp[SHRIMP_MAX];
-    float    shrimp_tx, shrimp_ty, shrimp_tt;
     /* keeper habits the tank remembers (persisted by progression.c) */
     float    feed_spot_x;          /* where the keeper usually feeds (EMA); <0 = unknown */
     int      player_feedings;      /* MEALS: feedings the fish ate from (2026-09-14, Strato: a tap
@@ -882,8 +798,6 @@ int   tank_species_n(const tank_t *t, int species);
 float tank_fish_hit_r(const fish_t *f);
 bool  tank_poke(tank_t *t, int idx);        /* a double tap on creature idx: its trick (puff, ink); false = it has none */
 void  tank_wreck_place(tank_t *t);           /* the shipwreck bought: its default spot (item 7) */
-void  tank_frogman_place(tank_t *t);         /* the frogman bought (or loaded): mid-tank, heading right (item 8) */
-void  tank_sub_place(tank_t *t);             /* the submarine bought (or loaded): mid-tank, heading left (item 9) */
 /* a hard shake of the device (2026-10-10; the IMU's shake detector, the sim's 1 key): every
  * creature is thrown - a random velocity and spin, tumbling off the glass, the species'
  * startle reactions on the way (the puffer puffs, the squid and octopus ink, the crab's
@@ -892,19 +806,6 @@ void  tank_sub_place(tank_t *t);             /* the submarine bought (or loaded)
  * little trust goes. */
 void  tank_shake(tank_t *t, float strength);
 #define TOSS_S 3.2f
-bool  tank_frogman_hit(const tank_t *t, float x, float y);   /* within a fingertip of him */
-bool  tank_sub_hit(const tank_t *t, float x, float y);       /* within a fingertip of the sub */
-#define FROG_SPEED     9.0f                  /* px/s across the tank */
-#define FROG_MARGIN    (DECOR_MARGIN + 24)   /* he turns this far from the glass */
-#define FROG_LANE_LO   (TANK_H * 0.07f)      /* the water he drifts in: all of it (2026-10-10 night, Alvin: "float freely */
-#define FROG_LANE_HI   (TANK_BOT - 46)       /*   anywhere in the tank"; a mid-water band before), the sand and the surface kept */
-#define SUB_SPEED      13.0f                 /* px/s, cruising */
-#define SUB_MARGIN     (DECOR_MARGIN + 30)
-#define SUB_LANE_LO    (TANK_H * 0.07f)      /* the whole water column, like the frogman's (2026-10-10 night) */
-#define SUB_LANE_HI    (TANK_BOT - 50)
-#define SUB_STOP_S     8.0f                  /* a stop: the periscope up for the middle six seconds */
-#define SUB_CRUISE_LO  22.0f                 /* seconds of cruising between stops */
-#define SUB_CRUISE_HI  40.0f
 float tank_species_size(const fish_t *f);   /* its base size: from its personality, so a load gets the same */
 /* the species' motion, for the renderer and the tests (see THE CONVENTION in
  * fish_t). tank_ground_y: the top of what a floor walker stands on at x -
@@ -968,23 +869,8 @@ enum { SD_PAID_JUV = 1u << 0, SD_PAID_ADULT = 1u << 1, SD_PAID_ELDER = 1u << 2, 
  * every loop over beds runs to this. tank_veg_kind is the species (render). */
 int   tank_veg_beds(const tank_t *t);
 veg_kind_t tank_veg_kind(const tank_t *t, int b);
-/* the purchases land: the sword plant at VEG_START on the open floor; the
- * snail on the glass, bottom left */
+/* the sword plant bought: at VEG_START on the open floor (the helpers arrive by helper.h) */
 void  tank_plant_place(tank_t *t);
-void  tank_snail_place(tank_t *t);
-/* the shrimp: the bought school (SHRIMP_START in the grass), or n of them
- * (a load, the sim's key); refusing = the glass is too fouled for them to eat */
-void  tank_shrimp_place(tank_t *t, int n);
-bool  tank_shrimp_refusing(const tank_t *t);
-/* a tap on the school (2026-09-29, Strato: "one tap should bring up a card
- * ... it should be a triple tap which scares them (same as for fish)"). Hit:
- * within a fingertip of any shrimp (the platforms test the fish and the snail
- * first). Tap: counts quick taps on the school - its own count, so a double tap
- * there never toggles the light - and returns the count: 1 = toggle its card,
- * 2 = nothing, 3+ = the startle, exactly the water's triple tap (the fish
- * spooked, the shrimp scatter): the platform drops the card. */
-bool  tank_shrimp_hit(const tank_t *t, float x, float y);
-int   tank_shrimp_tap(tank_t *t, float x, float y);
 void  tank_castle_place(tank_t *t);
 void  tank_coral_place(tank_t *t);
 void  tank_cluster_place(tank_t *t);
@@ -1085,33 +971,5 @@ float tank_decor_half_w(int item);         /* half the footprint, for the page's
  * state so a later purchase starts fresh. */
 int   tank_decor_hit(const tank_t *t, float x, float y);
 void  tank_decor_reset(tank_t *t, int item);
-/* the snail has two poses (Strato's sprites, 2026-09-15): UPRIGHT, walking
- * the tank floor (nothing to graze: it comes down and ambles along the
- * bottom, turning at the ends), and flat ON THE GLASS (crawling to film and
- * grazing it, its underside to the viewer). snail_y is the sprite's centre;
- * on the floor it is SNAIL_FLOOR_Y, the sole (6 px under the centre) on the
- * line the grass is rooted at, TANK_BOT - 14: at - 24 it stood 4 px above the
- * frond roots, and the roots of the fronds BEHIND it showed under its foot -
- * a snail afloat (Strato, 2026-10-02). */
-#define SNAIL_FLOOR_Y (TANK_BOT - 20.0f)
-bool  tank_snail_upright(const tank_t *t);
-/* a tap on the snail (its card, 2026-09-16): placed, and within a fingertip
- * of the sprite's centre. Platforms test the fish first. */
-bool  tank_snail_hit(const tank_t *t, float x, float y);
-/* the urchin (2026-10-02, the episode 5 promise: "an urchin that keeps the
- * grass trimmed"): a rule-based grazer on the floor, drawn by code (render.c
- * draw_urchin, from Strato's sea-urchin-v1). Awake it gets hungry slowly,
- * crawls to the grass frond standing tallest over URCHIN_KEEP and chews it
- * down a bite, then rests or ambles the sand. Asleep it works the night
- * shift: a share of every grass frond's height over URCHIN_KEEP, so a
- * morning's grass is lower than it would be - never below the keep line, and
- * never the sword plant. Like the snail it makes the chores lighter, never
- * gone, and its eating never counts as the keeper's trimming. Its centre is
- * URCHIN_FLOOR_Y, its base on the root line. */
-#define URCHIN_FLOOR_Y (TANK_BOT - 21.0f)
-#define URCHIN_KEEP     0.40f      /* it never takes a frond below this (a fresh tank's cover is 0.35) */
-void  tank_urchin_place(tank_t *t);
-bool  tank_urchin_hit(const tank_t *t, float x, float y);
-bool  tank_urchin_chewing(const tank_t *t);   /* at a frond's foot, eating (render: the spines work) */
 
 #endif

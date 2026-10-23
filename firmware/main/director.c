@@ -165,14 +165,14 @@ static void show_state(const tank_t *t) {
         ESP_LOGI(TAG, "species: %s | %d of %d places | courting pair of one species: %s", sl, t->n_fish, POP_CAP, t->courting ? "yes" : "no");
     }
     if (t->sd_unlocks & SD_ITEM_URCHIN)                 /* where it is, what it is after */
-        ESP_LOGI(TAG, "urchin at x %.0f | %s | appetite %.3f | %.0f cm grazed so far (keeps the grass over %.2f)", t->urchin_x,
-                 tank_urchin_chewing(t) ? "chewing" : t->urchin_frond >= 0 ? "off to the tall grass" : t->urchin_rest > 0 ? "resting" : "ambling",
-                 t->urchin_appetite, t->urchin_grazed_px / PX_PER_CM, (double)URCHIN_KEEP);
+        ESP_LOGI(TAG, "urchin at x %.0f | %s | appetite %.3f | %.0f cm grazed so far (keeps the grass over %.2f)", t->urchin.x,
+                 tank_urchin_chewing(t) ? "chewing" : t->urchin.frond >= 0 ? "off to the tall grass" : t->urchin.rest > 0 ? "resting" : "ambling",
+                 t->urchin.appetite, t->urchin.grazed_px / PX_PER_CM, (double)URCHIN_KEEP);
     if (t->sd_unlocks & SD_ITEM_SNAIL) {                /* where it is, what it is after */
-        int c = t->snail_cell, cells = 0; for (int i = 0; i < ALGAE_CELLS; i++) cells += t->algae[i] > 0;
-        ESP_LOGI(TAG, "snail at %.0f,%.0f heading %.0f deg | %s cell %d at %d,%d (film %d) | %d cells on the glass | %d grazed so far", t->snail_x, t->snail_y,
-                 t->snail_heading * 57.3f, c >= 0 ? "after" : "no target,", c, c >= 0 ? (c % ALGAE_COLS) * ALGAE_CELL + 8 : -1,
-                 c >= 0 ? (c / ALGAE_COLS) * ALGAE_CELL + 8 : -1, c >= 0 ? t->algae[c] : 0, cells, (int)t->snail_grazed);
+        int c = t->snail.cell, cells = 0; for (int i = 0; i < ALGAE_CELLS; i++) cells += t->algae[i] > 0;
+        ESP_LOGI(TAG, "snail at %.0f,%.0f heading %.0f deg | %s cell %d at %d,%d (film %d) | %d cells on the glass | %d grazed so far", t->snail.x, t->snail.y,
+                 t->snail.heading * 57.3f, c >= 0 ? "after" : "no target,", c, c >= 0 ? (c % ALGAE_COLS) * ALGAE_CELL + 8 : -1,
+                 c >= 0 ? (c / ALGAE_COLS) * ALGAE_CELL + 8 : -1, c >= 0 ? t->algae[c] : 0, cells, (int)t->snail.grazed);
     }
     for (int b = 0; b < tank_veg_beds(t); b++) {   /* per-frond heights: which blades a sweep left standing */
         char row[VEG_FRONDS_MAX * 5 + 1]; int len = 0, n; float x0, f0, f1;

@@ -77,7 +77,7 @@ void render_fb_primed(const uint16_t *fb, unsigned epoch);
  * key, render_menu); a tap on the card puts it away.
  * fish_idx == RENDER_CARD_SNAIL (2026-09-16): the SNAIL's card instead - a
  * ring on the snail and a small centred card: the upright sprite at 2x and
- * how much algae it has grazed so far (tank_t.snail_grazed). The platforms
+ * how much algae it has grazed so far (tank_t.snail.grazed). The platforms
  * keep it in the same selection slot as a fish (a tap on the snail opens it,
  * a tap anywhere else dismisses it, no card cache). */
 #define RENDER_CARD_SNAIL 99
@@ -92,6 +92,12 @@ void render_fb_primed(const uint16_t *fb, unsigned epoch);
  * resting). */
 #define RENDER_CARD_URCHIN 97
 void render_stats_card(const tank_t *t, int fish_idx, uint16_t *fb, int stride);
+/* a tap on a helper (helper.h), after the fish: the helper under (x, y) - its
+ * kind, -1 = none - and the platform's card selection *sel updated (its card up,
+ * or down again; the school's third quick tap scares them and drops it).
+ * render_card_is_helper: sel is a helper's card, not a fish's. */
+int  render_helper_tap(tank_t *t, float x, float y, int *sel);
+bool render_card_is_helper(int sel);
 /* Optional card cache (RENDER_CARD_W x RENDER_CARD_H uint16): with the scene
  * cache live, the card is redrawn at most 4x/s and blitted otherwise (~7 ms
  * -> ~1 ms per frame on the device). NULL = draw every frame. */

@@ -20,9 +20,9 @@ make check-all       # every selftest on all three boards (required gate for any
 make NOMODEL=1 check-all   # skip --selftest-llm when model/out/model_q4.bin is absent
 ```
 
-**Run a single test:** run one selftest flag on the built binary, e.g. `./fishsim --selftest-shop` or `./fishsim-round --selftest-pop`. The full list is `SELFTESTS` in [sim/Makefile](sim/Makefile): `--selftest-themes`, `--selftest`, `--selftest-hunger`, `--selftest-shop`, `--selftest-battery`, `--selftest-pop`, `--selftest-card`, `--selftest-menu`, `--selftest-sleep`, `--selftest-tend`, `--selftest-llm`, `--selftest-saves`, `--selftest-update`, `--selftest-species`, `--selftest-encoder`, `--selftest-decor`.
+**Run a single test:** run one selftest flag on the built binary, e.g. `./fishsim --selftest-shop` or `./fishsim-round --selftest-pop`. The full list is `SELFTESTS` in [sim/Makefile](sim/Makefile): `--selftest-themes`, `--selftest`, `--selftest-hunger`, `--selftest-shop`, `--selftest-battery`, `--selftest-pop`, `--selftest-card`, `--selftest-menu`, `--selftest-sleep`, `--selftest-tend`, `--selftest-llm`, `--selftest-saves`, `--selftest-update`, `--selftest-species`, `--selftest-encoder`, `--selftest-decor`, `--selftest-helpers`.
 
-`--golden-decor [prefix]` (not a selftest) prints a hash per frame for a fixed tank with every decor piece and helper, every depth mix, all themes, cache on and off, plus a save. Run it on two builds to prove a refactor changed no pixel.
+`--golden-decor [prefix]` (not a selftest) prints a hash per frame for a fixed tank with every decor piece and helper, every depth mix, each helper's poses and cards, all themes, cache on and off, plus a save. Run it on two builds to prove a refactor changed no pixel.
 
 Useful sim flags: `--fresh`, `--fast N`, `--greedy`, `--narrate` (prints every model decision), `--snapshot <prefix>` (writes PPM frames of every page), `--bench`.
 
@@ -43,7 +43,7 @@ There are three strictly separated layers, all in `common/`:
 
 Tank entities come in three families (a refactor in phases since 2026-10-21; plan in docs/HANDOFF.md):
 - **Decor** (`decor.c`/`decor.h`): static pieces, one row each in `DECOR[]` (where it stands, the depths it offers, its den/camouflage/ground/reef parts, buy/sell/grow hooks), instances in `tank_t.decor[]`. render.c draws them through `DECOR_DRAW[]` and the `PAINT_*` orders; each piece's art is in `decor_<name>.inc`. A depth is BACK, FRONT or MIDDLE, and MIDDLE is a split: half the piece behind the creatures and half in front, each piece defining its halves. A new piece is a row, its draw hooks and its art.
-- **Helpers** (the snail, urchin, shrimp, frogman, sub): move by their own rules, bought, never bred or placed. Still loose `tank_t` fields until phase 2.
+- **Helpers** (`helper.c`/`helper.h`): the snail, urchin, shrimp, frogman and sub move by their own rules, are bought, and are never bred or placed. One row each in `HELPER[]` (its rules' hooks: arrive, tick, sleep, startle, shake, tap, save/load), its state in `tank_t` (`t->snail`, `t->urchin`, `t->school`, `t->frogman`, `t->sub`). The table's order is the RNG's order, so a new helper goes at the end. render.c paints them through `HELPER_DRAW[]` in four slots (under the creatures, over them, over the decor IN FRONT, on the glass); each one's art is in `helper_<name>.inc`. A tap reaches them through `render_helper_tap`.
 - **Creatures**: what the model decides for, `t->fish[]` (also the encoder's `friend` set). Helpers must never join it.
 
 Rendering is a software RGB565 renderer in `render.c`, which draws the tank, the cards, milestones, the shop, settings, and the pixel font. `theme.c` and `*_assets.c` provide the four themes. `setup.c` handles first run and the birth flow, `update.c` the OTA pages, `notice.c` the announcements, and `audio.c`/`sounds.c` the mixer and the cue bank.

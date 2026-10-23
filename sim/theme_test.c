@@ -79,9 +79,9 @@ static int art_sheets(const tank_t *base,const char *prefix) {
             else if(which==2){a.sd_unlocks=SD_ITEM_CLUSTER;tank_cluster_place(&a);a.decor[DK_CLUSTER].x=TANK_W/2;a.decor[DK_CLUSTER].growth=1;label="reef";}
             else if(which==3){a.sd_unlocks=SD_ITEM_PLANT;tank_plant_place(&a);label="plants";}
             else if(which==5){a.sd_unlocks=SD_ITEM_WRECK;tank_wreck_place(&a);a.decor[DK_WRECK].x=TANK_W/2;label="wreck";}
-            else if(which==6){a.sd_unlocks=SD_ITEM_FROGMAN;tank_frogman_place(&a);a.frog_x=TANK_W/2;a.frog_y=TANK_H*.4f;a.clock=23.8f;label="frogman";}
-            else if(which==7){a.sd_unlocks=SD_ITEM_SUB;tank_sub_place(&a);a.sub_x=TANK_W/2;a.sub_y=TANK_H*.3f;a.sub_stop=4;a.sub_peri=1;a.sub_look=1.2f;a.sub_v=0;label="submarine";}
-            else{a.sd_unlocks=SD_ITEM_SNAIL|SD_ITEM_SHRIMP|SD_ITEM_URCHIN;tank_snail_place(&a);tank_shrimp_place(&a,3);tank_urchin_place(&a);a.snail_x=TANK_W/2;a.snail_y=SNAIL_FLOOR_Y;a.snail_front=true;a.urchin_x=TANK_W/2+48;label="companions";}
+            else if(which==6){a.sd_unlocks=SD_ITEM_FROGMAN;tank_frogman_place(&a);a.frogman.x=TANK_W/2;a.frogman.y=TANK_H*.4f;a.clock=23.8f;label="frogman";}
+            else if(which==7){a.sd_unlocks=SD_ITEM_SUB;tank_sub_place(&a);a.sub.x=TANK_W/2;a.sub.y=TANK_H*.3f;a.sub.stop=4;a.sub.peri=1;a.sub.look=1.2f;a.sub.v=0;label="submarine";}
+            else{a.sd_unlocks=SD_ITEM_SNAIL|SD_ITEM_SHRIMP|SD_ITEM_URCHIN;tank_snail_place(&a);tank_shrimp_place(&a,3);tank_urchin_place(&a);a.snail.x=TANK_W/2;a.snail.y=SNAIL_FLOOR_Y;a.snail.front=true;a.urchin.x=TANK_W/2+48;label="companions";}
             for(int j=0;j<5;j++){a.food[j].alive=true;a.food[j].x=TANK_W/2-45+j*17;a.food[j].y=TANK_H/2-25+j%2*10;}
             render_tank(&a,fb,TANK_W);render_tank(&a,fb,TANK_W);shot(prefix,label,id);
             /* Re-entering a theme with growth unchanged must rebuild all geometry caches. */

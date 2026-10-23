@@ -907,7 +907,7 @@ static int night_shift_check(void) {
         if (fabsf(both.veg_growth[3] - alone.veg_growth[3]) > 1e-4f) { printf("FAIL: the urchin ate the sword plant\n"); return 1; }
         for (int b = 0; b < VEG_BEDS; b++) for (int i = 0; i < VEG_FRONDS_MAX; i++)
             if (both.veg_h[b][i] > 0 && both.veg_h[b][i] < URCHIN_KEEP - 1e-4f && alone.veg_h[b][i] >= URCHIN_KEEP) { printf("FAIL: the urchin took bed %d frond %d under the keep line (%.3f)\n", b, i, both.veg_h[b][i]); return 1; }
-        if (both.urchin_grazed_px <= 0 || both.snail_grazed <= 0) { printf("FAIL: the tallies did not count the night\n"); return 1; }
+        if (both.urchin.grazed_px <= 0 || both.snail.grazed <= 0) { printf("FAIL: the tallies did not count the night\n"); return 1; }
     }
     /* naps: the 20-minute graces of a night add up to one span (a few cells of chance either way) */
     static tank_t naps; ns_tank(&naps, true); ns_tank(&both, true);
@@ -1241,10 +1241,10 @@ static int saves_same(const char *what, const tank_t *a, const tank_t *b) {
             SV_FAIL("%s at %.1f depth %d (look %d, %06x, growth %.3f), want %.1f / %d (%d, %06x, %.3f)", DECOR[k].name,
                     decor_x(b, k), e->z, e->variant, e->rgb, e->growth, decor_x(a, k), d->z, d->variant, d->rgb, d->growth);
     }
-    if (b->snail_x != a->snail_x || b->snail_y != a->snail_y || b->snail_grazed != a->snail_grazed) SV_FAIL("the snail at %.0f,%.0f, %d grazed", b->snail_x, b->snail_y, (int)b->snail_grazed);
-    if (b->urchin_x != a->urchin_x || b->urchin_grazed_px != a->urchin_grazed_px) SV_FAIL("the urchin at %.0f, %.0f px eaten", b->urchin_x, b->urchin_grazed_px);
-    if (b->shrimp_n != a->shrimp_n || b->shrimp_food != a->shrimp_food || b->shrimp_cool != a->shrimp_cool || b->shrimp_eaten != a->shrimp_eaten)
-        SV_FAIL("%d shrimp, %d toward the next, cooldown %.0f, %d eaten", b->shrimp_n, b->shrimp_food, b->shrimp_cool, (int)b->shrimp_eaten);
+    if (b->snail.x != a->snail.x || b->snail.y != a->snail.y || b->snail.grazed != a->snail.grazed) SV_FAIL("the snail at %.0f,%.0f, %d grazed", b->snail.x, b->snail.y, (int)b->snail.grazed);
+    if (b->urchin.x != a->urchin.x || b->urchin.grazed_px != a->urchin.grazed_px) SV_FAIL("the urchin at %.0f, %.0f px eaten", b->urchin.x, b->urchin.grazed_px);
+    if (b->school.n != a->school.n || b->school.food != a->school.food || b->school.cool != a->school.cool || b->school.eaten != a->school.eaten)
+        SV_FAIL("%d shrimp, %d toward the next, cooldown %.0f, %d eaten", b->school.n, b->school.food, b->school.cool, (int)b->school.eaten);
     return 0;
     #undef SV_FAIL
 }
@@ -1282,9 +1282,9 @@ static void saves_rich(tank_t *t) {
     tank_set_bubble_x(t, TANK_FX0 + (TANK_FX1 - TANK_FX0) * 0.6f);
     /* the helpers */
     t->sd_unlocks |= SD_ITEM_SNAIL | SD_ITEM_URCHIN | SD_ITEM_SHRIMP | SD_ITEM_FROGMAN | SD_ITEM_SUB;
-    tank_snail_place(t); t->snail_x = 140; t->snail_y = 120; t->snail_grazed = 77;
-    tank_urchin_place(t); t->urchin_x = TANK_FX0 + 90; t->urchin_grazed_px = 456;
-    tank_shrimp_place(t, 9); t->shrimp_food = 4; t->shrimp_cool = 12; t->shrimp_eaten = 88;
+    tank_snail_place(t); t->snail.x = 140; t->snail.y = 120; t->snail.grazed = 77;
+    tank_urchin_place(t); t->urchin.x = TANK_FX0 + 90; t->urchin.grazed_px = 456;
+    tank_shrimp_place(t, 9); t->school.food = 4; t->school.cool = 12; t->school.eaten = 88;
     tank_frogman_place(t); tank_sub_place(t);
     progression_species_sync(t);
 }
@@ -2667,7 +2667,7 @@ static int snapshot(const char *prefix, int seconds) {
     render_shop_leave();
     tank.sd_unlocks = SD_ITEM_PLANT | SD_ITEM_SNAIL; tank_plant_place(&tank); tank_snail_place(&tank);
     tank_veg_set(&tank, 3, 0.45f);
-    tank.snail_x = 120; tank.snail_y = 140;
+    tank.snail.x = 120; tank.snail.y = 140;
     tank.sd_balance = 12; render_shop(&tank, fb, TANK_W);
     snprintf(path, sizeof path, "%s_shop_owned.ppm", prefix); write_ppm(path, fb);
     for (int i = 0; i < 30; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
@@ -2680,18 +2680,18 @@ static int snapshot(const char *prefix, int seconds) {
       setup_cancel(&tank); tank_decor_set(&tank, 0, PLANT_X_DEFAULT, DECOR_Z_MIDDLE); }
     uint8_t film[ALGAE_CELLS]; memcpy(film, tank.algae, sizeof film);
     { memset(tank.algae, 0, sizeof tank.algae);
-      tank.snail_cell = -1; tank.snail_x = 300; tank.snail_y = SNAIL_FLOOR_Y; tank.snail_heading = 3.14159f;
+      tank.snail.cell = -1; tank.snail.x = 300; tank.snail.y = SNAIL_FLOOR_Y; tank.snail.heading = 3.14159f;
       for (int i = 0; i < 30; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
       render_tank(&tank, fb, TANK_W);
       snprintf(path, sizeof path, "%s_tank_snail_floor.ppm", prefix); write_ppm(path, fb);   /* upright on the floor, walking left */
-      { float sx = tank.snail_x; tank.snail_x = tank.reef_x + 20;                        /* in the left bed's grass: no frond root under its sole */
+      { float sx = tank.snail.x; tank.snail.x = tank.reef_x + 20;                        /* in the left bed's grass: no frond root under its sole */
         render_tank(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_tank_snail_grass.ppm", prefix); write_ppm(path, fb);
-        tank.snail_x = sx; }
-      tank.snail_grazed = 128; render_tank(&tank, fb, TANK_W); render_stats_card(&tank, RENDER_CARD_SNAIL, fb, TANK_W);
+        tank.snail.x = sx; }
+      tank.snail.grazed = 128; render_tank(&tank, fb, TANK_W); render_stats_card(&tank, RENDER_CARD_SNAIL, fb, TANK_W);
       snprintf(path, sizeof path, "%s_snail_card.ppm", prefix); write_ppm(path, fb);         /* its card (2026-09-16) */
       memcpy(tank.algae, film, sizeof film); }
-    { memset(tank.algae, 0, sizeof tank.algae); tank.snail_cell = -1; tank.snail_x = 200; tank.snail_y = 250;
+    { memset(tank.algae, 0, sizeof tank.algae); tank.snail.cell = -1; tank.snail.x = 200; tank.snail.y = 250;
       tank.algae[2 * ALGAE_COLS + 12] = 150;                    /* film straight above: the glass snail climbs, head first */
       for (int i = 0; i < 4; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
       render_tank(&tank, fb, TANK_W);
@@ -2701,14 +2701,14 @@ static int snapshot(const char *prefix, int seconds) {
       for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, 0.6f);
       tank.veg_h[1][2] = 0.85f; tank_veg_sync(&tank);
       float fx; tank_veg_frond(&tank, 1, 2, &fx);
-      tank.urchin_x = fx; tank.urchin_appetite = 0.05f; tank.urchin_rest = 0;
+      tank.urchin.x = fx; tank.urchin.appetite = 0.05f; tank.urchin.rest = 0;
       for (int i = 0; i < 120; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
       render_tank(&tank, fb, TANK_W);
       snprintf(path, sizeof path, "%s_tank_urchin.ppm", prefix); write_ppm(path, fb);
-      tank.urchin_x = PLANT_X_DEFAULT + 40; tank.urchin_bed = tank.urchin_frond = -1; tank.urchin_rest = 60;   /* out on the sand */
+      tank.urchin.x = PLANT_X_DEFAULT + 40; tank.urchin.bed = tank.urchin.frond = -1; tank.urchin.rest = 60;   /* out on the sand */
       render_tank(&tank, fb, TANK_W);
       snprintf(path, sizeof path, "%s_tank_urchin_sand.ppm", prefix); write_ppm(path, fb);
-      tank.urchin_grazed_px = 1234; render_stats_card(&tank, RENDER_CARD_URCHIN, fb, TANK_W);
+      tank.urchin.grazed_px = 1234; render_stats_card(&tank, RENDER_CARD_URCHIN, fb, TANK_W);
       snprintf(path, sizeof path, "%s_urchin_card.ppm", prefix); write_ppm(path, fb); }
     tank.sd_unlocks = 0; tank.sd_balance = 0;
     render_milestones_tap(&tank, PAGE_X + 176 + 16, PAGE_Y + 4 + 40 + 20);           /* fish 1's first badge -> the detail modal */
@@ -2900,21 +2900,21 @@ static int snapshot(const char *prefix, int seconds) {
         tank_decor_set(&tank, 4, 330, DECOR_Z_BACK); tank_cluster_set_scheme(&tank, 2); render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_cluster_behind.ppm", prefix); write_ppm(path, fb);
         {   /* the snail and the cluster (0.3.2): walking the floor past it, and on the glass over it */
-            uint32_t unl = tank.sd_unlocks; float sx = tank.snail_x, sy = tank.snail_y, sh = tank.snail_heading; int sc = tank.snail_cell;
-            tank.sd_unlocks |= SD_ITEM_SNAIL; tank.snail_cell = -1; tank.snail_heading = 0;
+            uint32_t unl = tank.sd_unlocks; float sx = tank.snail.x, sy = tank.snail.y, sh = tank.snail.heading; int sc = tank.snail.cell;
+            tank.sd_unlocks |= SD_ITEM_SNAIL; tank.snail.cell = -1; tank.snail.heading = 0;
             for (int z = 0; z < 2; z++) {
                 tank_decor_set(&tank, 4, 330, z ? DECOR_Z_FRONT : DECOR_Z_BACK);
-                tank.snail_x = 336; tank.snail_y = SNAIL_FLOOR_Y; tank.snail_front = false;   /* at its foot, in its back lane */
+                tank.snail.x = 336; tank.snail.y = SNAIL_FLOOR_Y; tank.snail.front = false;   /* at its foot, in its back lane */
                 render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
                 snprintf(path, sizeof path, "%s_cluster_snail_%s.ppm", prefix, z ? "front" : "behind"); write_ppm(path, fb);
-                tank.snail_front = true;                                             /* ... and in its front lane: over a piece IN FRONT */
+                tank.snail.front = true;                                             /* ... and in its front lane: over a piece IN FRONT */
                 render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
                 snprintf(path, sizeof path, "%s_cluster_snail_%s_lane.ppm", prefix, z ? "front" : "behind"); write_ppm(path, fb);
-                tank.snail_x = 330; tank.snail_y = SNAIL_FLOOR_Y - 40;
+                tank.snail.x = 330; tank.snail.y = SNAIL_FLOOR_Y - 40;
                 render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
                 snprintf(path, sizeof path, "%s_cluster_snail_glass_%s.ppm", prefix, z ? "front" : "behind"); write_ppm(path, fb);
             }
-            tank.sd_unlocks = unl; tank.snail_x = sx; tank.snail_y = sy; tank.snail_heading = sh; tank.snail_cell = (int16_t)sc;
+            tank.sd_unlocks = unl; tank.snail.x = sx; tank.snail.y = sy; tank.snail.heading = sh; tank.snail.cell = (int16_t)sc;
         }
         tank_decor_set(&tank, 4, 330, DECOR_Z_FRONT); tank_cluster_set_scheme(&tank, 0); setup_begin_place(&tank, 4);
         render_tank(&tank, fb, TANK_W); render_setup(&tank, fb, TANK_W, 1.0f);
@@ -3208,7 +3208,7 @@ static int selftest_shop(void) {
         progression_sd_grant(&tank, SD_PRICE_SNAIL); want = tank.sd_balance;
         if (!progression_buy(&tank, 1)) { printf("FAIL: could not buy the snail\n"); return 1; }
         want -= SD_PRICE_SNAIL; SHOP_WANT("after the snail");
-        if (!(tank.sd_unlocks & SD_ITEM_SNAIL) || tank.snail_x < 0) { printf("FAIL: no snail on the glass\n"); return 1; }
+        if (!(tank.sd_unlocks & SD_ITEM_SNAIL) || tank.snail.x < 0) { printf("FAIL: no snail on the glass\n"); return 1; }
         memset(tank.algae, 0, sizeof tank.algae);
         for (int dy = 0; dy < 3; dy++) for (int dx = 0; dx < 3; dx++) tank.algae[(18 + dy) * ALGAE_COLS + 4 + dx] = 200;
         int cells0 = 0, film0 = 0; for (int i = 0; i < ALGAE_CELLS; i++) { cells0 += tank.algae[i] > 0; film0 += tank.algae[i]; }
@@ -3216,20 +3216,20 @@ static int selftest_shop(void) {
         SHOP_TICK(60 * 90);
         int cells1 = 0, film1 = 0; for (int i = 0; i < ALGAE_CELLS; i++) { cells1 += tank.algae[i] > 0; film1 += tank.algae[i]; }
         printf("selftest-shop: snail: a 9-cell patch (%d film) -> %d cells (%d film) after 90 s, at %.0f,%.0f; keeper's counts %d/%d unchanged\n",
-               film0, cells1, film1, tank.snail_x, tank.snail_y, tank.cells_cleaned - cleaned0, tank.algae_colonies - col0);
+               film0, cells1, film1, tank.snail.x, tank.snail.y, tank.cells_cleaned - cleaned0, tank.algae_colonies - col0);
         if (cells1 >= cells0 || film1 >= film0 * 0.8f) { printf("FAIL: the snail did not graze\n"); return 1; }
         if (tank.cells_cleaned != cleaned0 || tank.algae_colonies != col0) { printf("FAIL: the snail's grazing counted as the keeper's\n"); return 1; }
         /* its own tally (2026-09-16, the snail's card): cells eaten clean */
-        if (tank.snail_grazed < 1 || tank.snail_grazed > 9) { printf("FAIL: the snail's tally is %d after a 9-cell patch\n", (int)tank.snail_grazed); return 1; }
+        if (tank.snail.grazed < 1 || tank.snail.grazed > 9) { printf("FAIL: the snail's tally is %d after a 9-cell patch\n", (int)tank.snail.grazed); return 1; }
         {   /* a tap on it opens the card; the sprite's centre and a fingertip off both hit, 70 px off does not */
-            if (!tank_snail_hit(&tank, tank.snail_x, tank.snail_y) || !tank_snail_hit(&tank, tank.snail_x + 24, tank.snail_y - 12)
-                || tank_snail_hit(&tank, tank.snail_x + 70, tank.snail_y)) { printf("FAIL: the snail's hit test\n"); return 1; }
+            if (!tank_snail_hit(&tank, tank.snail.x, tank.snail.y) || !tank_snail_hit(&tank, tank.snail.x + 24, tank.snail.y - 12)
+                || tank_snail_hit(&tank, tank.snail.x + 70, tank.snail.y)) { printf("FAIL: the snail's hit test\n"); return 1; }
             static uint16_t cfb[TANK_W * TANK_H];
             render_tank(&tank, cfb, TANK_W); render_stats_card(&tank, RENDER_CARD_SNAIL, cfb, TANK_W);
             const int cx0 = (TANK_W - SNAIL_CARD_W) / 2, cy0 = (TANK_H - SNAIL_CARD_H) / 2;      /* the card: centered on the glass */
             int lit = 0; for (int y = cy0; y < cy0 + SNAIL_CARD_H; y += 4) for (int x = cx0; x < cx0 + SNAIL_CARD_W; x += 4) lit += cfb[y * TANK_W + x] == 0xffff;   /* white in RGB565 */
             if (lit < 20) { printf("FAIL: the snail's card drew no white text (%d)\n", lit); return 1; }
-            printf("selftest-shop: snail card: %d spots grazed, the tap hits, the card draws\n", (int)tank.snail_grazed);
+            printf("selftest-shop: snail card: %d spots grazed, the tap hits, the card draws\n", (int)tank.snail.grazed);
         }
         /* the night shift: the same night with and without the snail (sleep
            grows film too, so the twin is the yardstick) */
@@ -3242,18 +3242,18 @@ static int selftest_shop(void) {
         if (cn2 >= cn3) { printf("FAIL: the snail slept through the night shift\n"); return 1; }
         /* the two poses: with the glass clean it comes down to the floor and
            walks it upright, turning at the ends; a target puts it back on the glass */
-        memset(tank.algae, 0, sizeof tank.algae); tank.snail_cell = -1; tank.snail_x = 200; tank.snail_y = SNAIL_FLOOR_Y - 224; tank.snail_heading = 0;   /* 224 px up the glass: 56 s of crawl to the floor, however tall the tank */
+        memset(tank.algae, 0, sizeof tank.algae); tank.snail.cell = -1; tank.snail.x = 200; tank.snail.y = SNAIL_FLOOR_Y - 224; tank.snail.heading = 0;   /* 224 px up the glass: 56 s of crawl to the floor, however tall the tank */
         SHOP_TICK(60 * 5);
-        if (tank_snail_upright(&tank)) { printf("FAIL: upright while still coming down the glass (y %.0f)\n", tank.snail_y); return 1; }
+        if (tank_snail_upright(&tank)) { printf("FAIL: upright while still coming down the glass (y %.0f)\n", tank.snail.y); return 1; }
         SHOP_TICK(60 * 60);
-        float fx = tank.snail_x;
-        if (!tank_snail_upright(&tank) || fabsf(tank.snail_y - SNAIL_FLOOR_Y) > 0.5f) { printf("FAIL: not on the floor after a minute (y %.0f)\n", tank.snail_y); return 1; }
+        float fx = tank.snail.x;
+        if (!tank_snail_upright(&tank) || fabsf(tank.snail.y - SNAIL_FLOOR_Y) > 0.5f) { printf("FAIL: not on the floor after a minute (y %.0f)\n", tank.snail.y); return 1; }
         SHOP_TICK(60 * 120);
-        if (tank.snail_x == fx) { printf("FAIL: the floor walk did not move\n"); return 1; }
+        if (tank.snail.x == fx) { printf("FAIL: the floor walk did not move\n"); return 1; }
         tank.algae[3 * ALGAE_COLS + 20] = 150;
         SHOP_TICK(30);
-        if (tank_snail_upright(&tank) || tank.snail_y >= SNAIL_FLOOR_Y - 1) { printf("FAIL: film on the glass did not lift it off the floor (y %.0f)\n", tank.snail_y); return 1; }
-        printf("selftest-shop: snail poses: down the glass flat, then upright along the floor (x %.0f -> %.0f), back onto the glass for film\n", fx, tank.snail_x);
+        if (tank_snail_upright(&tank) || tank.snail.y >= SNAIL_FLOOR_Y - 1) { printf("FAIL: film on the glass did not lift it off the floor (y %.0f)\n", tank.snail.y); return 1; }
+        printf("selftest-shop: snail poses: down the glass flat, then upright along the floor (x %.0f -> %.0f), back onto the glass for film\n", fx, tank.snail.x);
         /* the urchin (2026-10-02): the seventh item at its price, on the floor;
            a bite's appetite takes it to the tallest grass frond, which comes
            down a bite - not the sword plant, not the keeper's trim counts;
@@ -3263,28 +3263,28 @@ static int selftest_shop(void) {
         tank.sd_balance = SD_PRICE_URCHIN; want = 0;
         if (SD_ITEMS[6].bit != SD_ITEM_URCHIN || !progression_buy(&tank, 6)) { printf("FAIL: could not buy the urchin\n"); return 1; }
         SHOP_WANT("after the urchin");
-        if (!(tank.sd_unlocks & SD_ITEM_URCHIN) || tank.urchin_x < 0) { printf("FAIL: no urchin on the floor\n"); return 1; }
+        if (!(tank.sd_unlocks & SD_ITEM_URCHIN) || tank.urchin.x < 0) { printf("FAIL: no urchin on the floor\n"); return 1; }
         if (progression_sell(&tank, 6)) { printf("FAIL: the urchin sold back\n"); return 1; }
         float veg_was[VEG_BEDS_MAX][VEG_FRONDS_MAX]; memcpy(veg_was, tank.veg_h, sizeof veg_was);   /* put back after: the tests below place the plant among the beds */
         for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, 0.45f);
         tank_veg_set(&tank, 3, 0.70f);                        /* the sword plant tall: not its food */
         tank.veg_h[1][3] = 0.80f; tank_veg_sync(&tank);
         float tf0, sword0 = tank.veg_h[3][1]; tank_veg_frond(&tank, 1, 3, &tf0);
-        int trims0 = tank.trims; float tpx0 = tank.trim_px, ux0 = tank.urchin_x;
-        tank.urchin_appetite = 0.05f; tank.urchin_rest = 0;
+        int trims0 = tank.trims; float tpx0 = tank.trim_px, ux0 = tank.urchin.x;
+        tank.urchin.appetite = 0.05f; tank.urchin.rest = 0;
         SHOP_TICK(60 * 300);
         float h13 = tank.veg_h[1][3];
         printf("selftest-shop: urchin: from x %.0f to the tall frond at %.0f (now x %.0f): 0.80 -> %.3f, %.0f px eaten; the sword plant %.3f -> %.3f\n",
-               ux0, tf0, tank.urchin_x, h13, tank.urchin_grazed_px, sword0, tank.veg_h[3][1]);
+               ux0, tf0, tank.urchin.x, h13, tank.urchin.grazed_px, sword0, tank.veg_h[3][1]);
         if (h13 > 0.78f || h13 < 0.74f) { printf("FAIL: the urchin did not eat a bite of the tallest frond\n"); return 1; }
         if (tank.veg_h[3][1] < sword0 - 1e-4f) { printf("FAIL: the urchin ate the sword plant\n"); return 1; }
         if (tank.trims != trims0 || tank.trim_px != tpx0) { printf("FAIL: the urchin's grazing counted as the keeper's trimming\n"); return 1; }
-        if (tank.urchin_grazed_px < 10) { printf("FAIL: the urchin's tally %.0f px\n", tank.urchin_grazed_px); return 1; }
+        if (tank.urchin.grazed_px < 10) { printf("FAIL: the urchin's tally %.0f px\n", tank.urchin.grazed_px); return 1; }
         for (int b = 0; b < VEG_BEDS; b++) for (int i = 0; i < VEG_FRONDS_MAX; i++)
             if (tank.veg_h[b][i] > 0 && tank.veg_h[b][i] < URCHIN_KEEP - 1e-4f) { printf("FAIL: bed %d frond %d under the keep line\n", b, i); return 1; }
         {   /* the tap and the card */
-            if (!tank_urchin_hit(&tank, tank.urchin_x, URCHIN_FLOOR_Y) || !tank_urchin_hit(&tank, tank.urchin_x + 20, URCHIN_FLOOR_Y - 20)
-                || tank_urchin_hit(&tank, tank.urchin_x + 70, URCHIN_FLOOR_Y)) { printf("FAIL: the urchin's hit test\n"); return 1; }
+            if (!tank_urchin_hit(&tank, tank.urchin.x, URCHIN_FLOOR_Y) || !tank_urchin_hit(&tank, tank.urchin.x + 20, URCHIN_FLOOR_Y - 20)
+                || tank_urchin_hit(&tank, tank.urchin.x + 70, URCHIN_FLOOR_Y)) { printf("FAIL: the urchin's hit test\n"); return 1; }
             static uint16_t cfb[TANK_W * TANK_H];
             render_tank(&tank, cfb, TANK_W); render_stats_card(&tank, RENDER_CARD_URCHIN, cfb, TANK_W);
             const int cx0 = (TANK_W - URCHIN_CARD_W) / 2, cy0 = (TANK_H - URCHIN_CARD_H) / 2;
@@ -3292,11 +3292,11 @@ static int selftest_shop(void) {
             if (lit < 20) { printf("FAIL: the urchin's card drew no white text (%d)\n", lit); return 1; }
             int purple = 0;                                   /* the urchin itself, drawn in the tank */
             render_tank(&tank, cfb, TANK_W);
-            for (int y = (int)URCHIN_FLOOR_Y - 14; y <= (int)URCHIN_FLOOR_Y + 6; y++) for (int x = (int)tank.urchin_x - 14; x <= (int)tank.urchin_x + 14; x++) {
+            for (int y = (int)URCHIN_FLOOR_Y - 14; y <= (int)URCHIN_FLOOR_Y + 6; y++) for (int x = (int)tank.urchin.x - 14; x <= (int)tank.urchin.x + 14; x++) {
                 uint16_t v = cfb[y * TANK_W + x]; int r = v >> 11, g = (v >> 5) & 63, b = v & 31;
                 purple += r > 8 && b > 8 && g < r * 2; }
-            if (purple < 60) { printf("FAIL: no urchin drawn at %.0f (%d px)\n", tank.urchin_x, purple); return 1; }
-            printf("selftest-shop: urchin card: %.0f cm of grass, the tap hits, the card draws; %d urchin px in the tank\n", tank.urchin_grazed_px / PX_PER_CM, purple);
+            if (purple < 60) { printf("FAIL: no urchin drawn at %.0f (%d px)\n", tank.urchin.x, purple); return 1; }
+            printf("selftest-shop: urchin card: %.0f cm of grass, the tap hits, the card draws; %d urchin px in the tank\n", tank.urchin.grazed_px / PX_PER_CM, purple);
         }
         memcpy(tank.veg_h, veg_was, sizeof veg_was); tank_veg_sync(&tank);
     }
@@ -3617,7 +3617,7 @@ static int selftest_shop(void) {
         tank.sd_unlocks &= ~SD_ITEM_SHRIMP; tank.sd_balance = SD_PRICE_SHRIMP - 1;
         if (progression_buy(&tank, 5)) { printf("FAIL: the shrimp sold short\n"); return 1; }
         tank.sd_balance = SD_PRICE_SHRIMP;
-        if (!progression_buy(&tank, 5) || tank.sd_balance != 0 || tank.shrimp_n != SHRIMP_START) { printf("FAIL: the shrimp did not sell at %d (%d shrimp)\n", SD_PRICE_SHRIMP, tank.shrimp_n); return 1; }
+        if (!progression_buy(&tank, 5) || tank.sd_balance != 0 || tank.school.n != SHRIMP_START) { printf("FAIL: the shrimp did not sell at %d (%d shrimp)\n", SD_PRICE_SHRIMP, tank.school.n); return 1; }
         if (progression_sell(&tank, 5)) { printf("FAIL: the shrimp sold back\n"); return 1; }
         tank.trickle_off = true;
         memset(tank.algae, 0, ALGAE_CELLS);
@@ -3634,7 +3634,7 @@ static int selftest_shop(void) {
            was a second or two out of its reach) */
         memset(tank.algae, 200, ALGAE_CELLS);
         int k;
-        float far_x = tank.shrimp[0].x < TANK_W / 2 ? TANK_FX1 - 30 : TANK_FX0 + 30;   /* the floor's far end */
+        float far_x = tank.school.q[0].x < TANK_W / 2 ? TANK_FX1 - 30 : TANK_FX0 + 30;   /* the floor's far end */
         PUT_PELLET(k, far_x, FOOD_FLOOR_Y, 43);
         int kw; PUT_PELLET(kw, far_x, 200, 44.5f);
         SHRIMP_TICK(60);
@@ -3645,16 +3645,16 @@ static int selftest_shop(void) {
         if (tank.food[k].alive) { printf("FAIL: the floor pellet outlived %.0f s on the floor\n", FOOD_FLOOR_S); return 1; }
         memset(tank.algae, 0, ALGAE_CELLS);
         /* a pellet by the school: they swarm it and peck it clean - one toward the next shrimp */
-        float sx = 0; for (int i = 0; i < tank.shrimp_n; i++) sx += tank.shrimp[i].x; sx /= tank.shrimp_n;
+        float sx = 0; for (int i = 0; i < tank.school.n; i++) sx += tank.school.q[i].x; sx /= tank.school.n;
         PUT_PELLET(k, sx + 20, FOOD_FLOOR_Y, 43);
         int t_eat = 0;
         while (tank.food[k].alive && t_eat < 60 * 15) { SHRIMP_TICK(1); t_eat++; }
-        if (tank.food[k].alive || tank.shrimp_food != 1) { printf("FAIL: the school did not eat a floor pellet in 15 s (count %d)\n", tank.shrimp_food); return 1; }
+        if (tank.food[k].alive || tank.school.food != 1) { printf("FAIL: the school did not eat a floor pellet in 15 s (count %d)\n", tank.school.food); return 1; }
         int t_first = t_eat; float mid_top = -1, mid_y = -1;
         /* below the grass's top a pellet is theirs while it still sinks; above it, not yet */
         {
             for (int b = 0; b < tank_veg_beds(&tank); b++) tank_veg_set(&tank, b, 0.5f);   /* a grown canopy to be under */
-            sx = 0; for (int i = 0; i < tank.shrimp_n; i++) sx += tank.shrimp[i].x; sx /= tank.shrimp_n;
+            sx = 0; for (int i = 0; i < tank.school.n; i++) sx += tank.school.q[i].x; sx /= tank.school.n;
             float top = 0, sum = 0; bool over = false;
             for (int b = 0; b < tank_veg_beds(&tank); b++) { float x0, x1, tp; tank_veg_bed(&tank, b, &x0, &x1, &tp, NULL); sum += tp; if (!over && sx >= x0 && sx <= x1) { top = tp; over = true; } }
             if (!over) top = sum / tank_veg_beds(&tank);
@@ -3669,57 +3669,57 @@ static int selftest_shop(void) {
                 mid_top = top;
                 if (tank.food[k].alive || tank.food[k].floor_s > 0) { printf("FAIL: a sinking pellet below the grass's top was not taken before the floor (floor %.1f s)\n", tank.food[k].floor_s); return 1; }
             }
-            if (tank.shrimp_food != 2 && tank.shrimp_food != 1) { printf("FAIL: the count after the sinking pellet %d\n", tank.shrimp_food); return 1; }
+            if (tank.school.food != 2 && tank.school.food != 1) { printf("FAIL: the count after the sinking pellet %d\n", tank.school.food); return 1; }
         }
         /* the tenth brings a newcomer and starts the cooldown */
-        tank.shrimp_food = SHRIMP_PER_JOIN; SHRIMP_TICK(1);
-        if (tank.shrimp_n != SHRIMP_START + 1 || tank.shrimp_food != 0 || tank.shrimp_cool < SHRIMP_COOLDOWN_S - 1) { printf("FAIL: ten pellets brought %d shrimp (count %d, cooldown %.0f)\n", tank.shrimp_n, tank.shrimp_food, tank.shrimp_cool); return 1; }
+        tank.school.food = SHRIMP_PER_JOIN; SHRIMP_TICK(1);
+        if (tank.school.n != SHRIMP_START + 1 || tank.school.food != 0 || tank.school.cool < SHRIMP_COOLDOWN_S - 1) { printf("FAIL: ten pellets brought %d shrimp (count %d, cooldown %.0f)\n", tank.school.n, tank.school.food, tank.school.cool); return 1; }
         /* during the cooldown the count waits at ten, and nobody joins */
-        tank.shrimp_food = SHRIMP_PER_JOIN;
-        sx = 0; for (int i = 0; i < tank.shrimp_n; i++) sx += tank.shrimp[i].x; sx /= tank.shrimp_n;
+        tank.school.food = SHRIMP_PER_JOIN;
+        sx = 0; for (int i = 0; i < tank.school.n; i++) sx += tank.school.q[i].x; sx /= tank.school.n;
         PUT_PELLET(k, sx, FOOD_FLOOR_Y, 43);
         t_eat = 0; while (tank.food[k].alive && t_eat < 60 * 15) { SHRIMP_TICK(1); t_eat++; }
-        if (tank.food[k].alive || tank.shrimp_food != SHRIMP_PER_JOIN || tank.shrimp_n != SHRIMP_START + 1) { printf("FAIL: the cooldown: count %d, %d shrimp\n", tank.shrimp_food, tank.shrimp_n); return 1; }
+        if (tank.food[k].alive || tank.school.food != SHRIMP_PER_JOIN || tank.school.n != SHRIMP_START + 1) { printf("FAIL: the cooldown: count %d, %d shrimp\n", tank.school.food, tank.school.n); return 1; }
         tank_tick_sleep(&tank, SHRIMP_COOLDOWN_S);                     /* the cooldown runs on lived time, asleep too */
         SHRIMP_TICK(1);
-        if (tank.shrimp_n != SHRIMP_START + 2 || tank.shrimp_cool < SHRIMP_COOLDOWN_S - 1) { printf("FAIL: after the cooldown %d shrimp (cooldown %.0f)\n", tank.shrimp_n, tank.shrimp_cool); return 1; }
+        if (tank.school.n != SHRIMP_START + 2 || tank.school.cool < SHRIMP_COOLDOWN_S - 1) { printf("FAIL: after the cooldown %d shrimp (cooldown %.0f)\n", tank.school.n, tank.school.cool); return 1; }
         /* over half the glass fouled: they refuse food - the pellet lies there, the count stays */
         memset(tank.algae, 200, ALGAE_CELLS);
         if (!tank_shrimp_refusing(&tank)) { printf("FAIL: a fouled glass does not put them off food\n"); return 1; }
-        tank.shrimp_cool = 0; int before = tank.shrimp_food = 3;
-        sx = 0; for (int i = 0; i < tank.shrimp_n; i++) sx += tank.shrimp[i].x; sx /= tank.shrimp_n;
+        tank.school.cool = 0; int before = tank.school.food = 3;
+        sx = 0; for (int i = 0; i < tank.school.n; i++) sx += tank.school.q[i].x; sx /= tank.school.n;
         PUT_PELLET(k, sx, FOOD_FLOOR_Y, 43);
         SHRIMP_TICK(60 * 10);
-        if (tank.shrimp_food != before || tank.food[k].nibbled > 0) { printf("FAIL: they ate on a fouled glass (count %d, nibbled %.1f)\n", tank.shrimp_food, tank.food[k].nibbled); return 1; }
+        if (tank.school.food != before || tank.food[k].nibbled > 0) { printf("FAIL: they ate on a fouled glass (count %d, nibbled %.1f)\n", tank.school.food, tank.food[k].nibbled); return 1; }
         memset(tank.algae, 0, ALGAE_CELLS);
         /* taps (2026-09-29): one on the school is its card, not a scare; the
            third quick tap on it scares them - the water's triple tap, fish and
            all - and so does a triple tap on the water nearby */
-        const shrimp_t *qa = &tank.shrimp[0];
+        const shrimp_t *qa = &tank.school.q[0];
         if (!tank_shrimp_hit(&tank, qa->x + 5, qa->y - 5) || tank_shrimp_hit(&tank, 10, 10)) { printf("FAIL: the school's hit test\n"); return 1; }
         int darting = 0;
-        tank.shrimp_tap_t = 99; tank.startled = false;
+        tank.school.tap_t = 99; tank.startled = false;
         if (tank_shrimp_tap(&tank, qa->x, qa->y) != 1) { printf("FAIL: a first tap on the school is not 1\n"); return 1; }
-        for (int i = 0; i < tank.shrimp_n; i++) darting += tank.shrimp[i].dart > 0;
+        for (int i = 0; i < tank.school.n; i++) darting += tank.school.q[i].dart > 0;
         if (darting || tank.startled || tank.tap_count) { printf("FAIL: one tap on the school scared them (or counted toward the light)\n"); return 1; }
         SHRIMP_TICK(6);
         if (tank_shrimp_tap(&tank, qa->x, qa->y) != 2) { printf("FAIL: a second quick tap is not 2\n"); return 1; }
         SHRIMP_TICK(6);
         if (tank_shrimp_tap(&tank, qa->x, qa->y) != 3 || !tank.startled) { printf("FAIL: the third quick tap did not startle\n"); return 1; }
-        for (int i = 0; i < tank.shrimp_n; i++) darting += tank.shrimp[i].dart > 0;
+        for (int i = 0; i < tank.school.n; i++) darting += tank.school.q[i].dart > 0;
         if (darting < 2) { printf("FAIL: the triple tap on the school scattered %d\n", darting); return 1; }
         SHRIMP_TICK(60 * 8);                                          /* settle; the startle wears off */
-        tank.startled = false; tank.shrimp_tap_t = 99; tank.tap_count = 0; tank.tap_burst_t = 99;
-        sx = 0; float sy = 0; for (int i = 0; i < tank.shrimp_n; i++) { sx += tank.shrimp[i].x; sy += tank.shrimp[i].y; } sx /= tank.shrimp_n; sy /= tank.shrimp_n;
+        tank.startled = false; tank.school.tap_t = 99; tank.tap_count = 0; tank.tap_burst_t = 99;
+        sx = 0; float sy = 0; for (int i = 0; i < tank.school.n; i++) { sx += tank.school.q[i].x; sy += tank.school.q[i].y; } sx /= tank.school.n; sy /= tank.school.n;
         tank_touch_tap(&tank, sx, sy - 40);
-        int w1 = 0; for (int i = 0; i < tank.shrimp_n; i++) w1 += tank.shrimp[i].dart > 0;
+        int w1 = 0; for (int i = 0; i < tank.school.n; i++) w1 += tank.school.q[i].dart > 0;
         if (w1) { printf("FAIL: one tap on the water scattered them\n"); return 1; }
         tank_touch_tap(&tank, sx, sy - 40); tank_touch_tap(&tank, sx, sy - 40);
-        int w3 = 0; for (int i = 0; i < tank.shrimp_n; i++) w3 += tank.shrimp[i].dart > 0;
+        int w3 = 0; for (int i = 0; i < tank.school.n; i++) w3 += tank.school.q[i].dart > 0;
         if (w3 < 2) { printf("FAIL: a triple tap on the water by them scattered %d\n", w3); return 1; }
         tank.startled = false; tank.tap_count = 0; tank.tap_burst_t = 99;
         /* the card: a pip per pellet toward the next shrimp */
-        tank.shrimp_food = 7; tank.shrimp_cool = 0;
+        tank.school.food = 7; tank.school.cool = 0;
         render_tank(&tank, fb, TANK_W); render_stats_card(&tank, RENDER_CARD_SHRIMP, fb, TANK_W);
         int pip_px = 0;
         for (int y = (TANK_H - SHRIMP_CARD_H) / 2 + 122; y <= (TANK_H - SHRIMP_CARD_H) / 2 + 142; y++)   /* the card's pip row */
@@ -3733,21 +3733,21 @@ static int selftest_shop(void) {
         render_tank(&tank, fb, TANK_W);
         tank.sd_unlocks = unl;
         int red = 0;                                   /* cherry pixels in each shrimp's box (a front frond may cross it: the grass is their cover) */
-        for (int i = 0; i < tank.shrimp_n; i++) {
-            int qx = (int)tank.shrimp[i].x, qy = (int)tank.shrimp[i].y;
+        for (int i = 0; i < tank.school.n; i++) {
+            int qx = (int)tank.school.q[i].x, qy = (int)tank.school.q[i].y;
             for (int y = qy - 4; y <= qy + 4; y++) for (int x = qx - 9; x <= qx + 9; x++) {
                 if (x < 0 || y < 0 || x >= TANK_W || y >= TANK_H) continue;
                 uint16_t pv = fb[y * TANK_W + x]; int pr = (pv >> 11) << 3, pg = ((pv >> 5) & 63) << 2;
                 red += pr >= 60 && pr > 2 * pg;           /* cherry, its shadow and its light (the floor's vignette darkens them) */
             }
         }
-        if (red < 25 * tank.shrimp_n) { printf("FAIL: %d cherry pixels for %d shrimp\n", red, tank.shrimp_n); return 1; }
+        if (red < 25 * tank.school.n) { printf("FAIL: %d cherry pixels for %d shrimp\n", red, tank.school.n); return 1; }
         /* the save keeps the school, its count and its cooldown */
-        int keep_n = tank.shrimp_n; tank.shrimp_food = 7; tank.shrimp_cool = 321;
+        int keep_n = tank.school.n; tank.school.food = 7; tank.school.cool = 321;
         progression_save(&tank);
         tank_init(&tank, 4243); progression_boot(&tank);
-        if (!(tank.sd_unlocks & SD_ITEM_SHRIMP) || tank.shrimp_n != keep_n || tank.shrimp_food != 7 || fabsf(tank.shrimp_cool - 321) > 1) {
-            printf("FAIL: the save lost the shrimp (%d of %d, count %d, cooldown %.0f)\n", tank.shrimp_n, keep_n, tank.shrimp_food, tank.shrimp_cool); return 1; }
+        if (!(tank.sd_unlocks & SD_ITEM_SHRIMP) || tank.school.n != keep_n || tank.school.food != 7 || fabsf(tank.school.cool - 321) > 1) {
+            printf("FAIL: the save lost the shrimp (%d of %d, count %d, cooldown %.0f)\n", tank.school.n, keep_n, tank.school.food, tank.school.cool); return 1; }
         /* the full school's badge (2026-09-30): a seventh tank badge, shown only
            with shrimp in the tank, on the TANK row's second page behind the
            arrow at its right end (a tap, or a sideways swipe along the row) */
@@ -3760,7 +3760,7 @@ static int selftest_shop(void) {
             uint32_t had_cluster = tank.sd_unlocks & SD_ITEM_CLUSTER;                /* (the reef cluster brings a badge of its own to page 2:
                                                                                         out of the tank while the school's is counted) */
             tank.sd_unlocks &= ~SD_ITEM_CLUSTER;
-            if (tank.tank_ms_bits & TMS_FULL_SCHOOL) { printf("FAIL: the full-school badge with %d shrimp\n", tank.shrimp_n); return 1; }
+            if (tank.tank_ms_bits & TMS_FULL_SCHOOL) { printf("FAIL: the full-school badge with %d shrimp\n", tank.school.n); return 1; }
             uint32_t unl = tank.sd_unlocks; tank.sd_unlocks &= ~SD_ITEM_SHRIMP;      /* no shrimp: one page, no arrow */
             render_milestones_leave(); MS_HASH(h0);
             if (ms_tap(ARROW_X, TY) != MS_TAP_NONE || render_milestones_swipe(&tank, SWIPE_X, SWIPE_Y, -60)) { printf("FAIL: the tank row pages without shrimp\n"); return 1; }
@@ -3791,10 +3791,10 @@ static int selftest_shop(void) {
             render_milestones_leave();
             MS_HASH(hx); if (hx != h0) { printf("FAIL: leaving the page kept the tank row's page\n"); return 1; }
             /* ten shrimp earn it */
-            int n_keep = tank.shrimp_n; tank.shrimp_n = SHRIMP_MAX;
+            int n_keep = tank.school.n; tank.school.n = SHRIMP_MAX;
             progression_tick(&tank, 1.0f / 60.0f);
             if (!(tank.tank_ms_bits & TMS_FULL_SCHOOL)) { printf("FAIL: %d shrimp did not earn the full-school badge\n", SHRIMP_MAX); return 1; }
-            tank.shrimp_n = n_keep;
+            tank.school.n = n_keep;
             tank.sd_unlocks |= had_cluster;
             #undef MS_HASH
             printf("selftest-shop: the shrimp: the full-school badge - hidden without shrimp, page 2 of the tank row (arrow, swipe, modal arrows), earned at %d\n", SHRIMP_MAX);
@@ -3992,18 +3992,18 @@ static int selftest_shop(void) {
         tank.sd_unlocks &= ~SD_ITEM_FROGMAN; tank.sd_balance = SD_PRICE_FROGMAN;
         if (!progression_buy(&tank, SD_ITEM_FROGMAN_IDX) || tank.sd_balance != 0 || !(tank.sd_unlocks & SD_ITEM_FROGMAN)) { printf("FAIL: the frogman did not sell at %d\n", SD_PRICE_FROGMAN); return 1; }
         if (progression_buy(&tank, SD_ITEM_FROGMAN_IDX) || progression_sell(&tank, SD_ITEM_FROGMAN_IDX)) { printf("FAIL: a second frogman, or one sold back\n"); return 1; }
-        { float x0 = tank.frog_x; int turns = 0, dir = tank.frog_dir; float lo = 1e9f, hi = -1e9f, ylo = 1e9f, yhi = -1e9f;
+        { float x0 = tank.frogman.x; int turns = 0, dir = tank.frogman.dir; float lo = 1e9f, hi = -1e9f, ylo = 1e9f, yhi = -1e9f;
           for (int i = 0; i < 180 * 60; i++) { tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-              if (tank.frog_dir != dir) { turns++; dir = tank.frog_dir; }
-              if (tank.frog_x < lo) lo = tank.frog_x; if (tank.frog_x > hi) hi = tank.frog_x;
-              if (tank.frog_y < ylo) ylo = tank.frog_y; if (tank.frog_y > yhi) yhi = tank.frog_y;
-              if (i == 120 && fabsf(tank.frog_x - x0) < 10) { printf("FAIL: the frogman did not drift (%.1f -> %.1f in 2 s)\n", x0, tank.frog_x); return 1; } }
+              if (tank.frogman.dir != dir) { turns++; dir = tank.frogman.dir; }
+              if (tank.frogman.x < lo) lo = tank.frogman.x; if (tank.frogman.x > hi) hi = tank.frogman.x;
+              if (tank.frogman.y < ylo) ylo = tank.frogman.y; if (tank.frogman.y > yhi) yhi = tank.frogman.y;
+              if (i == 120 && fabsf(tank.frogman.x - x0) < 10) { printf("FAIL: the frogman did not drift (%.1f -> %.1f in 2 s)\n", x0, tank.frogman.x); return 1; } }
           if (turns < 2 || lo < FROG_MARGIN - 3 || hi > TANK_W - FROG_MARGIN + 3) { printf("FAIL: the frogman's drift: %d turns, x %.0f..%.0f\n", turns, lo, hi); return 1; }
           if (ylo < FROG_LANE_LO - 1 || yhi > FROG_LANE_HI + 1) { printf("FAIL: the frogman left his band of water (y %.0f..%.0f)\n", ylo, yhi); return 1; }
-          if (!tank_frogman_hit(&tank, tank.frog_x, tank.frog_y) || tank_frogman_hit(&tank, tank.frog_x + 60, tank.frog_y)) { printf("FAIL: the frogman's hit test\n"); return 1; }
+          if (!tank_frogman_hit(&tank, tank.frogman.x, tank.frogman.y) || tank_frogman_hit(&tank, tank.frogman.x + 60, tank.frogman.y)) { printf("FAIL: the frogman's hit test\n"); return 1; }
           render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
           progression_save(&tank); tank_t back; tank_init(&back, 8); progression_boot(&back);
-          if (!(back.sd_unlocks & SD_ITEM_FROGMAN) || back.frog_x != TANK_W / 2) { printf("FAIL: the frogman did not come back from the save mid-tank\n"); return 1; }
+          if (!(back.sd_unlocks & SD_ITEM_FROGMAN) || back.frogman.x != TANK_W / 2) { printf("FAIL: the frogman did not come back from the save mid-tank\n"); return 1; }
           printf("shop: the frogman - item %d at %d, a resident (no MOVE, no SELL), drifted %d turns across x %.0f..%.0f, y %.0f..%.0f, back from the save\n", SD_ITEM_FROGMAN_IDX, SD_PRICE_FROGMAN, turns, lo, hi, ylo, yhi); }
         /* the submarine (2026-10-10 night, item 9): a resident that cruises like the frogman, stops every
            SUB_CRUISE_LO..HI s to raise its periscope, and never meets the frogman - each eases off the
@@ -4013,32 +4013,32 @@ static int selftest_shop(void) {
         tank.sd_unlocks &= ~SD_ITEM_SUB; tank.sd_balance = SD_PRICE_SUB;
         if (!progression_buy(&tank, SD_ITEM_SUB_IDX) || tank.sd_balance != 0 || !(tank.sd_unlocks & SD_ITEM_SUB)) { printf("FAIL: the submarine did not sell at %d\n", SD_PRICE_SUB); return 1; }
         if (progression_buy(&tank, SD_ITEM_SUB_IDX) || progression_sell(&tank, SD_ITEM_SUB_IDX)) { printf("FAIL: a second submarine, or one sold back\n"); return 1; }
-        { int turns = 0, dir = tank.sub_dir, stops = 0; bool stopped = false, peri_up = false; float lo = 1e9f, hi = -1e9f, closest = 1e9f, vmax = 0;
+        { int turns = 0, dir = tank.sub.dir, stops = 0; bool stopped = false, peri_up = false; float lo = 1e9f, hi = -1e9f, closest = 1e9f, vmax = 0;
           for (int i = 0; i < 300 * 60; i++) { tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-              if (tank.sub_dir != dir) { turns++; dir = tank.sub_dir; }
-              if (tank.sub_x < lo) lo = tank.sub_x;
-              if (tank.sub_x > hi) hi = tank.sub_x;
-              if (tank.sub_stop > 0 && !stopped) stops++;
-              stopped = tank.sub_stop > 0;
-              if (tank.sub_peri > 0.95f) peri_up = true;
-              if (tank.sub_peri > 0.5f && tank.sub_v > 2) vmax = fmaxf(vmax, tank.sub_v);
-              float dx = tank.sub_x - tank.frog_x, dy = tank.sub_y - tank.frog_y, dd = sqrtf(dx * dx + dy * dy);
+              if (tank.sub.dir != dir) { turns++; dir = tank.sub.dir; }
+              if (tank.sub.x < lo) lo = tank.sub.x;
+              if (tank.sub.x > hi) hi = tank.sub.x;
+              if (tank.sub.stop > 0 && !stopped) stops++;
+              stopped = tank.sub.stop > 0;
+              if (tank.sub.peri > 0.95f) peri_up = true;
+              if (tank.sub.peri > 0.5f && tank.sub.v > 2) vmax = fmaxf(vmax, tank.sub.v);
+              float dx = tank.sub.x - tank.frogman.x, dy = tank.sub.y - tank.frogman.y, dd = sqrtf(dx * dx + dy * dy);
               if (dd < closest) closest = dd; }
           if (turns < 2 || lo < SUB_MARGIN - 3 || hi > TANK_W - SUB_MARGIN + 3) { printf("FAIL: the submarine's cruise: %d turns, x %.0f..%.0f\n", turns, lo, hi); return 1; }
           if (stops < 5 || !peri_up || vmax > 0) { printf("FAIL: the submarine's stops: %d, periscope up %d, moving with it up %.1f\n", stops, peri_up, vmax); return 1; }
           if (closest < 30) { printf("FAIL: the submarine and the frogman came within %.0f px\n", closest); return 1; }
-          if (!tank_sub_hit(&tank, tank.sub_x, tank.sub_y) || tank_sub_hit(&tank, tank.sub_x + 80, tank.sub_y)) { printf("FAIL: the submarine's hit test\n"); return 1; }
+          if (!tank_sub_hit(&tank, tank.sub.x, tank.sub.y) || tank_sub_hit(&tank, tank.sub.x + 80, tank.sub.y)) { printf("FAIL: the submarine's hit test\n"); return 1; }
           render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
           progression_save(&tank); tank_t back; tank_init(&back, 8); progression_boot(&back);
-          if (!(back.sd_unlocks & SD_ITEM_SUB) || back.sub_x != TANK_W / 2) { printf("FAIL: the submarine did not come back from the save mid-tank\n"); return 1; }
+          if (!(back.sd_unlocks & SD_ITEM_SUB) || back.sub.x != TANK_W / 2) { printf("FAIL: the submarine did not come back from the save mid-tank\n"); return 1; }
           printf("shop: the submarine - item %d at %d, cruised %d turns, %d stops with the periscope up, never nearer the frogman than %.0f px, back from the save\n", SD_ITEM_SUB_IDX, SD_PRICE_SUB, turns, stops, closest); }
         /* a hard shake (2026-10-10): every creature and the frogman thrown, moving fast at once, then
            settled within TOSS_S + 2 s - inside the glass, steering back, nothing NaN */
         { float s0 = 0; for (int i = 0; i < tank.n_fish; i++) s0 += tank.fish[i].stress;
           tank_shake(&tank, 1.0f);
           for (int i = 0; i < tank.n_fish; i++) if (tank.fish[i].toss <= 0 || fabsf(tank.fish[i].toss_vx) + fabsf(tank.fish[i].toss_vy) < 100) { printf("FAIL: fish %d was not tossed\n", i); return 1; }
-          if (tank.frog_toss <= 0) { printf("FAIL: the frogman was not tossed\n"); return 1; }
-          if (tank.sub_toss <= 0) { printf("FAIL: the submarine was not tossed\n"); return 1; }
+          if (tank.frogman.toss <= 0) { printf("FAIL: the frogman was not tossed\n"); return 1; }
+          if (tank.sub.toss <= 0) { printf("FAIL: the submarine was not tossed\n"); return 1; }
           float s1 = 0; for (int i = 0; i < tank.n_fish; i++) s1 += tank.fish[i].stress;
           if (s1 <= s0) { printf("FAIL: a shake did not stress the creatures\n"); return 1; }
           float moved = 0; { float x0[N_FISH_MAX]; for (int i = 0; i < tank.n_fish; i++) x0[i] = tank.fish[i].x;
@@ -4048,7 +4048,7 @@ static int selftest_shop(void) {
           for (int k = 0; k < (int)((TOSS_S + 2) * 60); k++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
           for (int i = 0; i < tank.n_fish; i++) { fish_t *f = &tank.fish[i];
               if (f->toss != 0 || f->x != f->x || f->y != f->y || f->x < TANK_FX0 || f->x > TANK_FX1 || f->y < 0 || f->y > TANK_BOT) { printf("FAIL: fish %d after the shake: toss %.2f at %.0f,%.0f\n", i, f->toss, f->x, f->y); return 1; } }
-          if (tank.frog_toss != 0 || tank.frog_x < 0 || tank.frog_x > TANK_W) { printf("FAIL: the frogman after the shake\n"); return 1; }
+          if (tank.frogman.toss != 0 || tank.frogman.x < 0 || tank.frogman.x > TANK_W) { printf("FAIL: the frogman after the shake\n"); return 1; }
           printf("shake: %d creatures and the frogman tossed, stress up, settled inside the glass within %.0f s\n", tank.n_fish, TOSS_S + 2); }
     }
     {
@@ -4169,17 +4169,17 @@ static int selftest_shop(void) {
     }
     /* the save carries it all */
     {
-        tank.sd_unlocks = SD_ITEM_PLANT | SD_ITEM_SNAIL; tank_veg_set(&tank, 3, 0.62f); tank.snail_x = 123; tank.snail_y = 77; tank.snail_grazed = 321;
+        tank.sd_unlocks = SD_ITEM_PLANT | SD_ITEM_SNAIL; tank_veg_set(&tank, 3, 0.62f); tank.snail.x = 123; tank.snail.y = 77; tank.snail.grazed = 321;
         tank.sd_balance = 37; int earned = tank.sd_earned, colonies = tank.algae_colonies; float trim = tank.trim_px;
         progression_save(&tank);
         tank_init(&tank, 4242); progression_boot(&tank); tank.trickle_off = true;
         SHOP_TICK(2);
         if (tank.sd_balance != 37 || tank.sd_earned != earned || tank.sd_unlocks != (SD_ITEM_PLANT | SD_ITEM_SNAIL)
             || tank.algae_colonies != colonies || fabsf(tank.trim_px - trim) > 1 || fabsf(tank.veg_growth[3] - 0.62f) > 0.01f
-            || fabsf(tank.snail_x - 123) > 1 || fabsf(tank.snail_y - 77) > 1 || tank_veg_beds(&tank) != VEG_BEDS_MAX) {   /* (it crawls a hair in two ticks) */
+            || fabsf(tank.snail.x - 123) > 1 || fabsf(tank.snail.y - 77) > 1 || tank_veg_beds(&tank) != VEG_BEDS_MAX) {   /* (it crawls a hair in two ticks) */
             printf("FAIL: the save lost something: balance %d unlocks %x earned %d (was %d) colonies %d (was %d) trim %.0f (was %.0f) bed3 %.2f snail %.0f,%.0f beds %d\n",
-                   tank.sd_balance, tank.sd_unlocks, tank.sd_earned, earned, tank.algae_colonies, colonies, tank.trim_px, trim, tank.veg_growth[3], tank.snail_x, tank.snail_y, tank_veg_beds(&tank)); return 1; }
-        if (tank.snail_grazed != 321) { printf("FAIL: the save lost the snail's tally (%d)\n", (int)tank.snail_grazed); return 1; }
+                   tank.sd_balance, tank.sd_unlocks, tank.sd_earned, earned, tank.algae_colonies, colonies, tank.trim_px, trim, tank.veg_growth[3], tank.snail.x, tank.snail.y, tank_veg_beds(&tank)); return 1; }
+        if (tank.snail.grazed != 321) { printf("FAIL: the save lost the snail's tally (%d)\n", (int)tank.snail.grazed); return 1; }
         printf("selftest-shop: the save round-trip kept the balance, the unlocks, the counters, the plant's height and the snail's spot + tally\n");
         /* a save from before the shop (1480 bytes): no dollars, then the back
            pay - the stages and the trust it already has, once */
@@ -5262,7 +5262,7 @@ static void golden_stage(int theme) {
     tank_cluster_set_scheme(&tank, 1); tank.decor[DK_CLUSTER].growth = CLUSTER_FULL;
     tank_decor_set(&tank, 0, 230 * sx, DECOR_Z_MIDDLE);
     golden_layout(0);
-    tank.snail_x = 200 * sx; tank.snail_y = SNAIL_FLOOR_Y; tank.snail_cell = -1;
+    tank.snail.x = 200 * sx; tank.snail.y = SNAIL_FLOOR_Y; tank.snail.cell = -1;
 }
 /* the helpers in each of their poses, over the pieces IN FRONT and BEHIND (mix 0):
    the snail on the glass and in either floor lane by the coral, the urchin
@@ -5273,14 +5273,14 @@ static void golden_helpers(const char *prefix, const char *tag, uint16_t *fb) {
     char name[96];
 #define GH_FRAME(what) do { render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W); \
                             snprintf(name, sizeof name, "%s_%s", tag, what); golden_frame(prefix, name, fb); } while (0)
-    tank.snail_x = 160 * sx; tank.snail_y = TANK_H * 0.4f; tank.snail_heading = 0.7f; tank.snail_cell = -1;
+    tank.snail.x = 160 * sx; tank.snail.y = TANK_H * 0.4f; tank.snail.heading = 0.7f; tank.snail.cell = -1;
     GH_FRAME("snail_glass");
-    tank.snail_x = 150 * sx; tank.snail_y = SNAIL_FLOOR_Y; tank.snail_heading = 3.14159f;
-    tank.snail_front = false; GH_FRAME("snail_behind");
-    tank.snail_front = true;  GH_FRAME("snail_front");
-    tank.urchin_bed = 0; tank.urchin_frond = 2; tank.urchin_chew = 3; GH_FRAME("urchin_chew");
-    tank.sub_stop = 4; tank.sub_peri = 1; tank.sub_look = 2.5f; tank.sub_v = 0; GH_FRAME("sub_stop");
-    for (int i = 0; i < tank.shrimp_n; i++) { tank.shrimp[i].dart = i % 2 ? 0.3f : 0; tank.shrimp[i].pecking = i % 3 == 0; }
+    tank.snail.x = 150 * sx; tank.snail.y = SNAIL_FLOOR_Y; tank.snail.heading = 3.14159f;
+    tank.snail.front = false; GH_FRAME("snail_behind");
+    tank.snail.front = true;  GH_FRAME("snail_front");
+    tank.urchin.bed = 0; tank.urchin.frond = 2; tank.urchin.chew = 3; GH_FRAME("urchin_chew");
+    tank.sub.stop = 4; tank.sub.peri = 1; tank.sub.look = 2.5f; tank.sub.v = 0; GH_FRAME("sub_stop");
+    for (int i = 0; i < tank.school.n; i++) { tank.school.q[i].dart = i % 2 ? 0.3f : 0; tank.school.q[i].pecking = i % 3 == 0; }
     GH_FRAME("shrimp_dart");
     static const int CARD[3] = { RENDER_CARD_SNAIL, RENDER_CARD_URCHIN, RENDER_CARD_SHRIMP };
     for (int i = 0; i < 3; i++) {
@@ -5456,6 +5456,91 @@ static int selftest_decor(void) {
     return 0;
 }
 
+/* --selftest-helpers (2026-10-22): every row of HELPER[] (common/helper.h) in
+ * this board's world - bought, it arrives inside the glass and goes about its
+ * rules there through half an hour of the tank (film and tall grass to work,
+ * pellets, a shake, a startle) and a night asleep; a second purchase is
+ * refused; a tap on one with a card brings the card up (and it draws) and the
+ * next tap puts it away; the save and the load keep what it keeps. A new row is
+ * checked here with no new code. */
+#define HL_FAIL(...) do { printf("FAIL: helper %s: ", HELPER[k].name); printf(__VA_ARGS__); printf("\n"); return 1; } while (0)
+static bool hl_outside(int k, float *ox, float *oy) {   /* a body of it off the glass: where */
+    float x, y;
+    for (int i = 0; HELPER[k].body(&tank, i, &x, &y); i++)
+        if (y < tank_glass_top(x) - 0.5f || y > TANK_BOT + 0.5f || x < tank_glass_x0(y) - 0.5f || x > tank_glass_x1(y) + 0.5f) { *ox = x; *oy = y; return true; }
+    return false;
+}
+static int selftest_helpers(void) {
+    static uint16_t fb[TANK_W * TANK_H], card[TANK_W * TANK_H], scene[TANK_W * TANK_H];
+    static tank_t back;
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest-helpers.sav", 1);   /* never touch the real save */
+    render_set_scene_cache(scene); render_set_vignette_cache(vig_buf); render_set_card_cache(card_buf); render_set_dirty_mask(dirty_buf);
+    int cards = 0, kept = 0;
+    for (int k = 0; k < HK_COUNT; k++) {
+        const helper_def_t *h = &HELPER[k];
+        float x, y;
+        if (!h->body || !h->tick) HL_FAIL("a row without its body or its rules");
+        if (helper_kind_of_item(h->shop_item) != k) HL_FAIL("its shop item %d is another's", h->shop_item);
+        dc_fresh(); tank.sd_balance = 100000;
+        if (helper_owned(&tank, k)) HL_FAIL("in a fresh tank");
+        if (!progression_buy(&tank, h->shop_item) || !helper_owned(&tank, k)) HL_FAIL("cannot be bought");
+        if (progression_buy(&tank, h->shop_item)) HL_FAIL("bought twice");
+        if (!h->body(&tank, 0, &x, &y)) HL_FAIL("bought, it is nowhere");
+        if (hl_outside(k, &x, &y)) HL_FAIL("arrives at %.0f,%.0f, off the glass", x, y);
+        /* half an hour of the tank: film on the glass, the grass grown tall, pellets, a shake, a startle */
+        tank_grow_algae(&tank, 40);
+        for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, 0.85f);
+        const float dt = 1.0f / 30;
+        for (int s = 0; s < 30 * 60 * 30; s++) {
+            if (s % (30 * 90) == 0) tank_feed(&tank, TANK_W * (0.3f + 0.4f * (s % 7) / 6.0f), 3);
+            if (s == 30 * 600) tank_shake(&tank, 1.0f);
+            if (s == 30 * 900) for (int i = 0; i < 3; i++) tank_touch_tap(&tank, TANK_W * 0.5f, TANK_H * 0.55f);
+            tank_tick(&tank, dt, advisor_rules);
+            if (s % 30 == 0 && hl_outside(k, &x, &y)) HL_FAIL("at %.0f s it is at %.0f,%.0f, off the glass", s * dt, x, y);
+        }
+        tank_tick_sleep(&tank, 8 * 3600);
+        if (!h->body(&tank, 0, &x, &y) || hl_outside(k, &x, &y)) HL_FAIL("a night asleep leaves it at %.0f,%.0f, off the glass", x, y);
+        /* its card: a tap on it brings the card up, the next (out of a quick run of taps) puts it away */
+        if (h->hit) {
+            int sel = -1;
+            h->body(&tank, 0, &x, &y);
+            if (render_helper_tap(&tank, x, y, &sel) != k || !render_card_is_helper(sel)) HL_FAIL("a tap on it at %.0f,%.0f brings no card (%d)", x, y, sel);
+            render_tank(&tank, fb, TANK_W); memcpy(card, fb, sizeof fb); render_stats_card(&tank, sel, card, TANK_W);
+            if (!memcmp(card, fb, sizeof fb)) HL_FAIL("its card draws nothing");
+            for (int i = 0; i < 30; i++) tank_tick(&tank, dt, advisor_rules);
+            h->body(&tank, 0, &x, &y);
+            if (render_helper_tap(&tank, x, y, &sel) != k || sel != -1) HL_FAIL("a second tap leaves the card at %d", sel);
+            cards++;
+        } else {
+            int sel = -1;
+            if (render_helper_tap(&tank, x, y, &sel) >= 0 && sel != -1) HL_FAIL("no card, but a tap on it brings one");
+        }
+        /* the save and the load */
+        if (h->save) {
+            helper_rec_t was, got; memset(&was, 0, sizeof was); memset(&got, 0, sizeof got);
+            h->save(&tank, &was);
+            if (!progression_save(&tank)) HL_FAIL("the save failed");
+            tank_init(&back, 9); progression_wake(&back, 0);        /* (no clock: the load alone, nothing lived) */
+            if (!helper_owned(&back, k)) HL_FAIL("not in the tank after a load");
+            h->save(&back, &got);
+            if (was.n != got.n || was.m != got.m || was.x != got.x || was.y != got.y || was.amount != got.amount || was.count != got.count)
+                HL_FAIL("saved n %d m %d x %.2f y %.2f amount %.2f count %d, loaded n %d m %d x %.2f y %.2f amount %.2f count %d",
+                        was.n, was.m, was.x, was.y, was.amount, (int)was.count, got.n, got.m, got.x, got.y, got.amount, (int)got.count);
+            kept++;
+        } else {
+            if (!progression_save(&tank)) HL_FAIL("the save failed");
+            tank_init(&back, 9); progression_wake(&back, 0);
+            if (!helper_owned(&back, k)) HL_FAIL("not in the tank after a load");
+        }
+        tank = back;
+        if (!h->body(&tank, 0, &x, &y) || hl_outside(k, &x, &y)) HL_FAIL("loaded at %.0f,%.0f, off the glass", x, y);
+    }
+    remove(getenv("AQUA_PETS_SAVE"));
+    printf("selftest-helpers: %d helpers (%d with a card, %d with a record): inside the glass through half an hour and a night, the card, the save; selftest-helpers ok\n",
+           HK_COUNT, cards, kept);
+    return 0;
+}
+
 extern int selftest_themes(const char *prefix);
 
 int main(int argc, char **argv) {
@@ -5471,6 +5556,7 @@ int main(int argc, char **argv) {
         if (strcmp(argv[a], "--selftest-themes") == 0) return selftest_themes(a + 1 < argc ? argv[a + 1] : NULL);
         if (strcmp(argv[a], "--golden-decor") == 0) return golden_decor(a + 1 < argc ? argv[a + 1] : NULL);
         if (strcmp(argv[a], "--selftest-decor") == 0) return selftest_decor();
+        if (strcmp(argv[a], "--selftest-helpers") == 0) return selftest_helpers();
         if (strcmp(argv[a], "--selftest") == 0) return selftest();
         if (strcmp(argv[a], "--bench") == 0) return bench();
         if (strcmp(argv[a], "--species-sheet") == 0 && a + 1 < argc) return species_sheet(argv[a + 1]);
@@ -5696,7 +5782,7 @@ int main(int argc, char **argv) {
                 /* same hit test as the device: each creature's own reach
                    (tank_fish_hit_r) against the press-time fish snapshot AND
                    the current position, whichever is closer */
-                int best = -1; float bd = 1.0f;
+                int best = -1, hk; float bd = 1.0f;
                 for (int i = 0; i < tank.n_fish; i++) {
                     float ax = press_fx[i] - press_x, ay = press_fy[i] - press_y;
                     float bx = tank.fish[i].x - press_x, by = tank.fish[i].y - press_y;
@@ -5714,8 +5800,7 @@ int main(int argc, char **argv) {
                     battery_view = true; battery_view_ms = now_ms; selected_fish = -1;
                     printf("battery page: %d%%, %s\n", sim_bat_gauge(), sim_bat_state == BAT_CHARGING ? "charging" : sim_bat_state == BAT_FULL ? "full" : "on battery");
                 }
-                else if (selected_fish >= 0 && selected_fish != RENDER_CARD_SNAIL && selected_fish != RENDER_CARD_SHRIMP && selected_fish != RENDER_CARD_URCHIN
-                         && RENDER_CARD_HIT(press_x, press_y))
+                else if (selected_fish >= 0 && !render_card_is_helper(selected_fish) && RENDER_CARD_HIT(press_x, press_y))
                     selected_fish = -1;                    /* a click ON the card puts it away (2026-10-21: the pages are the BOOT key's menu) */
                 else if ((selected_fish < 0 || selected_fish >= tank.n_fish) && render_tool_chip_hit(&tank, (float)press_x, (float)press_y)) {
                     tank_set_tool(&tank, TOOL_HAND); printf("toolbox: DONE - back to bare hands\n");
@@ -5727,17 +5812,8 @@ int main(int argc, char **argv) {
                     if (again && tank_poke(&tank, best)) { selected_fish = -1; poke_fish = -1; printf("%s double-tapped: its trick\n", tank.fish[best].name); }
                     else selected_fish = (best == selected_fish) ? -1 : best;
                 }
-                else if (tank_snail_hit(&tank, (float)press_x, (float)press_y))   /* the snail: its card (2026-09-16) */
-                    selected_fish = selected_fish == RENDER_CARD_SNAIL ? -1 : RENDER_CARD_SNAIL;
-                else if (tank_urchin_hit(&tank, (float)press_x, (float)press_y)) {  /* the urchin: its card (2026-10-02) */
-                    selected_fish = selected_fish == RENDER_CARD_URCHIN ? -1 : RENDER_CARD_URCHIN;
-                    printf("urchin tapped: card %s (%.0f cm of grass grazed)\n", selected_fish >= 0 ? "up" : "down", tank.urchin_grazed_px / PX_PER_CM);
-                }
-                else if (tank_shrimp_hit(&tank, (float)press_x, (float)press_y)) {   /* the shrimp: a tap its card, the third quick tap scares them (2026-09-29) */
-                    int taps = tank_shrimp_tap(&tank, (float)press_x, (float)press_y);
-                    if (taps == 1) selected_fish = selected_fish == RENDER_CARD_SHRIMP ? -1 : RENDER_CARD_SHRIMP;
-                    else if (taps >= 3) { selected_fish = -1; printf("shrimp: scared off (triple tap)\n"); }
-                }
+                else if ((hk = render_helper_tap(&tank, (float)press_x, (float)press_y, &selected_fish)) >= 0)   /* a helper: its card */
+                    printf("%s tapped: card %s\n", HELPER[hk].name, selected_fish >= 0 ? "up" : "down");
                 else if (selected_fish >= 0) selected_fish = -1;   /* card up: empty-glass tap dismisses, nothing else */
                 else tank_touch_tap(&tank, (float)press_x, (float)press_y);
             } else if (tank.tool == TOOL_HAND && press_y - tank_glass_top(press_x) < 60 && dy >= 40) tank_feed(&tank, (float)mx, 3);
@@ -5826,15 +5902,15 @@ int main(int argc, char **argv) {
         odown = k[SDL_SCANCODE_O];
         if (k[SDL_SCANCODE_W] && !wdown) {         /* the shrimp school (2026-09-29): granted free; again = one more; past SHRIMP_MAX takes them away */
             if (!(tank.sd_unlocks & SD_ITEM_SHRIMP)) { tank.sd_unlocks |= SD_ITEM_SHRIMP; tank_shrimp_place(&tank, SHRIMP_START); }
-            else if (tank.shrimp_n < SHRIMP_MAX) tank_shrimp_place(&tank, tank.shrimp_n + 1);
-            else { tank.sd_unlocks &= ~SD_ITEM_SHRIMP; tank.shrimp_n = 0; }
+            else if (tank.school.n < SHRIMP_MAX) tank_shrimp_place(&tank, tank.school.n + 1);
+            else { tank.sd_unlocks &= ~SD_ITEM_SHRIMP; tank.school.n = 0; }
             printf("shrimp: %d (free; the shop sells the school at %d on page 2; F feeds - pellets on the floor bring more; tap near them to scatter)\n",
-                   (tank.sd_unlocks & SD_ITEM_SHRIMP) ? tank.shrimp_n : 0, SD_PRICE_SHRIMP);
+                   (tank.sd_unlocks & SD_ITEM_SHRIMP) ? tank.school.n : 0, SD_PRICE_SHRIMP);
         }
         wdown = k[SDL_SCANCODE_W];
         if (k[SDL_SCANCODE_Y] && !ydown) {         /* the urchin (2026-10-02): granted free; again takes it away */
             if (!(tank.sd_unlocks & SD_ITEM_URCHIN)) { tank.sd_unlocks |= SD_ITEM_URCHIN; tank_urchin_place(&tank); }
-            else { tank.sd_unlocks &= ~SD_ITEM_URCHIN; tank.urchin_x = -1; if (selected_fish == RENDER_CARD_URCHIN) selected_fish = -1; }
+            else { tank.sd_unlocks &= ~SD_ITEM_URCHIN; tank.urchin.x = -1; if (selected_fish == RENDER_CARD_URCHIN) selected_fish = -1; }
             printf("urchin: %s (free; the shop sells it at %d on page 2; G grows the grass for it, Z sleeps 7 h)\n",
                    (tank.sd_unlocks & SD_ITEM_URCHIN) ? "in the tank" : "gone", SD_PRICE_URCHIN);
         }
