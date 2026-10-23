@@ -2,6 +2,49 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: the creatures' code moves to creature.c (refactor phase 3b+)
+
+**What changed.** A pure move: `--golden-creatures` and `--golden-decor` are
+identical to before on all three boards.
+- **`common/creature.c`:** six ranges of tank.c, moved verbatim (1,623
+  lines, the same count tank.c lost). That covers the roster and the
+  keeper's look palettes, naming, looks and making a fish, the species
+  functions and `SPECIES[]`, the population (place, add, breed, remove),
+  the fish's courtship steer, and the motion: the species' hooks,
+  `fish_swim`, `target_for_goal`, the walls, eating, the toss and
+  `update_fish`.
+- **`common/creature.h`:** the species types (`species_t`, `loco_t`,
+  `sp_motion_t`, `SPF_*`, `target_t`, `species_def_t`), moved from tank.h,
+  which includes it where they stood. The `tank_*` creature API stays
+  declared in tank.h, as the `tank_decor_*` wrappers did.
+- **`common/tank_internal.h`:** what tank.c and creature.c share. That's the
+  small maths (`clampf`, `norm_ang`, `lerpf`, now `static inline` with the
+  same bodies), the RNG core (`xr`, renamed `tank_xr`), `rand_water`, the
+  watch's corners, the grass and courtship calls, eleven constants (startle,
+  hold, hunger, curiosity, the canopy's slow), and the two calls back:
+  `update_fish` and `sp_startle_hit`. It is not for the platforms.
+- tank.c keeps the tank around the creatures: the glass, the light, food,
+  bubbles, grass, film, touch, the shake, the sleep and the tick (1,186 lines,
+  down from 2,809).
+- CLAUDE.md's architecture names the new files.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (17 selftests) | both oracles identical | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | both oracles identical | yes | no | no |
+| 2.06 watch | passes | both oracles identical | yes | no | no |
+
+Firmware against 3b: `.dram0.bss`, `.dram0.data` and `.flash.rodata`
+unchanged, `.flash.text` -0.3 to -2.9 KB (the code is inlined differently
+across two files), the signed app still 0x271000, the same three deprecation
+warnings. The oracles prove the sim build. On the device, different inlining
+could in principle let gcc contract float expressions differently; nothing
+here can check that without a board.
+
+**Next:** 3c, every creature's art into one `creatures.inc`.
+
 ## 2026-10-23: the classic fish is a row too (refactor phase 3b)
 
 **What changed.** A pure refactor: `--golden-creatures` and `--golden-decor`

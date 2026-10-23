@@ -1,0 +1,59 @@
+/* What tank.c and creature.c share inside the reflex layer (2026-10-23, the
+ * creatures' code moved to creature.c): the small maths, the tank's RNG core,
+ * the constants both sides read, and the few calls across. Not for the
+ * platforms - their API is tank.h. */
+#ifndef TANK_INTERNAL_H
+#define TANK_INTERNAL_H
+#include "tank.h"
+#include <math.h>
+
+#define TAU 6.2831853f
+
+static inline float clampf(float v, float lo, float hi) {
+    return v < lo ? lo : v > hi ? hi : v;
+}
+static inline float norm_ang(float a) {
+    while (a >  3.14159265f) a -= TAU;
+    while (a < -3.14159265f) a += TAU;
+    return a;
+}
+static inline float lerpf(float a, float b, float p) { return a + (b - a) * p; }
+
+/* the tank's RNG core (deterministic xorshift32; tank_randf draws through it) */
+uint32_t tank_xr(tank_t *t);
+/* a random point of open water: y in [y0, y1], x at least mx off the side glass at that height */
+void rand_water(tank_t *t, float mx, float y0, float y1, float *x, float *y);
+#ifdef TANK_CORNER_R
+float corner_in(float x, float y, float *cx, float *cy);   /* a point's distance off its corner's centre (0 = in no corner) */
+void  corner_clamp(float *x, float *y, float m);
+#else
+#define corner_clamp(x, y, m) ((void)0)            /* the plain rectangle (and the bowl, which has its own): no corners */
+#endif
+
+/* the grass: inside a bed's canopy; a bed's mean ceiling */
+bool  veg_inside(const tank_t *t, int b, float x, float y);
+float veg_cap_mean(const tank_t *t, int b);
+/* where the courting pair circles: low inside the nursery bed */
+void  court_site(const tank_t *t, float *cx, float *cy, float *rx);
+
+#define STARTLE_RADIUS  140.0f  /* fish this close to an aggressive tap bolt */
+#define HOLD_RADIUS     1000.0f /* a resting finger is seen from anywhere on the
+                                 * glass (2026-09-04, was 160: a fish only came
+                                 * when you held next to it, which hid the
+                                 * trust tell) */
+#define HOLD_ATTRACT_S  2.7f    /* hold_time before fish approach; platforms
+                                 * report holds ~0.3 s in, so ≈3 s of contact */
+#define HOLD_HUNGER_VETO 7.5f   /* this hungry, a fish ignores the finger */
+/* the hunger economy (tank.c has its notes) */
+#define HUNGER_PER_S       0.010f   /* fed -> starving in ~17 min (shy fish) */
+#define HUNGER_BOLD_PER_S  0.008f   /* bold fish burn hotter: ~9 min */
+#define HUNGER_DART_PER_S  0.012f   /* play costs extra */
+#define CURIOSITY_SPEND_PER_S 0.25f /* spent at the bubbles / the reef: 9 -> 3 in ~24 s */
+#define CURIOSITY_SPEND_RADIUS 60.0f
+#define VEG_SLOW            0.60f     /* cruise speed factor inside a canopy */
+
+/* creature.c, called by the tank: a creature's frame, and a startle reaching it */
+void  update_fish(tank_t *t, int idx, float dt);
+void  sp_startle_hit(tank_t *t, int idx, float x, float y);
+
+#endif

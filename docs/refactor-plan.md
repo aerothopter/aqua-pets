@@ -139,7 +139,12 @@ row's hooks for every creature, with no `sp` split. The RNG is drawn in the
 same order, so the oracle is identical. This is the riskiest step and gets
 its own commit.
 
-**3b+. `creature.c` (pure move).** With the fish a row, every creature's
+**3b+. `creature.c` (pure move; done 2026-10-23).** As built: six ranges
+of tank.c moved verbatim (1,623 lines); the species types went from tank.h to
+`creature.h`, which tank.h includes where they stood; `tank_internal.h` holds
+what the two share (the small maths, `tank_xr`, eleven constants, the grass
+and courtship calls, `update_fish` and `sp_startle_hit`). The plan was: with
+the fish a row, every creature's
 code - the roster, `SPECIES[]`, making, breeding and removing creatures, the
 species' and the fish's motion, `update_fish` - moves from tank.c to
 `common/creature.h` / `creature.c`, the tank.c internals it needs exposed
