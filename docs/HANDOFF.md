@@ -2,6 +2,60 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: where things stand (end of session; phase 4 next)
+
+**The branches.** Nothing is merged or pushed. They stack:
+- `refactor/decor` (phase 1)
+- `refactor/helpers`, on top of it (phase 2, and the plan's move into the repo)
+- `refactor/creatures`, on top of that (phase 3: 11 commits, the 3.0 oracle
+  through the draw table)
+
+`main` is still at 5dcbee3. Phase 4 can go on a new `refactor/devices` from
+`refactor/creatures`.
+
+**The plan** is `docs/refactor-plan.md`. Phases 1-3 are written as built, and
+phase 4 (device headers, one glass module, per-device layout sections) as
+first planned. Its line numbers have drifted, so look the places up again.
+
+**How each step was checked** (so phase 4 can do the same):
+- Record both oracles on the commit before the change, in a sandboxed HOME
+  (memory: the sim's real save). Then compare after:
+  - `./fishsim --golden-decor` (363 lines a board)
+  - `./fishsim --golden-creatures` (309)
+  - and both again on `fishsim-round` / `fishsim-watch`
+- A pure step matches line for line. Phase 4 touches geometry, so expect it
+  to be the first step whose oracle *should* move on some boards. Explain
+  every line that does.
+- `make check-all`: 18 selftests a board, 54 runs, all passing at cd65114.
+- Firmware: ESP-IDF 5.4.4 at `C:\esp\v5.4.4` (profile
+  `C:\Espressif\tools\Microsoft.v5.4.4.PowerShell_profile.ps1`). Each board is
+  built with `idf.py -B <dir> -DSDKCONFIG=<dir>\sdkconfig
+  "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults[;sdkconfig.round|watch];<throwaway
+  key overlay>" build`. The overlay sets `CONFIG_SECURE_BOOT_SIGNING_KEY` to a
+  key made with `espsecure.py generate_signing_key --version 2 --scheme
+  rsa3072`, kept outside the repo. Such images must never be flashed. At
+  cd65114 every board builds: the app is 0x271000 of 0x280000 (2% free),
+  watch `.dram0.bss` is 60,168, and there are 3 deprecation warnings.
+- Pictures: no Python 3 on this machine, so `tools/board_sheet.py` has not
+  run. `--snapshot` PPMs, joined side by side, have stood in for it.
+
+**Open, gathered from the entries below:**
+- Not flashed, on any board, since before phase 1. The first real flash
+  (`tools/flash.sh`) is the layout 3 save test: the board's tank starts
+  fresh, then a reboot should restore it. Check the watch's internal heap at
+  boot (2026-10-22 entries). The phase 3b+ entry notes that the device's
+  float contraction can't be proven by the sim's oracles.
+- The app slot is 98% full (2026-10-22 measurement: sdkconfig trims free 127
+  KB, tankcore at -Os 128 KB more). Phase 4 should not grow it.
+- The keeper is drawing the menu and trait icons. `assets/icons/*.png` show
+  as modified in the tree: his work in progress, never staged by these
+  commits. When done, `tools/gen_icons.py` regenerates `common/icons.c`.
+- The three themes' looks functions are the only species switches left in
+  the drawing. A new species is a SPECIES[] row and its hooks, a
+  CREATURE_DRAW[] row, and a case in each of those three.
+- `docs/media/sim-stats-card.png` still shows the card's old MORE button
+  (2026-10-21).
+
 ## 2026-10-23: draw_creature is a table (refactor phase 3, the last piece)
 
 **What changed.** A pure refactor: both oracles are identical on all three
