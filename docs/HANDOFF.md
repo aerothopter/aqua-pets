@@ -2,6 +2,37 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: the creatures oracle (refactor phase 3.0)
+
+**What changed.** `--golden-creatures [prefix]` (sim only, not a selftest),
+recorded before any creature code moves (refactor-plan.md, step 3.0). It
+prints one hash a line, 309 lines a board:
+- every kind, the classic fish first, in its four designs and four stages,
+  both facings, by day and by night (the last of each row resting, so asleep
+  at night)
+- the species sheet's states (the ball, the jets, the camouflage, the lure,
+  the claws, the flip, the sleepers), the ink cloud, the turns of all
+  thirteen kinds, and the pages' previews
+- all of that in every theme, with the scene cache on and off
+- a run of 25 creatures (two fish, a pair of every species, one turtle) among
+  the decor for three minutes on the rules: pellets, a startle, a shake, the
+  pokes, a seahorse courtship, the light out. Every 15 s it hashes a frame and
+  every creature's state line (the shipped `firmware/main/tokenizer.bin`
+  schema: what the model hears) with its position, goal and mode
+- a night asleep, then the save
+
+Run twice, it prints the same lines on all three boards. I looked at a sample
+of its frames to confirm they show the creatures. `--species-sheet`'s three
+state sets moved to file scope (`SHEET_S1..3`) so both modes stage them. The
+oracle is a code change in `sim/main.c` only.
+
+**Board status:** `common/` unchanged since phase 2b, so every board is as it
+was then (checked, pictured, built; not flashed). The oracle builds and runs
+on all three.
+
+**Next:** 3a, the creature table (refactor-plan.md), checked against this
+oracle line for line.
+
 ## 2026-10-23: the refactor plan moves into the repo; phase 3 rewritten
 
 No source change. The plan lived only in a Claude plans folder; it is now

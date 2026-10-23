@@ -4514,6 +4514,46 @@ static int swim_strip(const char *prefix) {
     for (int i = 0; i < WW * NF * WH * 4; i++) { uint16_t v = strip[i]; unsigned char px[3] = { (unsigned char)(((v >> 11) & 31) * 255 / 31), (unsigned char)(((v >> 5) & 63) * 255 / 63), (unsigned char)((v & 31) * 255 / 31) }; fwrite(px, 1, 3, fp); }
     fclose(fp); printf("swim-strip: wrote %s\n", path); return 0;
 }
+/* the species sheet's states (--species-sheet and --golden-creatures stage them) */
+static const sheet_fish_t SHEET_S1[] = {      /* puff, the octopus's poses, the squid, a turn */
+    { .sp = SP_PUFFER, .v = 0, .st = STAGE_ADULT, .x = 60, .y = 60, .speed = 5 },
+    { .sp = SP_PUFFER, .v = 0, .st = STAGE_ADULT, .x = 150, .y = 60, .speed = 5, .puff = 0.5f },
+    { .sp = SP_PUFFER, .v = 1, .st = STAGE_ADULT, .x = 250, .y = 60, .speed = 5, .puff = 1.0f },
+    { .sp = SP_PUFFER, .v = 2, .st = STAGE_ADULT, .x = 360, .y = 60, .heading = 3.14159265f, .speed = 5, .puff = 1.0f },
+    { .sp = SP_OCTOPUS, .v = 0, .st = STAGE_ADULT, .x = 60, .y = 160, .speed = 6 },                                   /* crawling */
+    { .sp = SP_OCTOPUS, .v = 1, .st = STAGE_ADULT, .x = 170, .y = 160, .heading = 3.14159265f + 0.2f, .yaw = 1, .yaw_tail = 1, .speed = 60, .jet = 0.15f, .mode = SPM_JET },   /* jetting up-left, mantle first, mid-thrust */
+    { .sp = SP_OCTOPUS, .v = 2, .st = STAGE_ADULT, .x = 290, .y = 165, .speed = 4, .camo = 1.0f },                   /* camouflaged on the reef's orange */
+    { .sp = SP_OCTOPUS, .v = 3, .st = STAGE_ADULT, .x = 390, .y = 165, .speed = 4, .camo = 0.5f },                   /* half */
+    { .sp = SP_SQUID, .v = 0, .st = STAGE_ADULT, .x = 90, .y = 270, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 50, .jet = 0.6f, .mode = SPM_JET },   /* jetting mantle first (facing right, going left), gliding */
+    { .sp = SP_SHARK, .v = 0, .st = STAGE_ADULT, .x = 300, .y = 270, .yaw = 0.08f, .yaw_tail = 0.85f, .speed = 25 },                           /* mid-turn, head-on */
+    { .sp = SP_TURTLE, .v = 0, .st = STAGE_ADULT, .x = 380, .y = 320, .yaw = 0.05f, .yaw_tail = 0.3f, .speed = 10, .jet = 0.3f },               /* the turtle head-on (2026-10-11: its volume) */
+    { .sp = SP_TURTLE, .v = 1, .st = STAGE_ADULT, .x = 40, .y = 320, .yaw = -0.5f, .yaw_tail = -0.8f, .speed = 10, .jet = 0.8f },               /* mid-turn */
+};
+static const sheet_fish_t SHEET_S2[] = {
+    { .sp = SP_SHARK, .v = 3, .st = STAGE_ADULT, .x = 100, .y = 60, .heading = 3.14159265f, .yaw = -0.35f, .yaw_tail = -0.9f, .speed = 25 },
+    { .sp = SP_SHARK, .v = 2, .st = STAGE_ADULT, .x = 320, .y = 70, .heading = -0.45f, .speed = 30 },                               /* climbing */
+    { .sp = SP_EEL, .v = 0, .st = STAGE_ADULT, .x = 120, .y = 150, .speed = 30, .spark = 1.0f },                    /* the spark */
+    { .sp = SP_EEL, .v = 3, .st = STAGE_ADULT, .x = 330, .y = 160, .heading = 3.14159265f - 0.4f, .speed = 30 },                    /* diving left */
+    { .sp = SP_CRAB, .v = 0, .st = STAGE_ADULT, .x = 60, .y = 340, .puff = 1.0f },                                /* threat: claws up */
+    { .sp = SP_CRAB, .v = 2, .st = STAGE_ADULT, .x = 150, .y = 340, .speed = 12 },                                    /* scuttling */
+    { .sp = SP_LOBSTER, .v = 0, .st = STAGE_ADULT, .x = 255, .y = 335, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 30, .jet = 0.8f, .mode = SPM_FLIP },   /* the tail-flip: backward */
+    { .sp = SP_LOBSTER, .v = 3, .st = STAGE_ADULT, .x = 370, .y = 340, .heading = 3.14159265f, .speed = 8 },                        /* walking left */
+    { .sp = SP_SEAHORSE, .v = 1, .st = STAGE_ADULT, .x = 60, .y = 250, .speed = 25 },                                 /* leaning into its swim */
+    { .sp = SP_SQUID, .v = 2, .st = STAGE_ADULT, .x = 220, .y = 250, .heading = 3.14159265f, .yaw = -1, .yaw_tail = -1, .speed = 5 },                        /* hovering, facing left */
+};
+static const sheet_fish_t SHEET_S3[] = {      /* night: the lure, the firefly, the spark, the sleepers */
+    { .sp = SP_ANGLER, .v = 0, .st = STAGE_ADULT, .x = 70, .y = 300 },
+    { .sp = SP_ANGLER, .v = 1, .st = STAGE_ADULT, .x = 190, .y = 300, .heading = 3.14159265f, .lure = 0.5f },
+    { .sp = SP_ANGLER, .v = 3, .st = STAGE_ADULT, .x = 320, .y = 300, .lure = 1.0f },
+    { .sp = SP_SQUID, .v = 1, .st = STAGE_ADULT, .x = 90, .y = 80, .speed = 5 },
+    { .sp = SP_EEL, .v = 1, .st = STAGE_ADULT, .x = 300, .y = 90, .heading = 3.14159265f, .speed = 30, .spark = 1.0f },
+    { .sp = SP_SEAHORSE, .v = 2, .st = STAGE_ADULT, .x = 400, .y = 200, .rest = true },        /* asleep */
+    { .sp = SP_JELLYFISH, .v = 0, .st = STAGE_ADULT, .x = 130, .y = 190, .speed = 4, .jet = 0.25f },                 /* the bell contracted, rising */
+    { .sp = SP_JELLYFISH, .v = 2, .st = STAGE_ADULT, .x = 230, .y = 200, .heading = 3.14159265f, .speed = 2, .jet = 0.75f },   /* relaxed, drifting left */
+    { .sp = SP_PUFFER, .v = 3, .st = STAGE_ADULT, .x = 250, .y = 190, .heading = 3.14159265f, .rest = true },
+    { .sp = SP_OCTOPUS, .v = 1, .st = STAGE_ADULT, .x = 100, .y = 190, .speed = 5, .rest = true },
+    { .sp = SP_SEAHORSE, .v = 0, .st = STAGE_ADULT, .x = 400, .y = 120, .anchor = 1 },                         /* holding its frond (awake) */
+};
 static int species_sheet(const char *prefix) {
     static uint16_t fb[TANK_W * TANK_H];
     char path[512]; int files = 0;
@@ -4534,47 +4574,8 @@ static int species_sheet(const char *prefix) {
             snprintf(path, sizeof path, "%s_%s_%c.ppm", prefix, SPECIES[sp].token, 'a' + half); sheet_render(fb, path); files++;
         }
     /* the states */
-    static const sheet_fish_t S1[] = {      /* puff, the octopus's poses, the squid, a turn */
-        { .sp = SP_PUFFER, .v = 0, .st = STAGE_ADULT, .x = 60, .y = 60, .speed = 5 },
-        { .sp = SP_PUFFER, .v = 0, .st = STAGE_ADULT, .x = 150, .y = 60, .speed = 5, .puff = 0.5f },
-        { .sp = SP_PUFFER, .v = 1, .st = STAGE_ADULT, .x = 250, .y = 60, .speed = 5, .puff = 1.0f },
-        { .sp = SP_PUFFER, .v = 2, .st = STAGE_ADULT, .x = 360, .y = 60, .heading = 3.14159265f, .speed = 5, .puff = 1.0f },
-        { .sp = SP_OCTOPUS, .v = 0, .st = STAGE_ADULT, .x = 60, .y = 160, .speed = 6 },                                   /* crawling */
-        { .sp = SP_OCTOPUS, .v = 1, .st = STAGE_ADULT, .x = 170, .y = 160, .heading = 3.14159265f + 0.2f, .yaw = 1, .yaw_tail = 1, .speed = 60, .jet = 0.15f, .mode = SPM_JET },   /* jetting up-left, mantle first, mid-thrust */
-        { .sp = SP_OCTOPUS, .v = 2, .st = STAGE_ADULT, .x = 290, .y = 165, .speed = 4, .camo = 1.0f },                   /* camouflaged on the reef's orange */
-        { .sp = SP_OCTOPUS, .v = 3, .st = STAGE_ADULT, .x = 390, .y = 165, .speed = 4, .camo = 0.5f },                   /* half */
-        { .sp = SP_SQUID, .v = 0, .st = STAGE_ADULT, .x = 90, .y = 270, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 50, .jet = 0.6f, .mode = SPM_JET },   /* jetting mantle first (facing right, going left), gliding */
-        { .sp = SP_SHARK, .v = 0, .st = STAGE_ADULT, .x = 300, .y = 270, .yaw = 0.08f, .yaw_tail = 0.85f, .speed = 25 },                           /* mid-turn, head-on */
-        { .sp = SP_TURTLE, .v = 0, .st = STAGE_ADULT, .x = 380, .y = 320, .yaw = 0.05f, .yaw_tail = 0.3f, .speed = 10, .jet = 0.3f },               /* the turtle head-on (2026-10-11: its volume) */
-        { .sp = SP_TURTLE, .v = 1, .st = STAGE_ADULT, .x = 40, .y = 320, .yaw = -0.5f, .yaw_tail = -0.8f, .speed = 10, .jet = 0.8f },               /* mid-turn */
-    };
-    static const sheet_fish_t S2[] = {
-        { .sp = SP_SHARK, .v = 3, .st = STAGE_ADULT, .x = 100, .y = 60, .heading = 3.14159265f, .yaw = -0.35f, .yaw_tail = -0.9f, .speed = 25 },
-        { .sp = SP_SHARK, .v = 2, .st = STAGE_ADULT, .x = 320, .y = 70, .heading = -0.45f, .speed = 30 },                               /* climbing */
-        { .sp = SP_EEL, .v = 0, .st = STAGE_ADULT, .x = 120, .y = 150, .speed = 30, .spark = 1.0f },                    /* the spark */
-        { .sp = SP_EEL, .v = 3, .st = STAGE_ADULT, .x = 330, .y = 160, .heading = 3.14159265f - 0.4f, .speed = 30 },                    /* diving left */
-        { .sp = SP_CRAB, .v = 0, .st = STAGE_ADULT, .x = 60, .y = 340, .puff = 1.0f },                                /* threat: claws up */
-        { .sp = SP_CRAB, .v = 2, .st = STAGE_ADULT, .x = 150, .y = 340, .speed = 12 },                                    /* scuttling */
-        { .sp = SP_LOBSTER, .v = 0, .st = STAGE_ADULT, .x = 255, .y = 335, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 30, .jet = 0.8f, .mode = SPM_FLIP },   /* the tail-flip: backward */
-        { .sp = SP_LOBSTER, .v = 3, .st = STAGE_ADULT, .x = 370, .y = 340, .heading = 3.14159265f, .speed = 8 },                        /* walking left */
-        { .sp = SP_SEAHORSE, .v = 1, .st = STAGE_ADULT, .x = 60, .y = 250, .speed = 25 },                                 /* leaning into its swim */
-        { .sp = SP_SQUID, .v = 2, .st = STAGE_ADULT, .x = 220, .y = 250, .heading = 3.14159265f, .yaw = -1, .yaw_tail = -1, .speed = 5 },                        /* hovering, facing left */
-    };
-    static const sheet_fish_t S3[] = {      /* night: the lure, the firefly, the spark, the sleepers */
-        { .sp = SP_ANGLER, .v = 0, .st = STAGE_ADULT, .x = 70, .y = 300 },
-        { .sp = SP_ANGLER, .v = 1, .st = STAGE_ADULT, .x = 190, .y = 300, .heading = 3.14159265f, .lure = 0.5f },
-        { .sp = SP_ANGLER, .v = 3, .st = STAGE_ADULT, .x = 320, .y = 300, .lure = 1.0f },
-        { .sp = SP_SQUID, .v = 1, .st = STAGE_ADULT, .x = 90, .y = 80, .speed = 5 },
-        { .sp = SP_EEL, .v = 1, .st = STAGE_ADULT, .x = 300, .y = 90, .heading = 3.14159265f, .speed = 30, .spark = 1.0f },
-        { .sp = SP_SEAHORSE, .v = 2, .st = STAGE_ADULT, .x = 400, .y = 200, .rest = true },        /* asleep */
-        { .sp = SP_JELLYFISH, .v = 0, .st = STAGE_ADULT, .x = 130, .y = 190, .speed = 4, .jet = 0.25f },                 /* the bell contracted, rising */
-        { .sp = SP_JELLYFISH, .v = 2, .st = STAGE_ADULT, .x = 230, .y = 200, .heading = 3.14159265f, .speed = 2, .jet = 0.75f },   /* relaxed, drifting left */
-        { .sp = SP_PUFFER, .v = 3, .st = STAGE_ADULT, .x = 250, .y = 190, .heading = 3.14159265f, .rest = true },
-        { .sp = SP_OCTOPUS, .v = 1, .st = STAGE_ADULT, .x = 100, .y = 190, .speed = 5, .rest = true },
-        { .sp = SP_SEAHORSE, .v = 0, .st = STAGE_ADULT, .x = 400, .y = 120, .anchor = 1 },                         /* holding its frond (awake) */
-    };
     struct { const sheet_fish_t *f; int n; bool night; } sets[3] = {
-        { S1, (int)(sizeof S1 / sizeof S1[0]), false }, { S2, (int)(sizeof S2 / sizeof S2[0]), false }, { S3, (int)(sizeof S3 / sizeof S3[0]), true } };
+        { SHEET_S1, (int)(sizeof SHEET_S1 / sizeof SHEET_S1[0]), false }, { SHEET_S2, (int)(sizeof SHEET_S2 / sizeof SHEET_S2[0]), false }, { SHEET_S3, (int)(sizeof SHEET_S3 / sizeof SHEET_S3[0]), true } };
     for (int k = 0; k < 3; k++) {
         sheet_tank();
         tank.night = sets[k].night;
@@ -5381,6 +5382,144 @@ static int golden_decor(const char *prefix) {
     return 0;
 }
 
+/* --golden-creatures [prefix] (2026-10-23, the creatures refactor's oracle): every
+ * creature - the classic fish and each species - in its four designs and four stages,
+ * both facings, by day and by night (the last of each row resting, asleep at night),
+ * then the species sheet's states, the turns and the pages' previews; in every theme,
+ * the scene cache on and off. Then a tank of all thirteen kinds running on the rules -
+ * pellets, a startle, a shake, the pokes, a courtship, the light out - with a hash of
+ * every creature's state line (what the model hears) as it goes, a night asleep and
+ * the save. One hash a line, as --golden-decor: two builds that print the same lines
+ * move, draw and encode the creatures the same. */
+static void gc_frame(const char *prefix, const char *tag, const char *what, bool cached, uint16_t *fb) {
+    static uint16_t scene[TANK_W * TANK_H];
+    char name[128];
+    render_set_scene_cache(cached ? scene : NULL); render_set_vignette_cache(vig_buf); render_set_dirty_mask(dirty_buf);
+    render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+    snprintf(name, sizeof name, "%s_%s", tag, what); golden_frame(prefix, name, fb);
+}
+static void gc_stills(const char *prefix, int theme, bool cached, uint16_t *fb) {
+    static const stage_t ST[4] = { STAGE_FRY, STAGE_JUV, STAGE_ADULT, STAGE_ELDER };
+    char tag[32], what[64];
+    snprintf(tag, sizeof tag, "t%d_%s", theme, cached ? "cache" : "plain");
+    sim_sheet_theme = theme;
+    for (int sp = 0; sp < SP_COUNT; sp++)                 /* every design and stage, both facings */
+        for (int night = 0; night < 2; night++) {
+            sheet_tank(); tank.night = night;
+            for (int i = 0; i < 8; i++) {
+                sheet_fish_t q = { .sp = sp, .v = i % 4, .st = ST[i / 2], .x = 448.0f * (i % 4 + 0.5f) / 4, .y = 70 + 150.0f * (i / 4),
+                                   .heading = (i & 1) ? 3.14159265f : 0, .speed = (sp == SP_SHARK || sp == SP_SWORDFISH) ? 20 : 6, .lure = 0.4f, .rest = i == 7 };
+                sheet_put(i, &q);
+                if (sp == SP_FISH) tank_set_look(&tank, i, LOOK_BODY[i % LOOK_N], LOOK_ACCENT[(i + 3) % LOOK_N]);
+            }
+            snprintf(what, sizeof what, "%s_%s", SPECIES[sp].token, night ? "night" : "day");
+            gc_frame(prefix, tag, what, cached, fb);
+        }
+    const struct { const sheet_fish_t *f; int n; bool night; } sets[3] = {   /* the sheet's states */
+        { SHEET_S1, (int)(sizeof SHEET_S1 / sizeof SHEET_S1[0]), false }, { SHEET_S2, (int)(sizeof SHEET_S2 / sizeof SHEET_S2[0]), false },
+        { SHEET_S3, (int)(sizeof SHEET_S3 / sizeof SHEET_S3[0]), true } };
+    for (int k = 0; k < 3; k++) {
+        sheet_tank(); tank.night = sets[k].night;
+        for (int i = 0; i < sets[k].n; i++) sheet_put(i, &sets[k].f[i]);
+        snprintf(what, sizeof what, "states_%d", k + 1); gc_frame(prefix, tag, what, cached, fb);
+    }
+    {   /* the ink cloud left behind as an octopus and a squid jet away */
+        sheet_tank();
+        sheet_fish_t a = { .sp = SP_OCTOPUS, .v = 0, .st = STAGE_ADULT, .x = 150, .y = 200, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 60, .ink = 3.0f, .jet = 0.5f, .mode = SPM_JET },
+                     b = { .sp = SP_SQUID, .v = 3, .st = STAGE_ADULT, .x = 360, .y = 200, .heading = 3.14159265f, .yaw = 1, .yaw_tail = 1, .speed = 50, .ink = 3.0f, .jet = 0.5f, .mode = SPM_JET };
+        sheet_put(0, &a); sheet_put(1, &b);
+        for (int f = 0; f < 3; f++) { tank.fish[0].x -= 25; tank.fish[0].ink -= 0.5f; tank.fish[1].x -= 22; tank.fish[1].ink -= 0.5f; tank.clock += 0.5f; }
+        gc_frame(prefix, tag, "states_ink", cached, fb);
+    }
+    for (int part = 0; part < 3; part++) {                /* the turns: side-on, mid-turn, head-on */
+        static const float YAWS[3] = { 1.0f, 0.45f, 0.06f };
+        sheet_tank();
+        int n = 0;
+        for (int sp = part * 5; sp < SP_COUNT && sp < part * 5 + 5; sp++)
+            for (int c = 0; c < 3; c++) {
+                sheet_fish_t q = { .sp = sp, .v = sp % 4, .st = STAGE_ADULT, .x = 75 + c * 150, .y = 40 + (sp - part * 5) * 66, .yaw = YAWS[c], .yaw_tail = YAWS[c], .speed = 12 };
+                sheet_put(n++, &q);
+            }
+        snprintf(what, sizeof what, "turns_%d", part); gc_frame(prefix, tag, what, cached, fb);
+    }
+    {   /* the pages' previews: every kind at 1.6x, fitted by its half-length */
+        sheet_tank(); gc_frame(prefix, tag, "previews_bare", cached, fb);
+        for (int sp = 0; sp < SP_COUNT; sp++) {
+            const species_def_t *d = &SPECIES[sp];
+            float sz = 1.6f * 22 / fmaxf(22, render_species_half_len(sp));
+            render_creature_preview(fb, TANK_W, PAGE_W * (0.25f + 0.5f * (sp & 1)), PAGE_H * (0.1f + 0.14f * (sp / 2)), sz, sp, sp % 4,
+                                    d->var[sp % 4].color, d->var[sp % 4].fin, d->var[sp % 4].accent, 3.0f);
+        }
+        snprintf(what, sizeof what, "%s_previews", tag); golden_frame(prefix, what, fb);
+    }
+}
+static uint64_t gc_encoded(bool enc) {                     /* every creature's state line, hashed together */
+    uint64_t h = 1469598103934665603ull;
+    char line[512];
+    for (int i = 0; enc && i < tank.n_fish; i++) { advisor_core_encode(&tank, i, line, sizeof line); h = fnv64(line, strlen(line) + 1, h); }
+    for (int i = 0; i < tank.n_fish; i++) {               /* and where each one is, what it does */
+        const fish_t *f = &tank.fish[i];
+        float s[8] = { f->x, f->y, f->heading, f->speed, f->yaw, f->hunger, f->stress, f->energy };
+        h = fnv64(s, sizeof s, h); h = fnv64(&f->goal.id, sizeof f->goal.id, h); h = fnv64(&f->sp_mode, 1, h);
+    }
+    return h;
+}
+static int golden_creatures(const char *prefix) {
+    static uint16_t fb[TANK_W * TANK_H];
+    char name[64];
+    render_set_card_cache(card_buf);
+    for (int theme = 0; theme < THEME_COUNT; theme++)
+        for (int cached = 1; cached >= 0; cached--) gc_stills(prefix, theme, cached, fb);
+    sim_sheet_theme = 0;
+    /* the encoder: the shipped tokenizer (tracked), as --selftest-encoder reads it */
+    bool enc = false;
+    { FILE *fp = fopen("../firmware/main/tokenizer.bin", "rb");
+      static uint8_t tok[8192];
+      if (fp) { size_t len = fread(tok, 1, sizeof tok, fp); fclose(fp); enc = advisor_core_init_encoder(tok, len); } }
+    printf("encoder %s\n", enc ? "schema loaded" : "none (positions only)");
+    /* the run: two fish, a pair of every species but the last, one of the last (25 in all), among the decor */
+    const float sx = TANK_W / 448.0f;
+    tank_init(&tank, 77); tank_new_population(&tank);
+    for (int sp = 1; sp < SP_COUNT - 1; sp++) tank_add_species_pair(&tank, sp);
+    tank_add_species_n(&tank, SP_COUNT - 1, 1);
+    tank.sd_unlocks |= SD_ITEM_PLANT | SD_ITEM_CASTLE | SD_ITEM_CORAL | SD_ITEM_CLUSTER | SD_ITEM_WRECK;
+    tank_plant_place(&tank); tank_castle_place(&tank); tank_coral_place(&tank); tank_cluster_place(&tank); tank_wreck_place(&tank);
+    tank_decor_set(&tank, 2, 320 * sx, DECOR_Z_BACK); tank_decor_set(&tank, 4, 140 * sx, DECOR_Z_FRONT);
+    for (int b = 0; b < VEG_BEDS_MAX; b++) tank_veg_set(&tank, b, 0.6f);
+    printf("run %d creatures\n", tank.n_fish);
+    const float dt = 1.0f / 30;
+    for (int s = 0; s < 30 * 180; s++) {
+        if (s == 30 * 20) { tank_feed(&tank, TANK_W * 0.35f, 3); tank_feed(&tank, TANK_W * 0.7f, 3); }
+        if (s == 30 * 45) for (int i = 0; i < 3; i++) tank_touch_tap(&tank, TANK_W * 0.5f, TANK_H * 0.55f);
+        if (s == 30 * 70) tank_shake(&tank, 1.0f);
+        if (s == 30 * 95) for (int i = 0; i < tank.n_fish; i++) tank_poke(&tank, i);
+        if (s == 30 * 110) {                               /* a courtship: the first pair of a kind */
+            for (int a = 0; a < tank.n_fish && !tank.courting; a++)
+                for (int b = a + 1; b < tank.n_fish; b++)
+                    if (tank.fish[a].species == tank.fish[b].species && tank.fish[a].species == SP_SEAHORSE) { tank.courting = true; tank.court_a = (int8_t)a; tank.court_b = (int8_t)b; break; }
+        }
+        if (s == 30 * 150) { tank.courting = false; tank.court_a = tank.court_b = -1; }
+        if (s == 30 * 160) tank.night = true;
+        tank_tick(&tank, dt, advisor_rules);
+        if (s % (30 * 15) == 30 * 15 - 1) {
+            snprintf(name, sizeof name, "run%02d", s / (30 * 15)); gc_frame(prefix, "t0_cache", name, true, fb);
+            printf("t0_cache_run%02d_state %016llx\n", s / (30 * 15), (unsigned long long)gc_encoded(enc));
+        }
+    }
+    tank_tick_sleep(&tank, 8 * 3600);
+    gc_frame(prefix, "t0_cache", "slept", true, fb);
+    printf("t0_cache_slept_state %016llx\n", (unsigned long long)gc_encoded(enc));
+    static char save[512];
+    snprintf(save, sizeof save, "%s/aqua-golden-creatures-%ld.sav", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp", (long)getpid());
+    setenv("AQUA_PETS_SAVE", save, 1);
+    if (!progression_save(&tank)) { printf("golden: the save failed (%s)\n", save); return 1; }
+    FILE *f = fopen(save, "rb"); if (!f) return 1;
+    static unsigned char buf[8192]; size_t n = fread(buf, 1, sizeof buf, f); fclose(f); unlink(save);
+    if (n >= 16) memset(buf + 8, 0, 8);                   /* saved_unix: the wall clock */
+    printf("save %zu %016llx\n", n, (unsigned long long)fnv64(buf, n, 1469598103934665603ull));
+    return 0;
+}
+
 /* --selftest-decor (2026-10-21): every row of DECOR[] (common/decor.h) in this
  * board's world - its depths (the placement bar's segments map back; a depth it
  * lacks snaps to one it has), its default spot and the floor's clamp inside the
@@ -5612,6 +5751,7 @@ int main(int argc, char **argv) {
             return snapshot(argv[a + 1], a + 2 < argc ? atoi(argv[a + 2]) : 20);
         if (strcmp(argv[a], "--selftest-themes") == 0) return selftest_themes(a + 1 < argc ? argv[a + 1] : NULL);
         if (strcmp(argv[a], "--golden-decor") == 0) return golden_decor(a + 1 < argc ? argv[a + 1] : NULL);
+        if (strcmp(argv[a], "--golden-creatures") == 0) return golden_creatures(a + 1 < argc ? argv[a + 1] : NULL);
         if (strcmp(argv[a], "--selftest-decor") == 0) return selftest_decor();
         if (strcmp(argv[a], "--selftest-helpers") == 0) return selftest_helpers();
         if (strcmp(argv[a], "--selftest") == 0) return selftest();

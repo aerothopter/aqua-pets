@@ -22,7 +22,7 @@ make NOMODEL=1 check-all   # skip --selftest-llm when model/out/model_q4.bin is 
 
 **Run a single test:** run one selftest flag on the built binary, e.g. `./fishsim --selftest-shop` or `./fishsim-round --selftest-pop`. The full list is `SELFTESTS` in [sim/Makefile](sim/Makefile): `--selftest-themes`, `--selftest`, `--selftest-hunger`, `--selftest-shop`, `--selftest-battery`, `--selftest-pop`, `--selftest-card`, `--selftest-menu`, `--selftest-sleep`, `--selftest-tend`, `--selftest-llm`, `--selftest-saves`, `--selftest-update`, `--selftest-species`, `--selftest-encoder`, `--selftest-decor`, `--selftest-helpers`.
 
-`--golden-decor [prefix]` (not a selftest) prints a hash per frame for a fixed tank with every decor piece and helper, every depth mix, each helper's poses and cards, all themes, cache on and off, plus a save. Run it on two builds to prove a refactor changed no pixel.
+`--golden-decor [prefix]` (not a selftest) prints a hash per frame for a fixed tank with every decor piece and helper, every depth mix, each helper's poses and cards, all themes, cache on and off, plus a save. Run it on two builds to prove a refactor changed no pixel. `--golden-creatures [prefix]` does the same for the creatures: every kind (the classic fish too) in every design, stage, pose and theme, the pages' previews, then a run of all thirteen kinds with a hash of what the model hears, a night asleep and a save.
 
 Useful sim flags: `--fresh`, `--fast N`, `--greedy`, `--narrate` (prints every model decision), `--snapshot <prefix>` (writes PPM frames of every page), `--bench`.
 
