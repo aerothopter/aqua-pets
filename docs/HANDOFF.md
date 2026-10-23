@@ -2,6 +2,25 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: the refactor plan moves into the repo; phase 3 rewritten
+
+No source change. The plan lived only in a Claude plans folder; it is now
+`docs/refactor-plan.md`, with phases 1 and 2 as they were built (the table
+fields, hooks and state they ended with differ from the first plan) and
+phase 3 rewritten with the keeper's decisions:
+- The classic fish's motion is refactored too: `SP_FISH` becomes a full row
+  and `update_fish`'s `sp` split goes. A pure refactor is the target; a retrain
+  is acceptable if behavior has to change.
+- No per-species union of the live fields: they are shared across species.
+- `fish_t` / `t->fish[]` keep their names; the docs say creatures.
+- One creatures file, not one per species: `creature.c` (the table and every
+  creature's motion) and `creatures.inc` (every creature's art, every theme).
+- New first step: a creatures oracle (`--golden-creatures`). The decor oracle
+  stages classic fish only, so nothing covered the species yet.
+
+**Board status:** unchanged since phase 2b (all three checked, pictured and
+built; not flashed).
+
 ## 2026-10-22: helpers sell back from the shop (refactor phase 2b)
 
 **What changed** (the keeper's decisions, below the 2a entry):
