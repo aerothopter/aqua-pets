@@ -5264,6 +5264,31 @@ static void golden_stage(int theme) {
     golden_layout(0);
     tank.snail_x = 200 * sx; tank.snail_y = SNAIL_FLOOR_Y; tank.snail_cell = -1;
 }
+/* the helpers in each of their poses, over the pieces IN FRONT and BEHIND (mix 0):
+   the snail on the glass and in either floor lane by the coral, the urchin
+   chewing, the sub at a stop with its periscope up, the school darting and
+   pecking, then the three cards */
+static void golden_helpers(const char *prefix, const char *tag, uint16_t *fb) {
+    const float sx = TANK_W / 448.0f;
+    char name[96];
+#define GH_FRAME(what) do { render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W); \
+                            snprintf(name, sizeof name, "%s_%s", tag, what); golden_frame(prefix, name, fb); } while (0)
+    tank.snail_x = 160 * sx; tank.snail_y = TANK_H * 0.4f; tank.snail_heading = 0.7f; tank.snail_cell = -1;
+    GH_FRAME("snail_glass");
+    tank.snail_x = 150 * sx; tank.snail_y = SNAIL_FLOOR_Y; tank.snail_heading = 3.14159f;
+    tank.snail_front = false; GH_FRAME("snail_behind");
+    tank.snail_front = true;  GH_FRAME("snail_front");
+    tank.urchin_bed = 0; tank.urchin_frond = 2; tank.urchin_chew = 3; GH_FRAME("urchin_chew");
+    tank.sub_stop = 4; tank.sub_peri = 1; tank.sub_look = 2.5f; tank.sub_v = 0; GH_FRAME("sub_stop");
+    for (int i = 0; i < tank.shrimp_n; i++) { tank.shrimp[i].dart = i % 2 ? 0.3f : 0; tank.shrimp[i].pecking = i % 3 == 0; }
+    GH_FRAME("shrimp_dart");
+    static const int CARD[3] = { RENDER_CARD_SNAIL, RENDER_CARD_URCHIN, RENDER_CARD_SHRIMP };
+    for (int i = 0; i < 3; i++) {
+        render_tank(&tank, fb, TANK_W); render_stats_card(&tank, CARD[i], fb, TANK_W);
+        snprintf(name, sizeof name, "%s_card%d", tag, CARD[i]); golden_frame(prefix, name, fb);
+    }
+#undef GH_FRAME
+}
 static int golden_decor(const char *prefix) {
     static uint16_t fb[TANK_W * TANK_H], scene[TANK_W * TANK_H];
     static const int Z[6][5] = {                      /* plant, castle, coral, cluster, wreck */
@@ -5291,6 +5316,7 @@ static int golden_decor(const char *prefix) {
             }
             golden_layout(0);
             for (int k = 0; k < 5; k++) tank_decor_set(&tank, GOLDEN_ITEM[k], tank_decor_x(&tank, GOLDEN_ITEM[k]), Z[0][k]);
+            snprintf(name, sizeof name, "t%d_%s", theme, cached ? "cache" : "plain"); golden_helpers(prefix, name, fb);
             for (int s = 0; s < 60 * 60; s++) {           /* a minute: the frogman and the sub cross, the helpers about their rules */
                 tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
                 if (s % 300 == 299) {
