@@ -2,6 +2,45 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-22: where the app slot's bytes go, and what frees them (measurement only)
+
+No source change. Measured on the rect `refactor/decor` build (97cfb2a, ESP-IDF
+5.4.4, throwaway key, not flashed): the signed app is 0x271000 of 0x280000.
+
+**What fills it (flash-resident, from the map):** the sound bank 530 KB
+(16 kHz s16, `EMBED_FILES`); icons 479 KB (174 icon_t: icons.c 139 KB, the
+per-theme copies in theme_assets.c 294 KB, the four helper/jelly asset files
+46 KB) plus fonts 43 KB; render.c code 225 KB; tank.c 56 KB; the merged
+string pool ~142 KB (shows in the map under esp_app_desc.c and secure_boot.c);
+Wi-Fi/lwIP/mbedTLS/wpa ~420 KB; newlib printf/scanf ~50 KB. The decor
+refactor itself is about -1.5 KB net, not a lever.
+
+**Measured with real builds (rect):**
+
+| change | signed app | free in slot |
+|---|---|---|
+| today | 0x271000 | 61 KB (2%) |
+| + sdkconfig trims (below) | 0x251000 | 188 KB (7%) |
+| + tankcore at -Os | 0x231000 | 316 KB (12%) |
+
+The trims: `COMPILER_OPTIMIZATION_SIZE` (IDF + main only; tankcore and llm set
+their own -O2/-O3), `ASSERTIONS_SILENT`, `ESP_ERR_TO_NAME_LOOKUP=n`,
+`MBEDTLS_TLS_CLIENT_ONLY`, curves other than P-256/P-384/X25519 off, softAP,
+WPA-Enterprise, SAE-PK and OWE off, `LWIP_IPV6=n`. Built, not run: the OTA
+download and Wi-Fi join need trying on a board. tankcore at -Os needs
+`-Wno-error=format-truncation` (update.c:589) and has not been timed; the
+render loop is the risk (keep hot spans at -O2 by attribute if it drops).
+
+**Estimated, not built:** sound bank as IMA ADPCM -397 KB (25 dB SNR on the
+bank) or mu-law -265 KB (38 dB, random access kept); icons deduplicated -46 KB
+(generator only), as row spans of a > 0 pixels -249 KB lossless; 32x32 art
+redrawn at 16x16 and shown at 2x -270 KB. Dropping the round and watch boards
+frees ~0 on the rect: each board is its own image, the #ifdefs are compile-time.
+Newlib nano printf is out: the firmware prints floats and 64-bit values.
+
+**Board status:** nothing changed in the tree. rect built twice as above
+(scratch, not flashed); round and watch not built for this.
+
 ## 2026-10-22: the decor refactor's firmware builds (ESP-IDF 5.4.4); QEMU limits
 
 **Built.** `refactor/decor` (0365503) builds for all three boards with ESP-IDF
