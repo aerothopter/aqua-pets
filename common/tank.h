@@ -215,6 +215,35 @@ typedef enum {
     LOCO_WALK        /* lobster: walks the floor head first, a backward tail-flip to escape */
 } loco_t;
 typedef struct { const char *name; uint32_t color, fin, accent; } sp_variant_t;
+/* how a species turns and carries its body (tank.c's species motion) */
+typedef struct {
+    float yaw_rate;   /* how fast the head swings round, yaw units/s (the fish: turn_rate x 1.2) */
+    float brake;      /* how much the swing slows it: ~1 = it stops to turn, a turn on the spot */
+    float rev_px;     /* a goal this close BEHIND it is backed up to, not turned for (0 = never backs) */
+    float resp;       /* speed response, 1/s (the fish: 2.6) */
+    float len_k;      /* body length over a fish's of its size (the bounds, tank_body_half_len) */
+    float head_k;     /* the mouth along the body axis, x the half length (0 = mid-body) */
+    float walk_off;   /* a floor walker's middle above the ground, x size */
+} sp_motion_t;
+/* what a species is (SPF_*): each one a way it acts that some kinds share */
+enum {
+    SPF_UPRIGHT  = 1 << 0,   /* upright (the seahorse): the snout up top, the snick, faces its partner in the dance, never slowed by grass */
+    SPF_PULSES   = 1 << 1,   /* a bell (the jellyfish): it moves by its pulse, which bobs it */
+    SPF_SIDEWAYS = 1 << 2,   /* walks sideways (the crab): face-on, its width its length */
+    SPF_BACKS    = 1 << 3,   /* drawn backing up when its way is behind it (not the fish, the crab, the shark) */
+    SPF_JETS     = 1 << 4,   /* jets mantle first (the octopus, the squid) */
+    SPF_BREATHES = 1 << 5,   /* breathes air: a trip up for a gulp, and it rests flat on the floor (the eel, the turtle) */
+    SPF_PUFFS    = 1 << 6,   /* puffs into a ball (the pufferfish) */
+    SPF_INKS     = 1 << 7,   /* squirts ink, idle (the octopus, the squid) */
+    SPF_SPARKS   = 1 << 8,   /* sparks, idle (the eel) */
+    SPF_VISITS   = 1 << 9,   /* idle, a trip to the surface and back */
+    SPF_HOME     = 1 << 10,  /* an ambusher: a new goal makes where it is its home (the angler) */
+    SPF_LEVEL    = 1 << 11,  /* off the top or the floor, its climb is not turned back (the shark) */
+};
+typedef struct { float w0, w1, p0, p1, k; } sp_gait_t;   /* stop-and-go: steps of w0..w1 s, pauses of p0..p1 s, k x the pace while stepping */
+typedef struct target { float x, y, speed; bool valid; } target_t;   /* a goal's point and cruise speed */
+typedef struct { float low, food_x, food_y, hx, hy; } sp_aim_t;      /* what sp_target worked out: the low water, the pellet, the mouth */
+struct tank; struct fish;
 typedef struct {
     const char  *name;            /* the card's / shop's word, upper case */
     const char  *token;           /* schema-5 word: fish seahorse octopus puffer angler eel shark squid crab lobster */
@@ -230,6 +259,26 @@ typedef struct {
     float min_speed;              /* never slower (the hammerhead's ram breathing); 0 = can stop */
     float hit_r;                  /* tap radius at size 1, px */
     bool  big;                    /* the small ones keep their distance (SP_AVOID_R) */
+    /* how it moves (tank.c, the species' motion; 2026-10-23: the rows took over
+     * the species switches - a new species is a row and its hooks) */
+    sp_motion_t mo;
+    uint32_t flags;               /* SPF_* */
+    float fin_hz, fin_div;        /* the free swim's beat a second: fin_hz, or fin_hz + speed / fin_div (fin_div > 0) */
+    float bob_amp, bob_hz;        /* the free swim's bob: amp x sin(clock x hz) px/s (0 = none) */
+    float clamp_th;               /* the body's thickness inside the glass, x size (0 = 8) */
+    float den_dx;                 /* its den beside the others', x the side (the crab right, the lobster left) */
+    sp_gait_t gait;               /* a walker's stop-and-go (k = 0: none) */
+    float walk_step;              /* a walker's stride, px a beat of its legs (0 = the legs don't beat) */
+    float walk_idle;              /* ... and their beat standing, a second */
+    /* the hooks: NULL = it has none / the plain way */
+    void  (*poke)(struct fish *f);                                                    /* tank_poke: its trick */
+    void  (*state)(struct tank *t, int idx, struct fish *f, float dt);                /* every frame: its own state */
+    void  (*startle)(struct tank *t, int idx, struct fish *f, float x, float y);      /* a startle reaches it */
+    void  (*flee)(const struct tank *t, const struct fish *f, float *away, float *w, float *v);   /* how it gets away */
+    void  (*court)(const struct tank *t, const struct fish *f, bool b, float cx, float cy, float rx, target_t *tg);   /* its part of the dance */
+    void  (*target)(struct tank *t, int idx, struct fish *f, goal_id_t goal, bool glance, target_t *tg, const sp_aim_t *aim);   /* a goal, its way */
+    bool  (*walking)(const struct tank *t, const struct fish *f);                     /* on the floor this frame */
+    bool  (*move)(struct tank *t, struct fish *f, float desired, float want, bool override, float dt);   /* its own way of moving; false = the walk or the swim */
 } species_def_t;
 extern const species_def_t SPECIES[SP_COUNT];
 #define SP_AVOID_R 70.0f          /* px at size 1: a small creature's berth around a big one */
@@ -278,7 +327,7 @@ enum {
     TMS_COUNT = 13
 };
 
-typedef struct {
+typedef struct fish {
     char   name[FISH_NAME_MAX + 1]; /* display name: the roster preset's until the
                                      * keeper renames it (setup.c); saved per fish */
     const char *model_name; /* one of TRAINED_NAMES: the token the v2 model sees */

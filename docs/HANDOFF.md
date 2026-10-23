@@ -2,6 +2,47 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: the species are rows (refactor phase 3a)
+
+**What changed.** A pure refactor: `--golden-creatures` (309 lines) and
+`--golden-decor` (363) are identical to before on all three boards. That
+covers every creature frame, every state line the model hears through the
+run, and the save.
+- `species_def_t` (tank.h) is now the whole species. The old data, plus:
+  - `mo`, the private `SP_MOTION[]` row it replaces
+  - `fin_hz`/`fin_div` (the old `FIN_HZ`), the bob, the clamp's thickness, the
+    den's side, the stop-and-go gait, the legs' beat
+  - `SPF_*` flags for the ways some kinds share: upright, a bell, sideways,
+    backs up, jets, breathes air, puffs, inks, sparks, visits the surface,
+    keeps a home, stays level
+  - hooks: `poke`, `state`, `startle`, `flee`, `court`, `target`, `walking`
+    and `move`
+- Every `switch (f->species)` in tank.c is gone, and every one-off species
+  test with it. Each case body moved verbatim into a named function. Kinds
+  that shared a case share the function: `inker_*` (octopus, squid),
+  `breather_*` (eel, turtle), `cruiser_*` (shark, swordfish), `floor_*` (the
+  floor walkers).
+- `SPECIES[]` moved below the hooks it points to. `fish_t` got a tag
+  (`struct fish`) so a row's hooks can take one. `target_t` is in tank.h.
+- Done in place, in tank.c, instead of moving it to `creature.c` first:
+  refactor-plan.md now moves the creature code once, finished, after 3b.
+- Left for 3b: the fish-or-species split (`!= SP_FISH`, the roster, breeding).
+  Left for 3c: render.c's `draw_creature` switch.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (17 selftests) | both oracles identical | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | both oracles identical | yes | no | no |
+| 2.06 watch | passes | both oracles identical | yes | no | no |
+
+Firmware against 2b: `.dram0.bss` and `.dram0.data` unchanged,
+`.flash.rodata` +1.1 KB (the bigger table), `.flash.text` -0.3 to +0.5 KB,
+the signed app still 0x271000, the same three deprecation warnings.
+
+**Next:** 3b, the classic fish's own row (the riskiest step).
+
 ## 2026-10-23: the creatures oracle (refactor phase 3.0)
 
 **What changed.** `--golden-creatures [prefix]` (sim only, not a selftest),

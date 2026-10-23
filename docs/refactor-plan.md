@@ -109,10 +109,15 @@ is recorded on the commit before any creature code moves:
 - a save hash, and the `--selftest-encoder` lines (what the model hears must
   not move)
 
-**3a. The table and the moves (pure).** `creature.c` takes `SPECIES[]`,
-`SP_MOTION[]`, `FIN_HZ` and the `sp_*` functions out of tank.c. The tank.c
-internals they need are exposed through tank.h or move with them, as for the
-helpers. A row gets the hooks the code already has seams for:
+**3a. The table (pure; done 2026-10-23, in place in tank.c).** The rows
+took over the species code where it was; the move to `creature.c` comes
+after 3b (step 3b+), so the creature code moves once, finished, and the tank.c
+internals it needs are exposed once. `SP_MOTION[]` and `FIN_HZ` became the
+rows' `mo` and `fin_hz`. A row got the hooks the code already had seams for
+(as built: `poke`, `state`, `startle`, `flee`, `court`, `target`, `walking`,
+`move`, plus data and `SPF_*` flags for the one-off tests - the bob, the gait,
+the den's side, the clamp, who backs up, jets, breathes, puffs, inks, sparks,
+visits the surface, keeps a home, stays level). The plan was:
 - `state`, `poke`, `startle_hit`, `startle_steer`, `court`, `target`,
   `flourish`, `walking`, `move`, `clamp_body`
 - `head`, `backward`, `jetting`
@@ -128,6 +133,12 @@ tail beat and the hold become `SP_FISH`'s hooks, and `update_fish` calls the
 row's hooks for every creature, with no `sp` split. The RNG is drawn in the
 same order, so the oracle is identical. This is the riskiest step and gets
 its own commit.
+
+**3b+. `creature.c` (pure move).** With the fish a row, every creature's
+code - the roster, `SPECIES[]`, making, breeding and removing creatures, the
+species' and the fish's motion, `update_fish` - moves from tank.c to
+`common/creature.h` / `creature.c`, the tank.c internals it needs exposed
+through a small internal header.
 
 **3c. `creatures.inc` (pure move).** The art moves into one file. The order
 inside it: the shared kit, the classic fish, the species, then each theme's
