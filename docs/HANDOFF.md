@@ -2,6 +2,50 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: the classic fish is a row too (refactor phase 3b)
+
+**What changed.** A pure refactor: `--golden-creatures` and `--golden-decor`
+are identical to before on all three boards.
+- `update_fish` has no fish-or-species split left (`bool sp` is gone). Where
+  the classic fish had its own code, its row brings it:
+  - `flee`: the straight bolt at `lerp(55, 90, bold)`
+  - `dance` (new hook): `court_steer`
+  - `swim` (new hook): its committed U-turns, the yaw, the tail beat and the
+    glass bounces, moved verbatim into `fish_swim`
+  A species row leaves `dance` and `swim` empty, which is the species' way
+  (`species_dance`: `sp_court`; `species_swim`: `sp_move` at its pace).
+- Two flags on the classic fish's row: `SPF_ROSTER` (its names, look, size and
+  temperament range are the ROSTER's, its fry the family's) and `SPF_ROAMS`
+  (it holds no station: by the glass the wall still steers it, and a big
+  one's berth only turns it). The fry's mutation is the row's `mutate_p`.
+- The guards that did nothing for a classic fish are gone: `sp_target`,
+  `sp_state` and the flourish, the startle calls, the night's reflex reset,
+  eating at the mouth. `tank_make_fish` clears every species field, and the
+  fish's row scales by 1.00 and has no head offset, so each runs bit for bit
+  as a no-op. `tank_fish_head` now returns the middle for any creature with
+  no head offset (the same arithmetic result as before, for every kind).
+- The only `SP_FISH` uses left in tank.c are making a fish, the fallback for
+  an out-of-range id, and the shop's "a species only" input guards.
+- Coverage: neither oracle stages a classic fish's courtship (the creatures
+  run courts seahorses). `fish_dance` forwards to the unchanged
+  `court_steer`, and `--selftest-pop` runs a fish pair's whole courtship
+  through to the fry.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (17 selftests) | both oracles identical | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | both oracles identical | yes | no | no |
+| 2.06 watch | passes | both oracles identical | yes | no | no |
+
+Firmware against 3a: `.dram0.bss` and `.dram0.data` unchanged,
+`.flash.text` -0.7 to -1.5 KB, `.flash.rodata` +~150 B, the signed app still
+0x271000, the same three deprecation warnings.
+
+**Next:** 3b+, every creature's code moves from tank.c to `creature.c` (a
+pure move).
+
 ## 2026-10-23: the species are rows (refactor phase 3a)
 
 **What changed.** A pure refactor: `--golden-creatures` (309 lines) and

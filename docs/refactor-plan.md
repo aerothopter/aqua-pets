@@ -128,7 +128,12 @@ the air-breathers: eel and turtle; the cruisers: shark and swordfish; the
 floor walkers), so rows point at shared functions rather than one function
 per species. Every `switch (f->species)` goes. The oracle is identical.
 
-**3b. The classic fish's row (pure).** The fish's own steering, its turns, the
+**3b. The classic fish's row (pure; done 2026-10-23).** As built: the fish's
+row brings `flee`, and two new hooks, `dance` (its `court_steer`) and `swim`
+(its turns, yaw, tail beat and glass: `fish_swim`); a species' row leaves them
+empty for the species' way. `SPF_ROSTER` and `SPF_ROAMS` mark what is the
+roster's and that it holds no station; `mutate_p` is its fry's mutation. The
+plan was: The fish's own steering, its turns, the
 tail beat and the hold become `SP_FISH`'s hooks, and `update_fish` calls the
 row's hooks for every creature, with no `sp` split. The RNG is drawn in the
 same order, so the oracle is identical. This is the riskiest step and gets

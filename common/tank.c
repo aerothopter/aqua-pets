@@ -188,7 +188,7 @@ const cluster_scheme_t CLUSTER_SCHEMES[CLUSTER_SCHEME_N] = {
 void tank_set_name(tank_t *t, int slot, const char *name) {
     if (slot < 0 || slot >= N_FISH_MAX) return;
     fish_t *f = &t->fish[slot];
-    if (!name || !*name) name = f->species ? SPECIES[f->species % SP_COUNT].names[slot % 4] : tank_roster_name(f->preset);
+    if (!name || !*name) name = (SPECIES[f->species % SP_COUNT].flags & SPF_ROSTER) ? tank_roster_name(f->preset) : SPECIES[f->species % SP_COUNT].names[slot % 4];
     int n = 0;
     /* canonical lowercase (2026-09-15): the roster, the director and the
      * trained names are lowercase, the display uppercases at draw, and the
@@ -263,7 +263,7 @@ void tank_make_fish(tank_t *t, int slot, int preset, float sociable, float bold,
 static void place_near_reef(tank_t *t, fish_t *f);
 const species_def_t *tank_species(const fish_t *f) { return &SPECIES[f->species < SP_COUNT ? f->species : SP_FISH]; }
 float tank_species_size(const fish_t *f) {
-    if (f->species == SP_FISH || f->species >= SP_COUNT) return ROSTER[f->preset % ROSTER_N].size;
+    if (tank_species(f)->flags & SPF_ROSTER) return ROSTER[f->preset % ROSTER_N].size;
     const species_def_t *s = &SPECIES[f->species];
     /* from the personality it was born with (saved), so a load rebuilds the same size */
     float k = f->bold0 * 7.31f + f->sociable0 * 3.17f;
@@ -364,11 +364,12 @@ int tank_add_fish(tank_t *t, int parent_a, int parent_b) {
     /* the species is the parents' (breeding is within a species: pick_parents);
        a classic fish's fry may hatch as a new species, the rare surprise */
     int species = pa->species < SP_COUNT ? pa->species : SP_FISH;
-    if (species == SP_FISH && tank_randf(t, 0, 1) < SP_MUTATE_P) species = 1 + (int)tank_randf(t, 0, SP_COUNT - 1.001f);
+    if (SPECIES[species].mutate_p > 0 && tank_randf(t, 0, 1) < SPECIES[species].mutate_p) species = 1 + (int)tank_randf(t, 0, SP_COUNT - 1.001f);
     bool mutant = species != pa->species;
     const species_def_t *sd = &SPECIES[species];
-    float blo = species ? sd->bold_lo - 0.1f : 0.05f, bhi = species ? sd->bold_hi + 0.1f : 0.95f;
-    float slo = species ? sd->soc_lo - 0.1f : 0.05f, shi = species ? sd->soc_hi + 0.1f : 0.95f;
+    bool roster = (sd->flags & SPF_ROSTER) != 0;          /* (the classic fish: the whole range, as the founders') */
+    float blo = !roster ? sd->bold_lo - 0.1f : 0.05f, bhi = !roster ? sd->bold_hi + 0.1f : 0.95f;
+    float slo = !roster ? sd->soc_lo - 0.1f : 0.05f, shi = !roster ? sd->soc_hi + 0.1f : 0.95f;
     float bold = mutant ? tank_randf(t, sd->bold_lo, sd->bold_hi)
                         : clampf((pa->bold + pb->bold) * 0.5f + tank_randf(t, -0.15f, 0.15f), fmaxf(blo, 0.05f), fminf(bhi, 0.95f));
     float soc  = mutant ? tank_randf(t, sd->soc_lo, sd->soc_hi)
@@ -379,7 +380,7 @@ int tank_add_fish(tank_t *t, int parent_a, int parent_b) {
        one parent, the markings from the other - a coin decides which is
        which; tank_set_look keeps the markings off a matching body */
     if (tank_randf(t, 0, 1) < 0.5f) { int x = ia; ia = ib; ib = x; pa = &t->fish[ia]; pb = &t->fish[ib]; }
-    if (species == SP_FISH) tank_set_look(t, slot, pa->color, pb->accent);
+    if (roster) tank_set_look(t, slot, pa->color, pb->accent);
     else {
         /* a design: one parent's (80 %) or a new one; a mutant's is its own */
         int variant = !mutant && tank_randf(t, 0, 1) < 0.8f ? pa->variant : (int)tank_randf(t, 0, SP_VARIANTS - 0.001f);
@@ -1055,7 +1056,7 @@ static void tank_startle(tank_t *t, float x, float y) {
         if (tank_dist(f->x, f->y, x, y) < STARTLE_RADIUS) {
             f->stress = fminf(10, f->stress + 2.5f);
             f->trust = fmaxf(0, f->trust - 0.4f);
-            if (f->species != SP_FISH) sp_startle_hit(t, i, x, y);   /* the puff, the ink, the claws, the flip */
+            sp_startle_hit(t, i, x, y);   /* a species' puff, ink, claws, flip */
         }
     }
     helper_startle_all(t, x, y, STARTLE_RADIUS);
@@ -1079,7 +1080,7 @@ void tank_touch_tap(tank_t *t, float x, float y) {
         t->startle_x = x; t->startle_y = y; t->startle_cooldown = STARTLE_COOLDOWN;
         for (int i = 0; i < t->n_fish; i++) {
             t->fish[i].stress = fminf(10, t->fish[i].stress + 0.6f);
-            if (t->fish[i].species != SP_FISH && tank_dist(t->fish[i].x, t->fish[i].y, x, y) < STARTLE_RADIUS) sp_startle_hit(t, i, x, y);
+            if (tank_dist(t->fish[i].x, t->fish[i].y, x, y) < STARTLE_RADIUS) sp_startle_hit(t, i, x, y);
         }
         helper_startle_all(t, x, y, STARTLE_RADIUS);
     } else if (t->tap_count >= 3) tank_startle(t, x, y);   /* aggressive: engage */
@@ -1231,7 +1232,7 @@ void tank_tick_sleep(tank_t *t, float seconds) {
         f->energy = clampf(f->energy + SLEEP_ENERGY_PER_H * h, 0, 10);
         f->stress = clampf(f->stress - SLEEP_STRESS_PER_H * h, 0, 10);
         f->speed = 0; f->target_speed = 0; f->bored = 0;  /* a night's sleep is a fresh start */
-        if (f->species != SP_FISH) {                        /* ... the species' reflexes too: no puff, ink or flip to wake to */
+        {                                                   /* ... a species' reflexes too: no puff, ink or flip to wake to (the classic fish has none) */
             f->surface_s=0; f->puff = 0; f->ink = 0; f->spark = 0; f->sp_mode = SPM_NONE; f->sp_t = 0;
             if (f->air_s <= 0) f->air_s = 60;
         }
@@ -1277,8 +1278,10 @@ static int zone_of(float x, float y) {
  * carrying the goal out the way the animal would - its own targets, speeds,
  * posture and way of moving - plus the species' own reflexes (a startle's
  * puff, ink and spark, the eel's breath), the way the greeting and the famine
- * override the steering above. The classic fish never comes through here:
- * its code is untouched, and nothing here draws on the tank's RNG for it.
+ * override the steering above. Every creature comes through here, the classic
+ * fish too (2026-10-23): its row's flee, dance and swim are its own, and the
+ * species' hooks are empty for it, so nothing here changes what it does or
+ * draws on the tank's RNG for it.
  * The heading / facing convention is fish_t's (tank.h, THE CONVENTION). */
 static const sp_motion_t *sp_mo(const fish_t *f) { return &SPECIES[f->species < SP_COUNT ? f->species : SP_FISH].mo; }
 static float wrap01(float v) { return v - floorf(v); }
@@ -1297,8 +1300,9 @@ static float body_axis(const fish_t *f) {
     return atan2f(sinf(f->heading), fc * fabsf(cosf(f->heading)));
 }
 void tank_fish_head(const fish_t *f, float *hx, float *hy) {
-    if (f->species == SP_FISH || f->species >= SP_COUNT) { *hx = f->x; *hy = f->y; return; }
-    if (SPECIES[f->species].flags & SPF_UPRIGHT) { *hx = f->x + f->facing * 5 * f->size; *hy = f->y - 13 * f->size; return; }   /* upright: the snout up top */
+    const species_def_t *s = tank_species(f);
+    if (s->flags & SPF_UPRIGHT) { *hx = f->x + f->facing * 5 * f->size; *hy = f->y - 13 * f->size; return; }   /* upright: the snout up top */
+    if (s->mo.head_k == 0) { *hx = f->x; *hy = f->y; return; }   /* the mouth mid-body (the classic fish, the octopus, the squid, ...) */
     float a = body_axis(f), r = tank_body_half_len(f) * sp_mo(f)->head_k;
     *hx = f->x + cosf(a) * r; *hy = f->y + sinf(a) * r;
 }
@@ -1932,6 +1936,137 @@ static void sp_move(tank_t *t, int idx, fish_t *f, const target_t *tg, float des
 
 
 
+
+/* ---- the creatures' own ways where the classic fish and the species part
+ * (2026-10-23: the classic fish is a row too). A species' row leaves these
+ * empty and gets the species' way; the fish's row brings its own. ---- */
+/* the startle: the fish bolts straight away from the tap, at its own pace */
+static void fish_flee(const tank_t *t, const fish_t *f, float *away, float *w, float *v) { (void)t; (void)away; (void)w; *v = lerpf(55, 90, f->bold); }
+/* the courtship's steering: the fish's circle (court_steer), or a species' place in the dance (sp_court) */
+static void fish_dance(const tank_t *t, fish_t *f, int idx, float vk, target_t *tg, float *desired, float *speed) {
+    (void)vk; (void)tg; court_steer(t, f, idx, desired, speed);
+}
+static void species_dance(const tank_t *t, fish_t *f, int idx, float vk, target_t *tg, float *desired, float *speed) {
+    (void)speed; sp_court(t, f, idx, tg); *desired = atan2f((tg->y - f->y) * vk, tg->x - f->x);
+}
+/* the move, once steered: a species' own (sp_move, at its pace) */
+static void species_swim(tank_t *t, int idx, fish_t *f, const target_t *tg, float desired, float touch_speed, float hes_speed, bool sp_units, bool agile, float dt) {
+    (void)agile;
+    if (touch_speed > 0 && !sp_units) touch_speed *= SPECIES[f->species].speed_k;   /* the reflexes' fish speeds, at its pace */
+    bool override = touch_speed >= 0 || hes_speed >= 0;
+    float want = touch_speed >= 0 ? touch_speed : hes_speed >= 0 ? hes_speed : tg->speed * (0.8f + f->goal.urgency * 0.05f);
+    if (f->energy < 1.2f) want *= 0.45f;
+    sp_move(t, idx, f, tg, desired, want, override, dt);
+}
+/* ... and the classic fish's: committed U-turns, the yaw and the tail beat, the glass */
+static void fish_swim(tank_t *t, int idx, fish_t *f, const target_t *tg, float desired, float touch_speed, float hes_speed, bool sp_units, bool agile, float dt) {
+    (void)idx; (void)sp_units;
+    /* urgency scales cruise speed a touch (0..9 → 0.8..1.25) */
+    float ugain = 0.8f + f->goal.urgency * 0.05f;
+    /* a U-turn is a YAW (2026-09-29): a fish whose way lies behind it no longer
+     * loops over through vertical and rolls flat - it turns round where it is,
+     * toward the glass. (A YouTube viewer on the old roll: "that looks bad".)
+     * It swims on one SIDE (facing) and changes side only by a committed turn:
+     * the way must stay behind it for a moment - ~2 s hovering (3 at its
+     * spot), a third of a second cruising, at once when it matters (a dash,
+     * a startle, darting play) - and a turn is followed by ~1.3 s of settling. Until it commits
+     * it glances back (a part turn) and eases off, steering on its own side:
+     * the way mirrored across vertical, its climb or dive kept. Strato, the
+     * same night, on the first cut (a turn the moment the way fell behind):
+     * "too much time in a vertical position or flip flopping back and forth" -
+     * 21 flips a fish-minute, 34 at the bubble column, where the lane swings
+     * side to side every ~5 s. */
+    const float BEHIND_BAND  = 0.15f;    /* |cos| past vertical before the way is "behind" */
+    const float TURN_SETTLE  = 1.3f;     /* s after a turn before the next can begin */
+    if (!f->facing) f->facing = cosf(f->heading) < 0 ? -1 : 1;
+    bool urgent = agile || (t->ravenous && f->hunger > 6.5f) || (t->startled && touch_speed >= 55);
+    bool behind = cosf(desired) * f->facing < -BEHIND_BAND;
+    if (behind) f->behind += dt;
+    else f->behind = f->behind > 0 ? 0 : fminf(0, f->behind + dt);
+    /* hanging about its spot (the goal's point within ~30 px) a fish is in
+     * no hurry: the lane swinging past it is a glance, not a turn */
+    bool at_spot = tg->valid && tank_dist(f->x, f->y, tg->x, tg->y) < 30;
+    float commit = urgent ? 0 : lerpf(2.0f, 0.3f, clampf((f->speed - 10) * (1 / 25.0f), 0, 1)) + (at_spot ? 1.2f : 0);
+    if (behind && f->behind >= commit) {
+        f->facing = (int8_t)-f->facing;
+        f->heading = norm_ang(3.14159f - f->heading);   /* the climb or dive kept */
+        f->behind = urgent ? 0 : -TURN_SETTLE;
+    }
+    bool glancing = f->behind > 0;       /* the way is behind, the turn not yet committed */
+    if (cosf(desired) * f->facing < 0)   /* on its own side until it turns */
+        desired = atan2f(sinf(desired), f->facing * fabsf(cosf(desired)));
+    float turn = clampf(norm_ang(desired - f->heading), -f->turn_rate * dt, f->turn_rate * dt);
+    f->heading = norm_ang(f->heading + turn);
+    /* the yaw follows the side: a full turn in ~0.5 s at mira's turn rate
+     * (bolt 0.4, nori 0.7), quicker with urgency; a glance is 40% of one.
+     * The tail follows the head a beat behind */
+    float hc = cosf(f->heading);
+    float face = f->facing * (glancing ? 0.6f : 1.0f);
+    float yrate = f->turn_rate * 1.2f * (1 + f->goal.urgency * 0.06f) * dt;
+    f->yaw += clampf(face - f->yaw, -yrate, yrate);
+    f->yaw_tail += (f->yaw - f->yaw_tail) * clampf(dt * 10, 0, 1);
+    float want = touch_speed >= 0 ? touch_speed : hes_speed >= 0 ? hes_speed : tg->speed * ugain;
+    f->target_speed = want * (f->energy < 1.2f ? 0.45f : 1) * (glancing ? 0.6f : 1);
+    /* swimming through a canopy is slow going (a fleeing fish crashes through) */
+    if (f->goal.id != GOAL_FLEE_SHADOW)
+        for (int b = 0; b < tank_veg_beds(t); b++)
+            if (veg_inside(t, b, f->x, f->y)) { f->target_speed *= VEG_SLOW; break; }
+    f->speed = lerpf(f->speed, f->target_speed, clampf(dt * 2.6f, 0, 1));
+    /* the tail beat's phase (2026-10-12, Alvin: the Blackwater creatures' movement "not smooth"): it used to be
+       clock x (8 + speed x .055) in the drawer, so every change of speed JUMPED the phase by clock x .055 x the
+       change - a random tail flick on every acceleration, worse the longer the tank had run. Integrated here
+       instead, at the same rate, so the beat only quickens and slows */
+    f->jet = wrap01(f->jet + dt * (8 + f->speed * 0.055f) * (1.0f / TAU));
+    /* the swim follows the facing: side-on it is the heading's own, and as
+     * the fish turns head-on its level travel crosses zero and it brakes to
+     * 40%. Only a LEVEL turn: steep, the heading steers as it always did (a
+     * diver's small corrections at the pellet don't wait on a flip) */
+    float ahc = fabsf(hc), w = clampf((ahc - 0.2f) * (1 / 0.4f), 0, 1);
+    float brake = 1 - 0.6f * (1 - fabsf(f->yaw)) * ahc * w;
+    f->x += (hc + (f->yaw * ahc - hc) * w) * f->speed * brake * dt;
+    f->y += sinf(f->heading) * f->speed * brake * dt + sinf(t->clock * 1.4f + f->wander) * dt * 1.7f;
+
+    /* hard bounds. The side glass mirrors a heading only while it points
+     * INTO the glass: the facing lags the mirror, and a second bounce on the
+     * next frame would send the fish back into the glass */
+    float m = 15 * f->size;
+#ifdef TANK_ROUND                                          /* the bowl's glass: back onto the circle m inside it, the heading mirrored
+                                                              in the glass while it points out, the body turned to swim back in */
+    { float dx = f->x - TANK_RAD, dy = f->y - TANK_RAD, d = sqrtf(dx * dx + dy * dy), lim = TANK_RAD - m;
+      if (d > lim && d > 1) {
+          float nx = dx / d, ny = dy / d;
+          f->x = TANK_RAD + nx * lim; f->y = TANK_RAD + ny * lim;
+          float hx = cosf(f->heading), hy = sinf(f->heading), out = hx * nx + hy * ny;
+          if (out > 0) {
+              hx -= 2 * out * nx; hy -= 2 * out * ny; f->heading = atan2f(hy, hx);
+              if (nx < -0.5f && f->facing < 0) { f->facing = 1; f->behind = -TURN_SETTLE; }
+              if (nx > 0.5f && f->facing > 0)  { f->facing = -1; f->behind = -TURN_SETTLE; }
+          }
+      }
+      if (f->y > TANK_BOT - m) { f->y = TANK_BOT - m; f->heading = -f->heading; } }
+#else
+    if (f->x < m)          { f->x = m;          if (cosf(f->heading) < 0) f->heading = norm_ang(3.14159f - f->heading);
+                                                if (f->facing < 0) { f->facing = 1; f->behind = -TURN_SETTLE; } }
+    if (f->x > TANK_W - m) { f->x = TANK_W - m; if (cosf(f->heading) > 0) f->heading = norm_ang(3.14159f - f->heading);
+                                                if (f->facing > 0) { f->facing = -1; f->behind = -TURN_SETTLE; } }
+    if (f->y < m)          { f->y = m;          f->heading = -f->heading; }
+    if (f->y > TANK_H - m) { f->y = TANK_H - m; f->heading = -f->heading; }
+#ifdef TANK_CORNER_R                                       /* the watch's corners: back onto the arc m inside it, the heading mirrored
+                                                              in the glass while it points out (the bowl's rule, a corner at a time) */
+    { float cx, cy, d = corner_in(f->x, f->y, &cx, &cy), lim = TANK_CORNER_R - m;
+      if (d > lim && d > 1) {
+          float nx = (f->x - cx) / d, ny = (f->y - cy) / d;
+          f->x = cx + nx * lim; f->y = cy + ny * lim;
+          float hx = cosf(f->heading), hy = sinf(f->heading), out = hx * nx + hy * ny;
+          if (out > 0) {
+              hx -= 2 * out * nx; hy -= 2 * out * ny; f->heading = atan2f(hy, hx);
+              if (nx < -0.5f && f->facing < 0) { f->facing = 1; f->behind = -TURN_SETTLE; }
+              if (nx > 0.5f && f->facing > 0)  { f->facing = -1; f->behind = -TURN_SETTLE; }
+          }
+      } }
+#endif
+#endif
+}
 /* ---- the species (2026-10-05, docs/species.md): the classic fish's row is
  * a placeholder - its looks and temperament are the ROSTER's ---- */
 const species_def_t SPECIES[SP_COUNT] = {
@@ -1943,7 +2078,9 @@ const species_def_t SPECIES[SP_COUNT] = {
         { "CLASSIC", 0x38dcc7, 0x1d9f98, 0xffbd59 }, { "CLASSIC", 0x38dcc7, 0x1d9f98, 0xffbd59 } },
       0.86f, 1.08f, 0.10f, 0.90f, 0.10f, 0.90f, 5.5f, 0.3f, 3.2f, LOCO_FIN,
       1.00f, 1.00f, 0.72f, 0.0f, 38, false,
-      .mo = { 2.4f, 0.00f,  0, 2.6f, 1.00f, 0.00f,  0 } },   /* fish: its own code; the length is for tank_body_half_len */
+      .mo = { 2.4f, 0.00f,  0, 2.6f, 1.00f, 0.00f,  0 },   /* the turn is its own (fish_swim); the length is for tank_body_half_len */
+      .flags = SPF_ROSTER | SPF_ROAMS, .mutate_p = SP_MUTATE_P,
+      .flee = fish_flee, .dance = fish_dance, .swim = fish_swim },
     { "SEAHORSE", "seahorse", { "pearl", "sandy", "ripple", "coral" },
       { { "GOLDEN", 0xffc93c, 0xd9962a, 0xff8a3d }, { "CRIMSON", 0xe0443a, 0x9e2a26, 0xffd6c9 },
         { "BLACK", 0x34343c, 0x1e1e24, 0xf2f2f2 },  { "LAVENDER", 0xb38ce8, 0x7a5ec2, 0xffe08a } },
@@ -2062,7 +2199,7 @@ static target_t target_for_goal(tank_t *t, int idx, goal_id_t goal, bool glance)
             float slow = clampf(d / 60, 0.4f + h * 0.35f, 1);
             tg.x = t->food[i].x; tg.y = t->food[i].y;
             tg.speed = lerpf(29, 62, f->bold) * slow * (0.75f + h * 0.55f);
-            if (f->species != SP_FISH) sp_target(t, idx, goal, glance, &tg);
+            sp_target(t, idx, goal, glance, &tg);
             return tg;   /* skip the margin clamp: pellets rest at the floor */
         }
         tg.valid = false;
@@ -2151,7 +2288,7 @@ static target_t target_for_goal(tank_t *t, int idx, goal_id_t goal, bool glance)
     }
     default: if (glance) tg.valid = false; break;
     }
-    if (f->species != SP_FISH) sp_target(t, idx, goal, glance, &tg);   /* the species' own way of doing it */
+    sp_target(t, idx, goal, glance, &tg);   /* its own way of doing it (the classic fish's row changes nothing) */
     float m = 23;
 #ifdef TANK_ROUND
     tank_glass_clamp(&tg.x, &tg.y, m + 4);
@@ -2186,7 +2323,7 @@ static float wall_avoidance(const fish_t *f, bool *hit) {
 
 static void eat_nearby_food(tank_t *t, fish_t *f) {
     float ex = f->x, ey = f->y;                  /* a species eats at its mouth (the eel's is at its front) */
-    if (f->species != SP_FISH) tank_fish_head(f, &ex, &ey);
+    tank_fish_head(f, &ex, &ey);
     for (int i = 0; i < MAX_FOOD; i++) {
         if (!t->food[i].alive) continue;
         if (tank_dist(ex, ey, t->food[i].x, t->food[i].y) < 12 * f->size + 4) {
@@ -2241,7 +2378,7 @@ void tank_shake(tank_t *t, float strength) {
         f->toss = clampf(TOSS_S * (0.7f + 0.3f * strength) + tank_randf(t, -0.4f, 0.4f), 1.5f, 4.5f);
         f->toss_vx = cosf(a) * v; f->toss_vy = sinf(a) * v; f->toss_spin = tank_randf(t, -6, 6);
         f->stress = fminf(10, f->stress + 2.5f * strength); f->trust = fmaxf(0, f->trust - 0.3f);
-        if (f->species != SP_FISH) sp_startle_hit(t, i, f->x + 20, f->y);    /* the puff, the ink, the claws, the flip */
+        sp_startle_hit(t, i, f->x + 20, f->y);    /* a species' puff, ink, claws, flip */
     }
     helper_shake_all(t, strength);                          /* the shrimp scatter, the frogman and the sub tumble */
     tank_emit(TEV_SPOOK, -1);
@@ -2342,15 +2479,15 @@ static void update_fish(tank_t *t, int idx, float dt) {
         f->zone_seen[z] = t->clock;
     }
 
-    /* a species' own state first: its puff, ink, breath, lure (sp_state) */
-    bool sp = f->species != SP_FISH && f->species < SP_COUNT;
-    if (sp) { sp_state(t, idx, f, dt); sp_flourish(t,idx,f,dt); }
+    /* its own state first: a species' puff, ink, breath, lure (sp_state) */
+    const species_def_t *sd = &SPECIES[f->species];
+    sp_state(t, idx, f, dt); sp_flourish(t,idx,f,dt);
     target_t tg = target_for_goal(t, idx, f->goal.id, false);
     /* fish prefer shallow climb/dive angles while cruising; full vertical
      * agility stays available for urgent goals (a species has its own
      * preference: the seahorse's > 1 favours the climb) */
     bool agile = f->goal.id == GOAL_FLEE_SHADOW || f->goal.id == GOAL_DART_PLAY;
-    float vk = agile ? 1.0f : sp ? SPECIES[f->species].vert_k : 0.72f;
+    float vk = agile ? 1.0f : sd->vert_k;                  /* (the classic fish's row: 0.72) */
     float desired = atan2f((tg.y - f->y) * vk, tg.x - f->x);
     /* final food approach: let the fish dip to the floor for the pellet
      * instead of hovering above it on wall-avoidance (the "staring" bug) */
@@ -2358,7 +2495,7 @@ static void update_fish(tank_t *t, int idx, float dt) {
                           tank_dist(f->x, f->y, tg.x, tg.y) < 40;
     /* (a species settling on a spot by the glass or the floor - the eel's
        bed, the den - is not pushed off it either) */
-    if (sp && tg.valid && tank_dist(f->x, f->y, tg.x, tg.y) < 40) final_approach = true;
+    if (!(sd->flags & SPF_ROAMS) && tg.valid && tank_dist(f->x, f->y, tg.x, tg.y) < 40) final_approach = true;
     bool hit; float push = wall_avoidance(f, &hit);
     if (hit && !final_approach)
         desired = norm_ang(desired + norm_ang(push - desired) * 0.62f);
@@ -2384,12 +2521,7 @@ static void update_fish(tank_t *t, int idx, float dt) {
     if (t->startled && f->goal.id != GOAL_FLEE_SHADOW && !breathing) {
         float d = tank_dist(f->x, f->y, t->startle_x, t->startle_y);
         if (d < STARTLE_RADIUS * 1.6f) {
-            if (sp) { sp_startle_steer(t, f, &desired, &touch_speed); sp_units = true; }
-            else {
-                float away = atan2f(f->y - t->startle_y, f->x - t->startle_x);
-                desired = norm_ang(desired + norm_ang(away - desired) * 0.85f);
-                touch_speed = lerpf(55, 90, f->bold);
-            }
+            sp_startle_steer(t, f, &desired, &touch_speed); sp_units = true;   /* (its row's flee) */
         }
     } else if (idx == t->stage_fish) {
         /* on stage (setup): a lazy figure-of-eight round the page's clear
@@ -2406,7 +2538,7 @@ static void update_fish(tank_t *t, int idx, float dt) {
          * gulp, whatever the goal - a reflex, as the famine's dash is */
         sp_breath(t, f, &tg);
         desired = atan2f(tg.y - f->y, tg.x - f->x);
-    } else if (sp && f->surface_s!=0) {
+    } else if (f->surface_s!=0) {
         tg.x=TANK_W*.5f+sinf(t->clock*.22f+idx)*24;
         tg.y=f->surface_s>0?tank_glass_top(tg.x)+fmaxf(32,12*f->size):tank_ground_y(t,tg.x)-tank_walk_off(f);
         tg.valid=true;tg.speed=tank_dist(f->x,f->y,tg.x,tg.y)<18?4:(SPECIES[f->species].flags&SPF_PUFFS)?18:28;
@@ -2417,8 +2549,7 @@ static void update_fish(tank_t *t, int idx, float dt) {
          * outranks a resting finger and the greeting - this is the moment the
          * keeper is here for - and hunger short of the famine doesn't veto
          * it; a starving parent still begs first (feed it, it comes back). */
-        if (sp) { sp_court(t, f, idx, &tg); desired = atan2f((tg.y - f->y) * vk, tg.x - f->x); }
-        else court_steer(t, f, idx, &desired, &touch_speed);
+        (sd->dance ? sd->dance : species_dance)(t, f, idx, vk, &tg, &desired, &touch_speed);
     } else if (t->hold_active && t->hold_time >= HOLD_ATTRACT_S &&
                f->goal.id != GOAL_FLEE_SHADOW && f->trust >= 4.0f &&
                f->hunger < HOLD_HUNGER_VETO) {
@@ -2472,8 +2603,7 @@ static void update_fish(tank_t *t, int idx, float dt) {
                (idx == t->court_a || idx == t->court_b) &&
                f->goal.id != GOAL_FLEE_SHADOW && f->hunger < HOLD_HUNGER_VETO) {
         /* the tell: an episode of the courtship circle, the arrival close */
-        if (sp) { sp_court(t, f, idx, &tg); desired = atan2f((tg.y - f->y) * vk, tg.x - f->x); }
-        else court_steer(t, f, idx, &desired, &touch_speed);
+        (sd->dance ? sd->dance : species_dance)(t, f, idx, vk, &tg, &desired, &touch_speed);
     }
 
     /* separation - personal space. Fish are ~40 px long; the old 16 px
@@ -2503,128 +2633,14 @@ static void update_fish(tank_t *t, int idx, float dt) {
                 float away = atan2f(f->y - o->y, f->x - o->x), w = 0.6f * (1 - d / r);
                 if (final_approach) w *= 0.25f;
                 desired = norm_ang(desired + norm_ang(away - desired) * w);
-                if (sp && touch_speed < 0 && tg.valid && !final_approach) {   /* a species hovering at its spot is moved off it, gently */
+                if (!(sd->flags & SPF_ROAMS) && touch_speed < 0 && tg.valid && !final_approach) {   /* one holding a station is moved off it, gently */
                     tg.x += cosf(away) * (r - d) * 0.5f; tg.y += sinf(away) * (r - d) * 0.5f;
                 }
             }
         }
 
-    if (sp) {
-        if (touch_speed > 0 && !sp_units) touch_speed *= SPECIES[f->species].speed_k;   /* the reflexes' fish speeds, at its pace */
-        bool override = touch_speed >= 0 || hes_speed >= 0;
-        float want = touch_speed >= 0 ? touch_speed : hes_speed >= 0 ? hes_speed : tg.speed * (0.8f + f->goal.urgency * 0.05f);
-        if (f->energy < 1.2f) want *= 0.45f;
-        sp_move(t, idx, f, &tg, desired, want, override, dt);
-        eat_nearby_food(t, f);
-        return;
-    }
-
-    /* urgency scales cruise speed a touch (0..9 → 0.8..1.25) */
-    float ugain = 0.8f + f->goal.urgency * 0.05f;
-    /* a U-turn is a YAW (2026-09-29): a fish whose way lies behind it no longer
-     * loops over through vertical and rolls flat - it turns round where it is,
-     * toward the glass. (A YouTube viewer on the old roll: "that looks bad".)
-     * It swims on one SIDE (facing) and changes side only by a committed turn:
-     * the way must stay behind it for a moment - ~2 s hovering (3 at its
-     * spot), a third of a second cruising, at once when it matters (a dash,
-     * a startle, darting play) - and a turn is followed by ~1.3 s of settling. Until it commits
-     * it glances back (a part turn) and eases off, steering on its own side:
-     * the way mirrored across vertical, its climb or dive kept. Strato, the
-     * same night, on the first cut (a turn the moment the way fell behind):
-     * "too much time in a vertical position or flip flopping back and forth" -
-     * 21 flips a fish-minute, 34 at the bubble column, where the lane swings
-     * side to side every ~5 s. */
-    const float BEHIND_BAND  = 0.15f;    /* |cos| past vertical before the way is "behind" */
-    const float TURN_SETTLE  = 1.3f;     /* s after a turn before the next can begin */
-    if (!f->facing) f->facing = cosf(f->heading) < 0 ? -1 : 1;
-    bool urgent = agile || (t->ravenous && f->hunger > 6.5f) || (t->startled && touch_speed >= 55);
-    bool behind = cosf(desired) * f->facing < -BEHIND_BAND;
-    if (behind) f->behind += dt;
-    else f->behind = f->behind > 0 ? 0 : fminf(0, f->behind + dt);
-    /* hanging about its spot (the goal's point within ~30 px) a fish is in
-     * no hurry: the lane swinging past it is a glance, not a turn */
-    bool at_spot = tg.valid && tank_dist(f->x, f->y, tg.x, tg.y) < 30;
-    float commit = urgent ? 0 : lerpf(2.0f, 0.3f, clampf((f->speed - 10) * (1 / 25.0f), 0, 1)) + (at_spot ? 1.2f : 0);
-    if (behind && f->behind >= commit) {
-        f->facing = (int8_t)-f->facing;
-        f->heading = norm_ang(3.14159f - f->heading);   /* the climb or dive kept */
-        f->behind = urgent ? 0 : -TURN_SETTLE;
-    }
-    bool glancing = f->behind > 0;       /* the way is behind, the turn not yet committed */
-    if (cosf(desired) * f->facing < 0)   /* on its own side until it turns */
-        desired = atan2f(sinf(desired), f->facing * fabsf(cosf(desired)));
-    float turn = clampf(norm_ang(desired - f->heading), -f->turn_rate * dt, f->turn_rate * dt);
-    f->heading = norm_ang(f->heading + turn);
-    /* the yaw follows the side: a full turn in ~0.5 s at mira's turn rate
-     * (bolt 0.4, nori 0.7), quicker with urgency; a glance is 40% of one.
-     * The tail follows the head a beat behind */
-    float hc = cosf(f->heading);
-    float face = f->facing * (glancing ? 0.6f : 1.0f);
-    float yrate = f->turn_rate * 1.2f * (1 + f->goal.urgency * 0.06f) * dt;
-    f->yaw += clampf(face - f->yaw, -yrate, yrate);
-    f->yaw_tail += (f->yaw - f->yaw_tail) * clampf(dt * 10, 0, 1);
-    float want = touch_speed >= 0 ? touch_speed : hes_speed >= 0 ? hes_speed : tg.speed * ugain;
-    f->target_speed = want * (f->energy < 1.2f ? 0.45f : 1) * (glancing ? 0.6f : 1);
-    /* swimming through a canopy is slow going (a fleeing fish crashes through) */
-    if (f->goal.id != GOAL_FLEE_SHADOW)
-        for (int b = 0; b < tank_veg_beds(t); b++)
-            if (veg_inside(t, b, f->x, f->y)) { f->target_speed *= VEG_SLOW; break; }
-    f->speed = lerpf(f->speed, f->target_speed, clampf(dt * 2.6f, 0, 1));
-    /* the tail beat's phase (2026-10-12, Alvin: the Blackwater creatures' movement "not smooth"): it used to be
-       clock x (8 + speed x .055) in the drawer, so every change of speed JUMPED the phase by clock x .055 x the
-       change - a random tail flick on every acceleration, worse the longer the tank had run. Integrated here
-       instead, at the same rate, so the beat only quickens and slows */
-    f->jet = wrap01(f->jet + dt * (8 + f->speed * 0.055f) * (1.0f / TAU));
-    /* the swim follows the facing: side-on it is the heading's own, and as
-     * the fish turns head-on its level travel crosses zero and it brakes to
-     * 40%. Only a LEVEL turn: steep, the heading steers as it always did (a
-     * diver's small corrections at the pellet don't wait on a flip) */
-    float ahc = fabsf(hc), w = clampf((ahc - 0.2f) * (1 / 0.4f), 0, 1);
-    float brake = 1 - 0.6f * (1 - fabsf(f->yaw)) * ahc * w;
-    f->x += (hc + (f->yaw * ahc - hc) * w) * f->speed * brake * dt;
-    f->y += sinf(f->heading) * f->speed * brake * dt + sinf(t->clock * 1.4f + f->wander) * dt * 1.7f;
-
-    /* hard bounds. The side glass mirrors a heading only while it points
-     * INTO the glass: the facing lags the mirror, and a second bounce on the
-     * next frame would send the fish back into the glass */
-    float m = 15 * f->size;
-#ifdef TANK_ROUND                                          /* the bowl's glass: back onto the circle m inside it, the heading mirrored
-                                                              in the glass while it points out, the body turned to swim back in */
-    { float dx = f->x - TANK_RAD, dy = f->y - TANK_RAD, d = sqrtf(dx * dx + dy * dy), lim = TANK_RAD - m;
-      if (d > lim && d > 1) {
-          float nx = dx / d, ny = dy / d;
-          f->x = TANK_RAD + nx * lim; f->y = TANK_RAD + ny * lim;
-          float hx = cosf(f->heading), hy = sinf(f->heading), out = hx * nx + hy * ny;
-          if (out > 0) {
-              hx -= 2 * out * nx; hy -= 2 * out * ny; f->heading = atan2f(hy, hx);
-              if (nx < -0.5f && f->facing < 0) { f->facing = 1; f->behind = -TURN_SETTLE; }
-              if (nx > 0.5f && f->facing > 0)  { f->facing = -1; f->behind = -TURN_SETTLE; }
-          }
-      }
-      if (f->y > TANK_BOT - m) { f->y = TANK_BOT - m; f->heading = -f->heading; } }
-#else
-    if (f->x < m)          { f->x = m;          if (cosf(f->heading) < 0) f->heading = norm_ang(3.14159f - f->heading);
-                                                if (f->facing < 0) { f->facing = 1; f->behind = -TURN_SETTLE; } }
-    if (f->x > TANK_W - m) { f->x = TANK_W - m; if (cosf(f->heading) > 0) f->heading = norm_ang(3.14159f - f->heading);
-                                                if (f->facing > 0) { f->facing = -1; f->behind = -TURN_SETTLE; } }
-    if (f->y < m)          { f->y = m;          f->heading = -f->heading; }
-    if (f->y > TANK_H - m) { f->y = TANK_H - m; f->heading = -f->heading; }
-#ifdef TANK_CORNER_R                                       /* the watch's corners: back onto the arc m inside it, the heading mirrored
-                                                              in the glass while it points out (the bowl's rule, a corner at a time) */
-    { float cx, cy, d = corner_in(f->x, f->y, &cx, &cy), lim = TANK_CORNER_R - m;
-      if (d > lim && d > 1) {
-          float nx = (f->x - cx) / d, ny = (f->y - cy) / d;
-          f->x = cx + nx * lim; f->y = cy + ny * lim;
-          float hx = cosf(f->heading), hy = sinf(f->heading), out = hx * nx + hy * ny;
-          if (out > 0) {
-              hx -= 2 * out * nx; hy -= 2 * out * ny; f->heading = atan2f(hy, hx);
-              if (nx < -0.5f && f->facing < 0) { f->facing = 1; f->behind = -TURN_SETTLE; }
-              if (nx > 0.5f && f->facing > 0)  { f->facing = -1; f->behind = -TURN_SETTLE; }
-          }
-      } }
-#endif
-#endif
-
+    /* the move, its row's way: the classic fish's swim (fish_swim), a species' (species_swim) */
+    (sd->swim ? sd->swim : species_swim)(t, idx, f, &tg, desired, touch_speed, hes_speed, sp_units, agile, dt);
     eat_nearby_food(t, f);
 }
 

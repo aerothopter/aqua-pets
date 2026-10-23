@@ -239,6 +239,8 @@ enum {
     SPF_VISITS   = 1 << 9,   /* idle, a trip to the surface and back */
     SPF_HOME     = 1 << 10,  /* an ambusher: a new goal makes where it is its home (the angler) */
     SPF_LEVEL    = 1 << 11,  /* off the top or the floor, its climb is not turned back (the shark) */
+    SPF_ROSTER   = 1 << 12,  /* its names, look, size and temperament are the ROSTER's, its fry the family's (the classic fish) */
+    SPF_ROAMS    = 1 << 13,  /* it holds no station: by the glass the wall still steers it, and a big one's berth only turns it (the classic fish) */
 };
 typedef struct { float w0, w1, p0, p1, k; } sp_gait_t;   /* stop-and-go: steps of w0..w1 s, pauses of p0..p1 s, k x the pace while stepping */
 typedef struct target { float x, y, speed; bool valid; } target_t;   /* a goal's point and cruise speed */
@@ -270,7 +272,8 @@ typedef struct {
     sp_gait_t gait;               /* a walker's stop-and-go (k = 0: none) */
     float walk_step;              /* a walker's stride, px a beat of its legs (0 = the legs don't beat) */
     float walk_idle;              /* ... and their beat standing, a second */
-    /* the hooks: NULL = it has none / the plain way */
+    float mutate_p;               /* a fry of two of its kind hatching as another species instead */
+    /* the hooks: NULL = it has none / the species' way (the classic fish's row brings its own flee, dance and swim) */
     void  (*poke)(struct fish *f);                                                    /* tank_poke: its trick */
     void  (*state)(struct tank *t, int idx, struct fish *f, float dt);                /* every frame: its own state */
     void  (*startle)(struct tank *t, int idx, struct fish *f, float x, float y);      /* a startle reaches it */
@@ -279,6 +282,9 @@ typedef struct {
     void  (*target)(struct tank *t, int idx, struct fish *f, goal_id_t goal, bool glance, target_t *tg, const sp_aim_t *aim);   /* a goal, its way */
     bool  (*walking)(const struct tank *t, const struct fish *f);                     /* on the floor this frame */
     bool  (*move)(struct tank *t, struct fish *f, float desired, float want, bool override, float dt);   /* its own way of moving; false = the walk or the swim */
+    void  (*dance)(const struct tank *t, struct fish *f, int idx, float vk, target_t *tg, float *desired, float *speed);   /* the courtship's steering */
+    void  (*swim)(struct tank *t, int idx, struct fish *f, const target_t *tg, float desired, float touch_speed, float hes_speed,
+                  bool sp_units, bool agile, float dt);                                /* the frame's move, once steered (it eats after) */
 } species_def_t;
 extern const species_def_t SPECIES[SP_COUNT];
 #define SP_AVOID_R 70.0f          /* px at size 1: a small creature's berth around a big one */
