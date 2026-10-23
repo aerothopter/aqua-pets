@@ -2144,16 +2144,10 @@ static void draw_brain_dot(void) {
             canvas_buf[y * TANK_W + x] = col;
 }
 
-/* the round build: the panel has no pixels outside its circle - the window shows the same */
+/* a curved glass (the bowl's circle, the watch's corners): the panel has no
+ * pixels outside it - the window shows the same (tank_glass_x0 / x1 are its edges) */
 static void round_mask(void) {
-#ifdef TANK_ROUND
-    for (int y = 0; y < TANK_H; y++) {
-        float d = y + 0.5f - TANK_RAD, r2 = TANK_RAD * TANK_RAD - d * d, half = r2 > 0 ? sqrtf(r2) : 0;
-        int x0 = (int)(TANK_RAD - half), x1 = (int)(TANK_RAD + half);
-        for (int x = 0; x < x0; x++) canvas_buf[y * TANK_W + x] = 0;
-        for (int x = x1 + 1; x < TANK_W; x++) canvas_buf[y * TANK_W + x] = 0;
-    }
-#elif defined(TANK_CORNER_R)                    /* the watch: its glass's round corners (tank_glass_x0 / x1 are the arcs) */
+#if GLASS_CURVED
     for (int y = 0; y < TANK_H; y++) {
         int x0 = (int)tank_glass_x0(y + 0.5f), x1 = (int)tank_glass_x1(y + 0.5f);
         for (int x = 0; x < x0; x++) canvas_buf[y * TANK_W + x] = 0;

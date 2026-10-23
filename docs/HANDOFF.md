@@ -2,6 +2,43 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: one glass module (refactor phase 4b)
+
+**What changed.** A pure move: `common/glass.h` / `glass.c` hold every piece
+of code whose body depends on the glass's shape, one body a shape by
+`DEVICE_GLASS`:
+- from tank.c: `tank_glass_*`, `rand_water`, and the film's cells
+  (`glass_holds_cell`, was `algae_ok`)
+- from creature.c: `glass_bounce` (the swim's hard bounds and reflection),
+  `glass_clamp_target`, and `glass_avoidance` (was `wall_avoidance`)
+
+`corner_in` and `corner_clamp` are glass.c's own now. Code that needs only to
+know that the glass curves asks `GLASS_CURVED` (device.h): an explore point,
+the shrimp, the snail's stand, and the sim's window mask (one loop over
+`tank_glass_x0` / `x1` for the bowl and the watch, the same maths as the
+bowl's own loop). tank.c's last board blocks are the beds (4c).
+
+**How it was checked.** All nine records are identical to 04b15e5's (both
+oracles and the snapshot pages, on all three boards; see 4a for the build-id
+pin).
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | oracles and snapshot pages identical | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | identical | yes | no | no |
+| 2.06 watch | passes | identical | yes | no | no |
+
+Firmware against 4a: `.dram0.bss`, `.dram0.data` and `.flash.rodata`
+unchanged; `.flash.text` -72 B (1.8), -460 B (bowl), -236 B (watch); the app
+still 0x271000; the same warnings. The functions left their callers' files,
+so on the device the compiler inlines (and, with `-ffast-math`, may contract)
+differently. As with 3b+, the sim's oracles can't prove the device's floats
+bit for bit.
+
+**Next:** 4c, the bed table.
+
 ## 2026-10-23: a board is a device header (refactor phase 4a)
 
 **The keeper's calls for phase 4** (refactor-plan.md has them):

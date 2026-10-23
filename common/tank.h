@@ -29,14 +29,11 @@
  * TANK_H - 16 is in the rectangle) from TANK_FX0 to TANK_FX1. Floor things
  * (the beds, a resting pellet, the snail's walk, the decor) measure from
  * TANK_BOT / TANK_FX0 / TANK_FX1 on every board - in the rectangle those ARE
- * TANK_H / 0 / TANK_W. Swimmers meet the glass itself: tank_glass_* (tank.c). */
+ * TANK_H / 0 / TANK_W. Swimmers meet the glass itself: tank_glass_* (glass.c). */
 #define TANK_FW   (TANK_FX1 - TANK_FX0)
 /* a floor x given as the rectangle's (0..448), on this build's floor */
 #define TANK_FLOOR_X(x448) (TANK_FX0 + (x448) * TANK_FW / 448.0f)
-float tank_glass_x0(float y);                          /* the side glass at height y (0 / TANK_W in the rectangle; a corner's arc on the watch) */
-float tank_glass_x1(float y);
-float tank_glass_top(float x);                         /* the glass above x (0 in the rectangle) */
-void  tank_glass_clamp(float *x, float *y, float m);   /* (x,y) brought to at least m px inside the glass and above the bottom */
+#include "glass.h"          /* tank_glass_*: the glass at a height, above a point, a point brought inside */
 
 #define N_FISH_MAX 25           /* array bound; the live count is tank_t.n_fish (6 until the species,
                                  * 2026-10-05, then 10; 25 since 2026-10-07: fish 7..N_FISH_MAX save in

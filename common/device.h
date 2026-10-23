@@ -40,4 +40,8 @@
 #include "devices/amoled18.h"
 #endif
 
+/* a glass with curves (the bowl, the watch's corners): the frame alone does
+ * not keep a thing inside it (glass.h) */
+#define GLASS_CURVED (DEVICE_GLASS != GLASS_RECT)
+
 #endif

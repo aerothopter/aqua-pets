@@ -246,12 +246,24 @@ here. `DEVICE_CAN_TURN` was not added: on every board it would be
 the worn rule. sim/theme_test.c draws no circle; it only reads the page flag.
 The bed table moves in 4c, with the code that reads it.
 
-**4b. One glass module.** The glass's three shapes and everything that asks
-one of them by board name - `rand_water`, the film's cells, the swimmers'
-reflection and `wall_avoidance` (creature.c), the helpers' clamp
-(helper.c), the sim's glass mask - go through `common/glass.c` and
-`DEVICE_GLASS`. It is compile-time, as now: no shape is dispatched at run
-time (the app slot is 98% full, and the frame budget is tight).
+**4b. One glass module (pure; done 2026-10-23).** As built: `common/glass.h`
+/ `glass.c` hold every piece of code whose body depends on the glass's shape,
+moved verbatim, one body a shape by `DEVICE_GLASS`:
+- the edges and the clamp (`tank_glass_*`, from tank.c; glass.h is their
+  public header, which tank.h includes where they were declared)
+- `rand_water` and the film's cells (`glass_holds_cell`, was tank.c's
+  `algae_ok`)
+- the swimmers' glass, from creature.c: `glass_bounce` (the step's hard
+  bounds and reflection; the turn's settle is an argument, as it is the swim's
+  constant), `glass_clamp_target` (a target's room) and `glass_avoidance` (was
+  `wall_avoidance`)
+
+`corner_in` / `corner_clamp` became glass.c's own. The callers that clamp
+only where the glass curves (an explore point, the shrimp, the snail's
+stand, the sim's window mask) ask `GLASS_CURVED` (device.h). Everything is
+compile-time, as before: no shape is dispatched at run time (the app slot is
+98% full, and the frame budget is tight). The internal calls are declared in
+tank_internal.h.
 
 **4c. The bed table.** Each device header's beds (where each one stands, its
 frond count, how far the reef bed gives up fronds) as one table that

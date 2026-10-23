@@ -21,14 +21,13 @@ static inline float lerpf(float a, float b, float p) { return a + (b - a) * p; }
 
 /* the tank's RNG core (deterministic xorshift32; tank_randf draws through it) */
 uint32_t tank_xr(tank_t *t);
-/* a random point of open water: y in [y0, y1], x at least mx off the side glass at that height */
-void rand_water(tank_t *t, float mx, float y0, float y1, float *x, float *y);
-#ifdef TANK_CORNER_R
-float corner_in(float x, float y, float *cx, float *cy);   /* a point's distance off its corner's centre (0 = in no corner) */
-void  corner_clamp(float *x, float *y, float m);
-#else
-#define corner_clamp(x, y, m) ((void)0)            /* the plain rectangle (and the bowl, which has its own): no corners */
-#endif
+/* the glass, every shape (glass.c) */
+void  rand_water(tank_t *t, float mx, float y0, float y1, float *x, float *y);   /* a random point of open water: y in [y0, y1],
+                                                                                     x at least mx off the side glass at that height */
+bool  glass_holds_cell(int cx, int cy);                  /* a film cell on the glass */
+void  glass_bounce(fish_t *f, float m, float settle);    /* a swimmer's hard bounds: m its room, settle the pause after a turn */
+void  glass_clamp_target(float *x, float *y, float m);   /* a swim target brought inside the glass */
+float glass_avoidance(float x, float y, bool *hit);      /* the way away from the glass near (x, y), if any (*hit) */
 
 /* the grass: inside a bed's canopy; a bed's mean ceiling */
 bool  veg_inside(const tank_t *t, int b, float x, float y);

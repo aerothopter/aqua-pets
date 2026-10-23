@@ -1036,46 +1036,7 @@ static void fish_swim(tank_t *t, int idx, fish_t *f, const target_t *tg, float d
     f->x += (hc + (f->yaw * ahc - hc) * w) * f->speed * brake * dt;
     f->y += sinf(f->heading) * f->speed * brake * dt + sinf(t->clock * 1.4f + f->wander) * dt * 1.7f;
 
-    /* hard bounds. The side glass mirrors a heading only while it points
-     * INTO the glass: the facing lags the mirror, and a second bounce on the
-     * next frame would send the fish back into the glass */
-    float m = 15 * f->size;
-#ifdef TANK_ROUND                                          /* the bowl's glass: back onto the circle m inside it, the heading mirrored
-                                                              in the glass while it points out, the body turned to swim back in */
-    { float dx = f->x - TANK_RAD, dy = f->y - TANK_RAD, d = sqrtf(dx * dx + dy * dy), lim = TANK_RAD - m;
-      if (d > lim && d > 1) {
-          float nx = dx / d, ny = dy / d;
-          f->x = TANK_RAD + nx * lim; f->y = TANK_RAD + ny * lim;
-          float hx = cosf(f->heading), hy = sinf(f->heading), out = hx * nx + hy * ny;
-          if (out > 0) {
-              hx -= 2 * out * nx; hy -= 2 * out * ny; f->heading = atan2f(hy, hx);
-              if (nx < -0.5f && f->facing < 0) { f->facing = 1; f->behind = -TURN_SETTLE; }
-              if (nx > 0.5f && f->facing > 0)  { f->facing = -1; f->behind = -TURN_SETTLE; }
-          }
-      }
-      if (f->y > TANK_BOT - m) { f->y = TANK_BOT - m; f->heading = -f->heading; } }
-#else
-    if (f->x < m)          { f->x = m;          if (cosf(f->heading) < 0) f->heading = norm_ang(3.14159f - f->heading);
-                                                if (f->facing < 0) { f->facing = 1; f->behind = -TURN_SETTLE; } }
-    if (f->x > TANK_W - m) { f->x = TANK_W - m; if (cosf(f->heading) > 0) f->heading = norm_ang(3.14159f - f->heading);
-                                                if (f->facing > 0) { f->facing = -1; f->behind = -TURN_SETTLE; } }
-    if (f->y < m)          { f->y = m;          f->heading = -f->heading; }
-    if (f->y > TANK_H - m) { f->y = TANK_H - m; f->heading = -f->heading; }
-#ifdef TANK_CORNER_R                                       /* the watch's corners: back onto the arc m inside it, the heading mirrored
-                                                              in the glass while it points out (the bowl's rule, a corner at a time) */
-    { float cx, cy, d = corner_in(f->x, f->y, &cx, &cy), lim = TANK_CORNER_R - m;
-      if (d > lim && d > 1) {
-          float nx = (f->x - cx) / d, ny = (f->y - cy) / d;
-          f->x = cx + nx * lim; f->y = cy + ny * lim;
-          float hx = cosf(f->heading), hy = sinf(f->heading), out = hx * nx + hy * ny;
-          if (out > 0) {
-              hx -= 2 * out * nx; hy -= 2 * out * ny; f->heading = atan2f(hy, hx);
-              if (nx < -0.5f && f->facing < 0) { f->facing = 1; f->behind = -TURN_SETTLE; }
-              if (nx > 0.5f && f->facing > 0)  { f->facing = -1; f->behind = -TURN_SETTLE; }
-          }
-      } }
-#endif
-#endif
+    glass_bounce(f, 15 * f->size, TURN_SETTLE);   /* hard bounds: the glass, whatever its shape (glass.c) */
 }
 /* ---- the species (2026-10-05, docs/species.md): the classic fish's row is
  * a placeholder - its looks and temperament are the ROSTER's ---- */
@@ -1286,7 +1247,7 @@ static target_t target_for_goal(tank_t *t, int idx, goal_id_t goal, bool glance)
             int col = z % 3, row = z / 3;
             f->explore_x = tank_randf(t, col * (TANK_W / 3.0f) + 40, (col + 1) * (TANK_W / 3.0f) - 40);
             f->explore_y = tank_randf(t, row * (TANK_BOT / 2.0f) + 42, (row + 1) * (TANK_BOT / 2.0f) - 40);
-#if defined(TANK_ROUND) || defined(TANK_CORNER_R)
+#if GLASS_CURVED
             tank_glass_clamp(&f->explore_x, &f->explore_y, 44);   /* a zone's corner is outside the bowl */
 #endif
             f->explore_set = true;
@@ -1299,36 +1260,8 @@ static target_t target_for_goal(tank_t *t, int idx, goal_id_t goal, bool glance)
     default: if (glance) tg.valid = false; break;
     }
     sp_target(t, idx, goal, glance, &tg);   /* its own way of doing it (the classic fish's row changes nothing) */
-    float m = 23;
-#ifdef TANK_ROUND
-    tank_glass_clamp(&tg.x, &tg.y, m + 4);
-#else
-    tg.x = clampf(tg.x, m, TANK_W - m);
-    tg.y = clampf(tg.y, m + 9, TANK_H - m);
-    corner_clamp(&tg.x, &tg.y, m + 4);
-#endif
+    glass_clamp_target(&tg.x, &tg.y, 23);   /* inside the glass, whatever its shape (glass.c) */
     return tg;
-}
-
-static float wall_avoidance(const fish_t *f, bool *hit) {
-    const float m = 34;
-    float vx = 0, vy = 0;
-#ifdef TANK_ROUND                                          /* the bowl: away from the glass along its radius, and up off the floor */
-    float dx = f->x - TANK_RAD, dy = f->y - TANK_RAD, d = sqrtf(dx * dx + dy * dy), gap = TANK_RAD - d;
-    if (gap < m && d > 1) { float p = 1 - (gap < 0 ? 0 : gap) / m; vx -= dx / d * p; vy -= dy / d * p; }
-    if (f->y > TANK_BOT - m) vy -= 1 - (TANK_BOT - f->y) / m;
-#else
-    if (f->x < m)          vx += 1 - f->x / m;
-    if (f->x > TANK_W - m) vx -= 1 - (TANK_W - f->x) / m;
-    if (f->y < m + 6)      vy += 1 - (f->y - 6) / m;
-    if (f->y > TANK_H - m) vy -= 1 - (TANK_H - f->y) / m;
-#ifdef TANK_CORNER_R                                       /* the watch: in a corner the arc is nearer than either straight wall */
-    { float cx, cy, d = corner_in(f->x, f->y, &cx, &cy), gap = TANK_CORNER_R - d;
-      if (d > 1 && gap < m) { float p = 1 - (gap < 0 ? 0 : gap) / m; vx -= (f->x - cx) / d * p; vy -= (f->y - cy) / d * p; } }
-#endif
-#endif
-    *hit = (vx != 0 || vy != 0);
-    return *hit ? atan2f(vy, vx) : 0;
 }
 
 static void eat_nearby_food(tank_t *t, fish_t *f) {
@@ -1493,7 +1426,7 @@ void update_fish(tank_t *t, int idx, float dt) {
     /* (a species settling on a spot by the glass or the floor - the eel's
        bed, the den - is not pushed off it either) */
     if (!(sd->flags & SPF_ROAMS) && tg.valid && tank_dist(f->x, f->y, tg.x, tg.y) < 40) final_approach = true;
-    bool hit; float push = wall_avoidance(f, &hit);
+    bool hit; float push = glass_avoidance(f->x, f->y, &hit);
     if (hit && !final_approach)
         desired = norm_ang(desired + norm_ang(push - desired) * 0.62f);
 

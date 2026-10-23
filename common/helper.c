@@ -33,7 +33,7 @@ static float clampf(float v, float lo, float hi) {
 /* where the snail may stand: SNAIL_MARGIN inside the rectangle's frame; on the
  * bowl, whose glass hides nothing, 16 px inside the circle */
 static void snail_clamp(float *x, float *y, float ymax) {
-#if defined(TANK_ROUND) || defined(TANK_CORNER_R)
+#if GLASS_CURVED
     tank_glass_clamp(x, y, 16);
     if (*y > ymax) *y = ymax;
 #else
@@ -416,7 +416,7 @@ static void shrimp_tick(tank_t *t, float dt) {
         q->y += q->vy * dt + sinf(q->ph * 2.1f) * dt * 1.2f;
         q->x = clampf(q->x, TANK_FX0 + 12, TANK_FX1 - 12);
         q->y = clampf(q->y, 40, FOOD_FLOOR_Y - 1);
-#if defined(TANK_ROUND) || defined(TANK_CORNER_R)
+#if GLASS_CURVED
         tank_glass_clamp(&q->x, &q->y, 10);          /* up a tall frond by the wall, the bowl closes in */
 #endif
         if (q->dart <= 0) {                                             /* the committed turn */

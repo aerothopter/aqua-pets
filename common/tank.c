@@ -45,74 +45,6 @@ float tank_dist(float ax, float ay, float bx, float by) {
     return sqrtf(dx * dx + dy * dy);
 }
 
-/* ---- the glass (tank.h). The rectangle's is its frame; the bowl's is the
- * circle, with the flat bottom at TANK_BOT. ---- */
-#ifdef TANK_ROUND
-static float glass_half(float d) {                 /* half the chord, d px off the centre line */
-    float r2 = TANK_RAD * TANK_RAD - d * d;
-    return r2 > 0 ? sqrtf(r2) : 0;
-}
-float tank_glass_x0(float y) { return TANK_RAD - glass_half(y - TANK_RAD); }
-float tank_glass_x1(float y) { return TANK_RAD + glass_half(y - TANK_RAD); }
-float tank_glass_top(float x) { return TANK_RAD - glass_half(x - TANK_RAD); }
-void tank_glass_clamp(float *x, float *y, float m) {
-    if (*y > TANK_BOT - m) *y = TANK_BOT - m;
-    float dx = *x - TANK_RAD, dy = *y - TANK_RAD, d = sqrtf(dx * dx + dy * dy), lim = TANK_RAD - m;
-    if (d > lim && d > 0) {
-        *x = TANK_RAD + dx * lim / d; *y = TANK_RAD + dy * lim / d;
-        if (*y > TANK_BOT - m) {                   /* the corner where the glass meets the floor: along the floor to the glass */
-            *y = TANK_BOT - m;
-            float h = glass_half(*y - TANK_RAD) - m; if (h < 0) h = 0;
-            *x = dx < 0 ? TANK_RAD - h : TANK_RAD + h;
-        }
-    }
-}
-#elif defined(TANK_CORNER_R)
-/* the watch: the rectangle's frame, and in each corner's R x R square the
- * arc. corner_in says how far a point stands off its corner's centre (0 = it
- * is in no corner's square: the straight glass is the limit there). */
-float corner_in(float x, float y, float *cx, float *cy) {
-    const float R = TANK_CORNER_R;
-    if (x < R) *cx = R; else if (x > TANK_W - R) *cx = TANK_W - R; else return 0;
-    if (y < R) *cy = R; else if (y > TANK_H - R) *cy = TANK_H - R; else return 0;
-    return sqrtf((x - *cx) * (x - *cx) + (y - *cy) * (y - *cy));
-}
-static float corner_inset(float v, float len) {    /* how far the glass stands in from the frame, v px along a side of length len */
-    const float R = TANK_CORNER_R;
-    float d = v < R ? R - v : v > len - R ? v - (len - R) : 0;
-    if (d <= 0) return 0;
-    return d >= R ? R : R - sqrtf(R * R - d * d);
-}
-float tank_glass_x0(float y) { return corner_inset(y, TANK_H); }
-float tank_glass_x1(float y) { return TANK_W - corner_inset(y, TANK_H); }
-float tank_glass_top(float x) { return corner_inset(x, TANK_W); }
-void corner_clamp(float *x, float *y, float m) {   /* out of a corner: back along its radius to m inside the arc */
-    float cx, cy, d = corner_in(*x, *y, &cx, &cy), lim = TANK_CORNER_R - m;
-    if (d > lim && d > 0) { *x = cx + (*x - cx) * lim / d; *y = cy + (*y - cy) * lim / d; }
-}
-void tank_glass_clamp(float *x, float *y, float m) {
-    *x = clampf(*x, m, TANK_W - m); *y = clampf(*y, m, TANK_H - m);
-    corner_clamp(x, y, m);
-}
-#else
-float tank_glass_x0(float y) { (void)y; return 0; }
-float tank_glass_x1(float y) { (void)y; return TANK_W; }
-float tank_glass_top(float x) { (void)x; return 0; }
-void tank_glass_clamp(float *x, float *y, float m) {
-    *x = clampf(*x, m, TANK_W - m); *y = clampf(*y, m, TANK_H - m);
-}
-#endif
-/* a random point of open water: y in [y0, y1], x at least mx off the side glass at that height */
-void rand_water(tank_t *t, float mx, float y0, float y1, float *x, float *y) {
-#if defined(TANK_ROUND) || defined(TANK_CORNER_R)
-    *y = tank_randf(t, y0, y1);
-    float lo = tank_glass_x0(*y) + mx, hi = tank_glass_x1(*y) - mx;
-    *x = lo < hi ? tank_randf(t, lo, hi) : TANK_W * 0.5f;
-#else
-    *x = tank_randf(t, mx, TANK_W - mx); *y = tank_randf(t, y0, y1);
-#endif
-}
-
 int tank_nearest_food(const tank_t *t, const fish_t *f, float *dist_out) {
     int best = -1; float bd = 1e9f;
     for (int i = 0; i < MAX_FOOD; i++) {
@@ -538,26 +470,9 @@ static int veg_cut(tank_t *t, float x0, float y0, float x1, float y1, bool landi
     return cuts;
 }
 
-/* a film cell that is on the glass: every one in the rectangle; in the bowl,
- * the ones whose centre the circle holds (the grid is the square around it) */
-static bool algae_ok(int cx, int cy) {
-#ifdef TANK_ROUND
-    if (cx < 0 || cx >= ALGAE_COLS || cy < 0 || cy >= ALGAE_ROWS) return false;
-    float dx = cx * ALGAE_CELL + ALGAE_CELL * 0.5f - TANK_RAD, dy = cy * ALGAE_CELL + ALGAE_CELL * 0.5f - TANK_RAD;
-    return dx * dx + dy * dy <= (TANK_RAD - 6) * (TANK_RAD - 6);
-#elif defined(TANK_CORNER_R)                               /* the watch: not the cells its round corners hide (the last column and
-                                                              row hang off the frame: their centres are still on the glass) */
-    float px = cx * ALGAE_CELL + ALGAE_CELL * 0.5f, py = cy * ALGAE_CELL + ALGAE_CELL * 0.5f, ccx, ccy;
-    if (px > TANK_W - 1) px = TANK_W - 1;
-    if (py > TANK_H - 1) py = TANK_H - 1;
-    return corner_in(px, py, &ccx, &ccy) <= TANK_CORNER_R - 4;
-#else
-    (void)cx; (void)cy; return true;
-#endif
-}
 int tank_algae_cells(void) {
     static int n;
-    if (!n) for (int i = 0; i < ALGAE_CELLS; i++) n += algae_ok(i % ALGAE_COLS, i / ALGAE_COLS);
+    if (!n) for (int i = 0; i < ALGAE_CELLS; i++) n += glass_holds_cell(i % ALGAE_COLS, i / ALGAE_COLS);
     return n;
 }
 float tank_algae_cover(const tank_t *t) {
@@ -578,7 +493,7 @@ void tank_grow_algae(tank_t *t, int steps) {
             int cx = (int)tank_randf(t, 0, ALGAE_COLS - 0.001f);
             int cy = (int)tank_randf(t, 0, ALGAE_ROWS - 0.001f);
             uint8_t *cell = &t->algae[cy * ALGAE_COLS + cx];
-            if (!algae_ok(cx, cy)) continue;
+            if (!glass_holds_cell(cx, cy)) continue;
             if (*cell) { *cell = (uint8_t)(*cell > 210 ? 255 : *cell + 45); break; }
             if (!claim) continue;
             bool near = false;
@@ -589,7 +504,7 @@ void tank_grow_algae(tank_t *t, int steps) {
                         near = t->algae[ny * ALGAE_COLS + nx] > 0;
                 }
             bool edge = cx == 0 || cy == 0 || cx == ALGAE_COLS - 1 || cy == ALGAE_ROWS - 1
-                     || !algae_ok(cx - 1, cy) || !algae_ok(cx + 1, cy) || !algae_ok(cx, cy - 1) || !algae_ok(cx, cy + 1);
+                     || !glass_holds_cell(cx - 1, cy) || !glass_holds_cell(cx + 1, cy) || !glass_holds_cell(cx, cy - 1) || !glass_holds_cell(cx, cy + 1);
             float p = near ? 1.0f : edge ? 0.5f : 0.10f;
             if (tank_randf(t, 0, 1) < p) { *cell = 90; break; }
         }
