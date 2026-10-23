@@ -2,6 +2,49 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: --selftest-creatures (refactor phase 3d)
+
+**What changed.** `--selftest-creatures` (new, in `SELFTESTS`) loops over
+`SPECIES[]`, the classic fish included, on each board. For every kind:
+- the row is whole: a name, a token, names for its young, a hit radius, a
+  body length, speeds, a size
+- a pair arrives as its kind, in a design it has, named
+- it draws in every theme (the frame is not the empty tank's)
+- staged at a grass frond, a triple tap beside it changes it exactly when
+  its row has a `startle` (stress and trust aside: every creature near a
+  startle frets), and `tank_poke` changes it exactly when it has a `poke`
+- it stays inside the glass every second through twenty minutes of the
+  tank (pellets, a startle, a shake) and after a night asleep
+- the save keeps every creature's kind and design
+- eight fry of the pair are its kind; a classic fish's may hatch as another,
+  by its row's `mutate_p`
+
+It passes on all three boards: 13 kinds, 8 with a startle, 3 with a poke,
+104 fry. It fails, with the right message, on a startle that does nothing,
+a poke that does nothing, a classic fish allowed 60 px past the glass, and
+fry of the wrong kind. A new species is tested with no new code. Sim only;
+`common/` is unchanged.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | - (sim only) | as at 3c (`common/` unchanged) | no | no |
+| 1.75C round | passes | - | as at 3c | no | no |
+| 2.06 watch | passes | - | as at 3c | no | no |
+
+**Phase 3 is done.** Every creature, the classic fish included, is a row of
+`SPECIES[]` with its hooks (creature.c / creature.h), its art is in
+`creatures.inc`, and both oracles have stayed identical through every step.
+
+**Open.**
+- Drawing still picks a species by switch (`draw_creature`, and each theme's
+  looks function). A render-side table for `draw_creature` would make a new
+  species' art one row too; it is small and pure if wanted.
+- Phase 4, the device architecture (refactor-plan.md), is next.
+- Not flashed. The first real flash is still the layout 3 save test
+  (DEVICE.md).
+
 ## 2026-10-23: every creature's art is one file (refactor phase 3c)
 
 **What changed.** A pure move, in five commits:

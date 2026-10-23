@@ -160,7 +160,15 @@ inside it: the shared kit, the classic fish, the species, then each theme's
 looks (or species by species, whichever keeps the move a move). One commit
 per source file; the oracle is identical after each.
 
-**3d. `--selftest-creatures`.** A loop over `SPECIES[]` on every board, like
+**3d. `--selftest-creatures` (done 2026-10-23).** As built, for every row on
+every board: the row is whole; a pair arrives as its kind in a design it
+has; it draws in every theme; it stays inside the glass through twenty
+minutes (pellets, a startle, a shake) and a night; a triple tap beside it
+changes it exactly when its row has a startle, and `tank_poke` exactly when
+it has a poke; the save keeps every creature's kind and design; eight fry
+of a pair are its kind (a classic fish's may be another, by `mutate_p`).
+Checked to fail on a do-nothing startle, a do-nothing poke, a fish let past
+the glass and fry of the wrong kind. The plan was: A loop over `SPECIES[]` on every board, like
 `--selftest-decor` and `--selftest-helpers`:
 - a pair arrives and stays inside the glass through a run and a night
 - its startle and its poke do what its row says

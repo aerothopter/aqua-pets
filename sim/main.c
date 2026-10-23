@@ -5737,6 +5737,110 @@ static int selftest_helpers(void) {
     return 0;
 }
 
+/* --selftest-creatures (2026-10-23): every row of SPECIES[] (common/creature.h),
+ * the classic fish's too, in this board's world - the row is whole; a pair
+ * arrives as its kind, in a design it has; it draws in every theme; it stays
+ * inside the glass through twenty minutes of the tank (pellets, a startle, a
+ * shake) and a night asleep; a startle and a poke do what its row's hooks say
+ * (one with a hook changes it, one without leaves it be); the save keeps its
+ * kind and design; and its fry are its kind (a classic fish's may hatch as
+ * another, by its row's mutate_p). A new species is checked here with no new
+ * code. */
+#define CR_FAIL(...) do { printf("FAIL: creature %s: ", SPECIES[k].token); printf(__VA_ARGS__); printf("\n"); return 1; } while (0)
+static bool cr_outside(int i, float *ox, float *oy) {      /* creature i's middle off the glass: where */
+    float x = tank.fish[i].x, y = tank.fish[i].y;
+    *ox = x; *oy = y;
+    return y < tank_glass_top(x) - 0.5f || y > TANK_BOT + 0.5f || x < tank_glass_x0(y) - 0.5f || x > tank_glass_x1(y) + 0.5f;
+}
+static int selftest_creatures(void) {
+    static uint16_t fb[TANK_W * TANK_H], none[TANK_W * TANK_H], scene[TANK_W * TANK_H];
+    static tank_t back;
+    setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest-creatures.sav", 1);   /* never touch the real save */
+    render_set_scene_cache(scene); render_set_vignette_cache(vig_buf); render_set_card_cache(card_buf); render_set_dirty_mask(dirty_buf);
+    int hooked = 0, poked = 0, fry = 0, mutants = 0;
+    for (int k = 0; k < SP_COUNT; k++) {
+        const species_def_t *s = &SPECIES[k];
+        float x, y;
+        if (!s->name || !s->token || !s->names[0] || s->hit_r <= 0 || s->mo.len_k <= 0 || s->mo.yaw_rate <= 0 || s->speed_k <= 0 || s->burst_k <= 0)
+            CR_FAIL("its row is missing a name, a token, a name for its young, a hit radius, a body length or a speed");
+        if (s->size_lo <= 0 && !(s->flags & SPF_ROSTER)) CR_FAIL("no size");
+        /* a pair of its kind: the founding fish, or a pair bought */
+        dc_fresh();
+        int a = 0;
+        if (k != SP_FISH) { tank.n_fish = 0; a = tank_add_species_pair(&tank, k); }
+        if (a < 0 || tank.n_fish != a + 2) CR_FAIL("no pair arrives (%d creatures)", tank.n_fish);
+        for (int i = a; i < a + 2; i++)
+            if (tank.fish[i].species != k || tank.fish[i].variant >= SP_VARIANTS || !tank.fish[i].name[0])
+                CR_FAIL("slot %d arrives as species %d design %d, named '%s'", i, tank.fish[i].species, tank.fish[i].variant, tank.fish[i].name);
+        /* it draws, in every theme: the frame is not the empty tank's */
+        for (int th = 0; th < THEME_COUNT; th++) {
+            tank.theme = (uint8_t)th;
+            int n = tank.n_fish; tank.n_fish = 0; render_tank(&tank, none, TANK_W); render_tank(&tank, none, TANK_W);
+            tank.n_fish = n; render_tank(&tank, fb, TANK_W); render_tank(&tank, fb, TANK_W);
+            if (!memcmp(fb, none, sizeof fb)) CR_FAIL("draws nothing in theme %d", th);
+        }
+        tank.theme = 0;
+        /* a startle and a poke, staged at a grass frond (a seahorse's cling needs a stem in reach) */
+        {
+            float fx; int segs = tank_veg_frond(&tank, 0, 2, &fx);
+            fish_t *f = &tank.fish[a];
+            f->x = fx; f->y = TANK_BOT - 16 - segs * VEG_SEG_PX * 0.5f;
+            fish_t was, now; memcpy(&was, f, sizeof was);
+            for (int i = 0; i < 3; i++) tank_touch_tap(&tank, f->x + 30, f->y);   /* the triple tap beside it: the startle */
+            if (!tank.startled) CR_FAIL("a triple tap beside it is no startle");
+            memcpy(&now, f, sizeof now); now.stress = was.stress; now.trust = was.trust;   /* (every creature near a startle frets) */
+            bool changed = memcmp(&was, &now, sizeof was) != 0;
+            if (s->startle && !changed) CR_FAIL("its row has a startle, but a startle changes nothing");
+            if (!s->startle && changed) CR_FAIL("its row has no startle, but a startle changed it");
+            hooked += s->startle != NULL;
+            memcpy(f, &was, sizeof was); tank.startled = false; tank.tap_count = 0;
+            bool did = tank_poke(&tank, a);
+            changed = memcmp(&was, f, sizeof was) != 0;
+            if (!!s->poke != did) CR_FAIL("its row %s a poke, but tank_poke says %d", s->poke ? "has" : "has no", did);
+            if (s->poke && !changed) CR_FAIL("a poke changes nothing");
+            if (!s->poke && changed) CR_FAIL("it has no poke, but a poke changed it");
+            poked += did;
+            memcpy(f, &was, sizeof was);
+        }
+        /* twenty minutes of the tank: pellets, a startle, a shake; every second, inside the glass */
+        const float dt = 1.0f / 30;
+        for (int st = 0; st < 30 * 60 * 20; st++) {
+            if (st % (30 * 90) == 0) tank_feed(&tank, TANK_W * (0.3f + 0.4f * (st % 7) / 6.0f), 3);
+            if (st == 30 * 400) for (int i = 0; i < 3; i++) tank_touch_tap(&tank, tank.fish[a].x, tank.fish[a].y);
+            if (st == 30 * 700) tank_shake(&tank, 1.0f);
+            tank_tick(&tank, dt, advisor_rules);
+            if (st % 30 == 0)
+                for (int i = a; i < a + 2; i++)
+                    if (cr_outside(i, &x, &y)) CR_FAIL("at %.0f s slot %d is at %.0f,%.0f, off the glass", st * dt, i, x, y);
+        }
+        tank_tick_sleep(&tank, 8 * 3600);
+        for (int i = a; i < a + 2; i++) if (cr_outside(i, &x, &y)) CR_FAIL("a night asleep leaves slot %d at %.0f,%.0f, off the glass", i, x, y);
+        /* the save keeps every creature's kind and design */
+        if (!progression_save(&tank)) CR_FAIL("the save failed");
+        tank_init(&back, 9); progression_wake(&back, 0);          /* (no clock: the load alone) */
+        if (back.n_fish != tank.n_fish) CR_FAIL("saved %d creatures, loaded %d", tank.n_fish, back.n_fish);
+        for (int i = 0; i < tank.n_fish; i++)
+            if (back.fish[i].species != tank.fish[i].species || back.fish[i].variant != tank.fish[i].variant)
+                CR_FAIL("slot %d saved as %d/%d, loaded as %d/%d", i, tank.fish[i].species, tank.fish[i].variant, back.fish[i].species, back.fish[i].variant);
+        /* its fry: its kind (a classic fish's may be another, by mutate_p), a design it has */
+        for (int n = 0; n < 8 && tank.n_fish < N_FISH_MAX; n++) {
+            int c = tank_add_fish(&tank, a, a + 1);
+            if (c < 0) CR_FAIL("no fry from a pair");
+            const fish_t *f = &tank.fish[c];
+            if (f->species >= SP_COUNT || f->variant >= SP_VARIANTS) CR_FAIL("a fry of species %d design %d", f->species, f->variant);
+            if (f->species != k) {
+                if (s->mutate_p <= 0) CR_FAIL("a fry hatched as %s", SPECIES[f->species].token);
+                mutants++;
+            }
+            fry++;
+        }
+    }
+    remove(getenv("AQUA_PETS_SAVE"));
+    printf("selftest-creatures: %d kinds (%d with a startle, %d with a poke), %d fry (%d hatched as another kind): the row, the pair, every theme, inside the glass through twenty minutes and a night, the save; selftest-creatures ok\n",
+           SP_COUNT, hooked, poked, fry, mutants);
+    return 0;
+}
+
 extern int selftest_themes(const char *prefix);
 
 int main(int argc, char **argv) {
@@ -5754,6 +5858,7 @@ int main(int argc, char **argv) {
         if (strcmp(argv[a], "--golden-creatures") == 0) return golden_creatures(a + 1 < argc ? argv[a + 1] : NULL);
         if (strcmp(argv[a], "--selftest-decor") == 0) return selftest_decor();
         if (strcmp(argv[a], "--selftest-helpers") == 0) return selftest_helpers();
+        if (strcmp(argv[a], "--selftest-creatures") == 0) return selftest_creatures();
         if (strcmp(argv[a], "--selftest") == 0) return selftest();
         if (strcmp(argv[a], "--bench") == 0) return bench();
         if (strcmp(argv[a], "--species-sheet") == 0 && a + 1 < argc) return species_sheet(argv[a + 1]);
