@@ -24,6 +24,11 @@
 #define ALGAE_ROWS 28
 #define VEG_SEG_PX 4.3f                        /* the tank is 118 px taller than the 1.8's, so its segments are
                                                 * too (107 x 4.3 from y 486: the tip at 26) */
+/* the grass beds (tank.c veg_bed_base). The portrait floor is 322 px: bed 1
+ * against the right glass, bed 2 five fronds beside it, the reef bed four
+ * fronds fewer - open sand between */
+#define DEVICE_BEDS          { { TANK_FX1 - 72, 4 }, { TANK_FX1 - 146, -1 } }
+#define DEVICE_REEF_BED_LESS 4
 
 #define FEED_ZONE_Y 26.0f
 #define DECOR_MARGIN    8                  /* the floor ends where its corners begin */

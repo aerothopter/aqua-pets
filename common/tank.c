@@ -252,22 +252,15 @@ static int popcount32u(uint32_t v) { int n = 0; while (v) { n += v & 1; v >>= 1;
 static int veg_segs(float h) { return 2 + (int)(h * (VEG_SEGS_FULL - 2)); }
 /* frond pitch per bed: grass at 12 px; the sword plant's broad leaves at 14 */
 static int veg_pitch(int b) { return b == 3 ? 14 : 12; }
+/* beds 1 and 2 on this board's floor: the first frond's x and the base frond
+ * count (the device header's DEVICE_BEDS; the reef bed follows the reef, the
+ * sword plant its own place) */
+static const struct { float x0; int n; } VEG_BED[2] = DEVICE_BEDS;
 static void veg_bed_base(const tank_t *t, int b, float *bx0, int *n) {
     int lush = popcount32u(t->tank_ms_bits); if (lush > 4) lush = 4;
     int base_n;
     if (b == 0)      { *bx0 = t->reef_x - 24 - lush * 6; base_n = 5 + lush; }
-#ifdef TANK_ROUND                                          /* the bowl's floor is 358 px, not 448: the two right-hand beds keep
-                                                              their place against the right glass, the reef bed gives up two fronds */
-    else if (b == 1) { *bx0 = TANK_FX1 - 72; base_n = 4; }
-    else if (b == 2) { *bx0 = TANK_FX1 - 170; base_n = 2; }
-#elif defined(TANK_WATCH)                                  /* the watch's portrait floor is 322 px: bed 1 against the right glass, bed 2
-                                                              five fronds beside it, the reef bed four fronds fewer - open sand between */
-    else if (b == 1) { *bx0 = TANK_FX1 - 72; base_n = 4; }
-    else if (b == 2) { *bx0 = TANK_FX1 - 146; base_n = -1; }
-#else
-    else if (b == 1) { *bx0 = TANK_W * 0.84f; base_n = 4; }
-    else if (b == 2) { *bx0 = TANK_W * 0.62f; base_n = 2; }
-#endif
+    else if (b <= 2) { *bx0 = VEG_BED[b - 1].x0; base_n = VEG_BED[b - 1].n; }
     else             { *bx0 = tank_decor_x(t, 0) - PLANT_HALF_W; *n = 4; return; }   /* the sword plant
                                                               (2026-09-15): four broad leaves, by default on
                                                               the open floor between the reef bed's widest
@@ -277,11 +270,7 @@ static void veg_bed_base(const tank_t *t, int b, float *bx0, int *n) {
        with fronds cut one at a time, a bed's outer fronds can't be allowed
        to vanish because its MEAN height dropped */
     int nn = base_n + 6;
-#ifdef TANK_ROUND
-    if (b == 0) nn -= 2;
-#elif defined(TANK_WATCH)
-    if (b == 0) nn -= 4;
-#endif
+    if (b == 0) nn -= DEVICE_REEF_BED_LESS;   /* a short floor's reef bed gives up fronds */
     if (nn > VEG_FRONDS_MAX) nn = VEG_FRONDS_MAX;
     while (nn > 1 && *bx0 + nn * 12 > TANK_FX1 - 8) nn--;   /* beds stop at the glass */
     *n = nn;
@@ -344,15 +333,11 @@ static void veg_sync(tank_t *t) {
 float tank_veg_cap(int b, int i) {
     uint32_t h = (uint32_t)((b * 29 + i + 3) * 2246822519u);
     float cap = VEG_CAP_LO + (float)(h >> 8 & 1023) / 1023.0f * (VEG_CAP_HI - VEG_CAP_LO);
-#if defined(TANK_ROUND) || defined(TANK_WATCH)             /* the bowl closes in over the outer fronds: a tip stops 12 px under the glass
+#if GLASS_CURVED                                           /* the bowl closes in over the outer fronds: a tip stops 12 px under the glass
                                                               (the reef bed taken at its widest, the sword plant wherever it stands);
                                                               the watch's upper corners do the same to the beds by its walls */
     if (b < 3) {
-#ifdef TANK_WATCH
-        float x = (b == 0 ? TANK_FX0 + TANK_FW * 0.15f - 48 : b == 1 ? TANK_FX1 - 72 : TANK_FX1 - 146) + i * 12;
-#else
-        float x = (b == 0 ? TANK_FX0 + TANK_FW * 0.15f - 48 : b == 1 ? TANK_FX1 - 72 : TANK_FX1 - 170) + i * 12;
-#endif
+        float x = (b == 0 ? TANK_FX0 + TANK_FW * 0.15f - 48 : VEG_BED[b - 1].x0) + i * 12;
         float room = (TANK_BOT - 16 - tank_glass_top(x) - VEG_GLASS_GAP) / (VEG_SEGS_FULL * VEG_SEG_PX);
         if (cap > room) cap = room;
     }

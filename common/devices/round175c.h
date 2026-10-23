@@ -19,6 +19,11 @@
 #define ALGAE_COLS 26
 #define ALGAE_ROWS 22
 #define VEG_SEG_PX 3.2f
+/* the grass beds (tank.c veg_bed_base). The floor is 358 px, not 448: the
+ * two right-hand beds keep their place against the right glass, the reef bed
+ * gives up two fronds */
+#define DEVICE_BEDS          { { TANK_FX1 - 72, 4 }, { TANK_FX1 - 170, 2 } }
+#define DEVICE_REEF_BED_LESS 2
 
 #define FEED_ZONE_Y 45.0f   /* the bowl's surface is its rim: 26 px there is 2.5 mm of glass and a fingertip scatters 9 px (2026-10-03) -
                                a feed tap that fell short was a tank tap, and two of them the light's double tap */

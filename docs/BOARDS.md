@@ -33,8 +33,7 @@ One source tree, one save layout, one model. A board is a compile-time world:
 - **The ports** (`firmware/main/*_port_*`, `board_pins.h`): the chips.
 
 A board `#ifdef` belongs in those places only: device.h's selector, a
-layout-constant block in render.h / render.c / update.c, a port (and, until
-the refactor's phase 4 is through, the bed code in tank.c). The glass's
+layout-constant block in render.h / render.c / update.c, a port. The glass's
 shapes are `common/glass.c`'s, picked by `DEVICE_GLASS`; code that needs
 only to know the glass curves asks `GLASS_CURVED`. If a feature's LOGIC
 needs `#ifdef TANK_ROUND`,

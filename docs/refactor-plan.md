@@ -265,9 +265,14 @@ compile-time, as before: no shape is dispatched at run time (the app slot is
 98% full, and the frame budget is tight). The internal calls are declared in
 tank_internal.h.
 
-**4c. The bed table.** Each device header's beds (where each one stands, its
-frond count, how far the reef bed gives up fronds) as one table that
-`veg_bed_base` and `tank_veg_cap` both read.
+**4c. The bed table (pure; done 2026-10-23).** As built: a device header's
+`DEVICE_BEDS` is beds 1 and 2's first frond and base frond count, and
+`DEVICE_REEF_BED_LESS` the fronds its reef bed gives up. tank.c's `VEG_BED[]`
+holds the table, and `veg_bed_base` and `tank_veg_cap` both read it (the
+ceiling's beds by the glass were a second copy of the numbers). The reef bed
+follows `reef_x` and the sword plant its own place, as before; the ceiling
+still measures the reef bed at its widest from the reef's fixed x, which is
+where `tank_init` puts it.
 
 **4d. The layout sections.** render.h's and update.h's per-board blocks move
 into a layout section per device, and the literals (`render_settings_bounds`,

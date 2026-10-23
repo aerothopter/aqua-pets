@@ -2,6 +2,29 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: the bed table (refactor phase 4c)
+
+**What changed.** A pure refactor. A device header's `DEVICE_BEDS` (beds 1
+and 2: first frond, base frond count) and `DEVICE_REEF_BED_LESS` (the fronds
+the reef bed gives up) are now the board's grass layout. tank.c's `VEG_BED[]`
+holds them, and both `veg_bed_base` and `tank_veg_cap` read it: the ceiling
+by the glass had its own copy of the beds' x. tank.c names no board now. The
+ceiling still measures the reef bed at its widest from the reef's x as
+`tank_init` sets it (`reef_x` never moves), so the two still agree.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | oracles and snapshot pages identical | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | identical | yes | no | no |
+| 2.06 watch | passes | identical | yes | no | no |
+
+Firmware against 4b: RAM unchanged, `.flash.text` -32 / -36 / -36 B,
+`.flash.rodata` +16 B (the table), the app still 0x271000.
+
+**Next:** 4d, the layout sections.
+
 ## 2026-10-23: one glass module (refactor phase 4b)
 
 **What changed.** A pure move: `common/glass.h` / `glass.c` hold every piece

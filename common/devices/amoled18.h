@@ -15,6 +15,10 @@
 #define ALGAE_COLS (TANK_W / ALGAE_CELL)       /* 28 */
 #define ALGAE_ROWS (TANK_H / ALGAE_CELL)       /* 23 */
 #define VEG_SEG_PX 3.2f                        /* a full frond's tip just under the surface */
+/* the grass beds (tank.c veg_bed_base): beds 1 and 2's first frond and base
+ * frond count, and the fronds the reef bed gives up */
+#define DEVICE_BEDS          { { TANK_W * 0.84f, 4 }, { TANK_W * 0.62f, 2 } }
+#define DEVICE_REEF_BED_LESS 0
 
 #define FEED_ZONE_Y 26.0f
 #define DECOR_MARGIN    30                 /* the snail's margin: inside the panel's rounded bezel */
