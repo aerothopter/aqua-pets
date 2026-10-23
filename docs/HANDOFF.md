@@ -2,6 +2,85 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-22: the helpers are one table (refactor phase 2a)
+
+**What changed.** A pure refactor: every frame and the save are the same as
+before on all three boards.
+- **`common/helper.h` / `helper.c`**: `HELPER[HK_COUNT]` has one row per helper
+  (snail, urchin, shrimp, frogman, sub) with its shop item, its habitat and its
+  hooks: init, arrive, tick, sleep (the whole span: the shrimp's cooldown),
+  sleep_slice (each night slice: the snail and the urchin), startle, shake,
+  hit, tap, body, drift, save, load. The table's order is the RNG's order (the
+  ticks and the shake draw in it), so a new helper goes at the end.
+- **State**: the ~65 loose `tank_t` fields became `t->snail`, `t->urchin`,
+  `t->school` (`t->shrimp[i]` is `t->school.q[i]`), and `t->frogman` / `t->sub`,
+  which share a `drift_t`. There is no union: the plan's union would have put
+  the shrimp array into all five (+1.5 KB of internal RAM). The frogman carries
+  the sub's 20 B of cruise fields instead: `.dram0.bss` +16 B.
+- **Rules**: they moved from tank.c into helper.c unchanged. The frogman and
+  the sub avoid each other through `lane_clear` / `drift_near` over every
+  owned `HAB_WATER` helper, which with two drifters is the old code exactly.
+  tank.c calls `helper_init`, `helper_tick_all`, `helper_sleep_all`,
+  `helper_sleep_slice_all`, `helper_startle_all` and `helper_shake_all`, at the
+  same points as the old per-helper calls. progression.c buys through
+  `helper_arrive` and saves and loads through the hooks. The record kinds stay
+  locked in progression.c (`SVH_OF[]` maps a helper to its `SVH_*`).
+- **Render**: `HELPER_DRAW[]` paints each owned helper in four slots: under the
+  creatures (the shrimp, the frogman, the sub), over them (the urchin, the
+  snail's back lane), over the decor IN FRONT (the snail's front lane), and on
+  the glass (the snail grazing). The drawers moved, unchanged, into
+  `common/helper_<name>.inc`, as their own commit. Cards go through the table
+  too, and each card says when it has nothing to show.
+- **Taps**: `render_helper_tap(t, x, y, &sel)` and `render_card_is_helper(sel)`
+  replace the three card IDs' lists and the per-helper branches in sim/main.c
+  and touch_port_ft3168.c. Each platform logs "<NAME> tapped: card up/down"
+  (the old per-helper counts in the device log are gone). The frogman and the
+  sub have no `hit` hook, so a tap on them still goes through to the water.
+- **`--golden-decor`** now also draws each helper's poses and the three cards
+  (the snail on the glass and in either floor lane, the urchin chewing, the sub
+  stopped with its periscope up, the school darting): 363 lines a board. The
+  baseline was recorded from the commit before the refactor, with the widened
+  oracle.
+- **`--selftest-helpers`** (new, in `SELFTESTS`) loops over `HELPER[]` on each
+  board:
+  - bought once and not twice
+  - inside the glass on arrival, every second through half an hour of the tank
+    (film, tall grass, pellets, a shake, a startle) and after a night asleep
+  - a tap on a helper with a card brings the card up, the card draws, and the
+    next tap puts it away
+  - the save and the load keep its record
+  I checked that it fails when a row is wrong: the urchin forgetting its spot on
+  a load, the shrimp's tap never bringing the card, the frogman ignoring the glass.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (17 selftests) | the oracle's 363 hashes and the save, identical to before | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | the same | yes (5.4.4, throwaway key) | no | no |
+| 2.06 watch | passes | the same | yes (5.4.4, throwaway key) | no | no |
+
+Firmware against the decor branch's builds: `.dram0.bss` +16 B and
+`.flash.rodata` +~210 B on every board, `.flash.text` 3.8 to 5.4 KB smaller,
+the signed app still 0x271000 (2% free), and the same three deprecation
+warnings. The watch's static RAM rose by those 16 B.
+
+**Open.**
+- **Phase 2b, decided by the keeper:** SELL goes on the shop's item page, and
+  every helper is sellable. That includes the snail: the shop's "permanent
+  resident" goes, and five tests that assert a helper can't be sold flip. A
+  sale refunds the usual 60% of the price; a sold school loses the shrimp it
+  grew, and a rebuy starts at SHRIMP_START. The frogman and the sub get no
+  cards for now ("they're not really helpers yet").
+- **Found, not fixed (it is behavior, so 2b):** `tank_init` never resets the
+  shrimp school (`t->school` keeps its count, cooldown and eaten tally), and
+  the shop's buy only resets `food` and `cool`. After a reset and a rebuy,
+  the school's card shows the old tank's pellets eaten until the next boot
+  (a load of an unowned school clears it). 2b's `leave`
+  hook and a shrimp `init` fix both. It changes the oracle's later themes,
+  which reuse the same static tank.
+- Not flashed. The first real flash is still the layout 3 save test (DEVICE.md).
+
 ## 2026-10-22: where the app slot's bytes go, and what frees them (measurement only)
 
 No source change. Measured on the rect `refactor/decor` build (97cfb2a, ESP-IDF
