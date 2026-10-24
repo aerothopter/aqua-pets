@@ -2,6 +2,29 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: the keeper's TODOs (end of session)
+
+Next, in no fixed order (the keeper, at sign-off):
+- **Docs:** comb through all the documentation for accuracy and style, both
+  the docs files and the comments in the code.
+- **One board for now:** temporarily remove support for the round and watch
+  boards while features are built, keeping the standard 1.8. (Since phase 4
+  a board is `common/devices/<board>.h` and `<board>_layout.h` plus its
+  ports, sdkconfig and flash script.)
+- **One theme for now:** temporarily remove the other themes while features
+  are built.
+- **The menu over the tank:** draw the main menu over the tank, not over a
+  black screen.
+- **Solo mode:** experiment with a tank of one creature, with more
+  interactive features.
+- **No startle by tap or shake:** remove the triple tap and the shake that
+  startle the creatures. No keeper would do either except by accident.
+- **Trust:** fine-tune the trust stat, so that an untrusting creature and a
+  trusting one differ much more.
+- **Play:** build more games and interactions between the creatures and the
+  keeper.
+- **Battery:** show it in the menu view, not with the fish card.
+
 ## 2026-10-23: the entity refactor merges to main
 
 The keeper looked through the flashed 1.8 tank ("all looked well") and
