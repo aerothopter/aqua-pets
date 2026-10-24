@@ -7,7 +7,7 @@ Newest first. What was done, where each board stands, what's open, and why.
 The keeper looked through the flashed 1.8 tank ("all looked well") and
 called the refactor ready. `refactor/devices` (which carries
 `refactor/decor`, `refactor/helpers` and `refactor/creatures`) was
-fast-forwarded into `main`: 29 commits, phases 1-4 and the Windows flash
+fast-forwarded into `main`: 30 commits with this entry, phases 1-4 and the Windows flash
 tools. Not pushed. The four refactor branches still exist and can be deleted.
 
 Still open:
