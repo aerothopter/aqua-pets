@@ -66,8 +66,9 @@ flashed with `tools/flash.sh --model`. Archives docs/batlog/2026-10-23_2056.txt
   2026-10-23; not the one the releases were signed with). This tank refuses
   any over-the-air image signed with another key until it is flashed by cable.
 - Model partition: v5j, with its trailer (written by this flash).
-- Not yet checked: that a reboot brings the fresh tank back (the layout 3
-  save test).
+- The layout 3 save test PASSED (2026-10-23, ~21:05): a held PWR on USB (save,
+  power-off, USB powers it straight back on) brought kelp and pip back at 0.1 h,
+  older than the boot.
 
 Before that (the original owner's tank, kept for the record):
 

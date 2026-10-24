@@ -54,8 +54,8 @@ free, with 4.6 MB of PSRAM. No errors in the first 35 s of the log.
 | 2.06 watch | passes | as at 4d | yes (throwaway key) | no | no |
 
 **Open.**
-- The rest of the layout 3 save test: after the tank has autosaved, a
-  reboot should bring kelp and pip back.
+- The layout 3 save test PASSED: a held PWR (on USB it powers straight
+  back on) brought kelp and pip back at 0.1 h, older than the boot.
 - The keeper's eyes on the glass: the pages, the decor and the creatures on
   the real panel.
 - Back up `firmware/keys/ota_signing_key.pem` off this disk. The tank only
