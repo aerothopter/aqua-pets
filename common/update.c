@@ -352,13 +352,8 @@ static void type_password(bool fresh) {
 /* touch calibration (2026-09-30): nine crosshairs over the glass, a press
  * each; the platform logs the panel's position for each known centre and
  * the mapping is fitted from the log */
-#ifdef TANK_ROUND                                       /* the bowl: a 3 x 3 the circle holds (the targets are the FRAME's px, as the panel reports) */
-static const int CAL_X[3] = { 110, TANK_W / 2, TANK_W - 110 }, CAL_Y[3] = { 110, TANK_H / 2, TANK_H - 110 };
-#elif defined(TANK_WATCH)                               /* the watch: in from its round corners */
-static const int CAL_X[3] = { 70, TANK_W / 2, TANK_W - 70 }, CAL_Y[3] = { 70, TANK_H / 2, TANK_H - 70 };
-#else
-static const int CAL_X[3] = { 48, TANK_W / 2, TANK_W - 48 }, CAL_Y[3] = { 40, TANK_H / 2, TANK_H - 40 };
-#endif
+static const int CAL_X[3] = { UPD_CAL_IN_X, TANK_W / 2, TANK_W - UPD_CAL_IN_X },   /* the FRAME's px, as the panel reports; */
+                 CAL_Y[3] = { UPD_CAL_IN_Y, TANK_H / 2, TANK_H - UPD_CAL_IN_Y };   /* the board's inset (its layout header) */
 static int s_cal = -1;
 int update_calib_target(int *x, int *y) { if (s_cal < 0 || s_cal > 8) return -1; *x = CAL_X[s_cal % 3]; *y = CAL_Y[s_cal / 3]; return s_cal; }
 void update_debug_calib(void) {
@@ -650,8 +645,8 @@ void render_update(uint16_t *fb, int stride, float clock) {
         render_button(fb, stride, UPD_BTN_R_X, UPD_BTN_Y, UPD_BTN_W, UPD_BTN_H, C_INNER, C_EDGE, "SCAN AGAIN", 2);
         break; }
     case UPD_PG_PASSWORD:
-        render_text(fb, stride, UX + (DEVICE_PAGE_BOWL ? 30 : 0), 22, 2, C_CAPT, "PASSWORD FOR");
-        update_text(fb, stride, UX + (DEVICE_PAGE_BOWL ? 30 : 0) + render_text_w("PASSWORD FOR", 2) + 12, 22, 2, C_TEXT, s.ssid);
+        render_text(fb, stride, UX + UPD_PASS_DX, 22, 2, C_CAPT, "PASSWORD FOR");
+        update_text(fb, stride, UX + UPD_PASS_DX + render_text_w("PASSWORD FOR", 2) + 12, 22, 2, C_TEXT, s.ssid);
         draw_field(fb, stride, clock);
         draw_keyboard(fb, stride);
         break;

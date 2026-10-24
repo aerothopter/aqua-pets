@@ -22,23 +22,23 @@ One source tree, one save layout, one model. A board is a compile-time world:
 - **The world** (`common/devices/<board>.h`, picked by `common/device.h`;
   since 2026-10-23): `TANK_W` / `TANK_H`, the glass's shape
   (`DEVICE_GLASS`), the floor `TANK_BOT`, the walls `TANK_FX0` / `TANK_FX1`,
-  the film grid, the board's id and its flags (`DEVICE_WORN`,
-  `DEVICE_PAGE_BOWL`). The game is written against these names. A new board
-  is a new header.
+  the film grid, the grass beds, the board's id and its flag `DEVICE_WORN`.
+  The game is written against these names. A new board is a new header and
+  its layout header.
 - **The page** (`common/render.h`): every page is laid out in a 448 x 368
   PAGE space that sits centered on the glass at `PAGE_X` / `PAGE_Y`. The fish
   live in TANK coordinates, the pages draw in PAGE coordinates: anything that
   crosses over subtracts `PAGE_X` / `PAGE_Y` (a tap coming in, a ring round a
-  fish going out).
+  fish going out). Every page number that differs between boards is in the
+  board's layout header (`common/devices/<board>_layout.h`, which the device
+  header names `DEVICE_LAYOUT`); render.h and update.h hold the shared ones.
 - **The ports** (`firmware/main/*_port_*`, `board_pins.h`): the chips.
 
-A board `#ifdef` belongs in those places only: device.h's selector, a
-layout-constant block in render.h / render.c / update.c, a port. The glass's
-shapes are `common/glass.c`'s, picked by `DEVICE_GLASS`; code that needs
-only to know the glass curves asks `GLASS_CURVED`. If a feature's LOGIC
-needs `#ifdef TANK_ROUND`,
-the feature is written against a pixel instead of a name - ask the device's
-names and flags instead.
+A board `#ifdef` belongs in those places only: device.h's selector and a
+port. The glass's shapes are `common/glass.c`'s, picked by `DEVICE_GLASS`;
+code that needs only to know the glass curves asks `GLASS_CURVED`. If a
+feature's LOGIC needs `#ifdef TANK_ROUND`, the feature is written against a
+pixel instead of a name - ask the device's names and flags instead.
 
 ## The rules for a feature
 
@@ -53,8 +53,8 @@ names and flags instead.
    x 56..392, y 60..300 (the modal's box). The watch shows PAGE x 19..428, the
    bowl's circle is at least that wide between those rows; the corners of the
    page belong to the bezel on two boards out of three. A page that must use
-   the corners gets a layout block per board (the milestones page's
-   `MSP_*`), not scattered conditions.
+   the corners gets a named number in each board's layout header (the
+   milestones page's `MSP_*`), not scattered conditions.
 3. **Give the layout a voice.** A test, the director or a tool that needs to
    tap something asks the page where it is (`render_milestones_card`,
    `render_milestones_row`, `render_milestones_arrow`) or uses the layout's
@@ -111,7 +111,8 @@ that only the other boards could show:
   `fishsim` alone, and the selftests tapped the rectangle's pixels - 5 of 10
   failed on the bowl, 6 on the watch. Every one was the test, none the game;
   they ask the layout now (the pages' `MSP_*` / `SHP_*` / `SET_*` / `UPD_*`
-  numbers live in render.h / update.h for that), and `make check-all` and CI
+  numbers live in render.h / update.h and, since 2026-10-23, in each board's
+  layout header for that), and `make check-all` and CI
   run all of them in all three worlds.
 - Still literal: the `--snapshot` mode's own taps (on the bowl its fry_modal
   picture opens another modal). A picture, not a check - repoint it when it

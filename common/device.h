@@ -19,8 +19,11 @@
  *   DEVICE_WORN                 worn on a wrist: the picture's way up is the
  *                               keeper's setting (settings SCREEN), never the
  *                               live IMU's
- *   DEVICE_PAGE_BOWL            the glass cuts the page's corners: a few page
- *                               elements are drawn in from it (render.h)
+ *   DEVICE_BEDS, DEVICE_REEF_BED_LESS  the grass beds (tank.c)
+ *   DEVICE_LAYOUT               the board's page layout header
+ *                               (devices/<board>_layout.h): every page number
+ *                               that differs between boards (render.h and
+ *                               update.h include it)
  *
  * No other includes: version.h reads it without tank.h. */
 #ifndef AQUA_PETS_DEVICE_H

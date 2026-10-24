@@ -25,4 +25,4 @@
 #define PLANT_X_DEFAULT (208.0f + PLANT_HALF_W)   /* the open floor between the reef bed and bed 2 */
 
 #define DEVICE_WORN      0
-#define DEVICE_PAGE_BOWL 0
+#define DEVICE_LAYOUT    "devices/amoled18_layout.h"   /* its pages' numbers (render.h, update.h) */

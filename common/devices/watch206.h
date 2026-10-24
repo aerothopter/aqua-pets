@@ -35,4 +35,4 @@
 #define PLANT_X_DEFAULT 196.0f             /* the gap between the reef bed and bed 2 on the watch's floor */
 
 #define DEVICE_WORN      1                 /* (2026-10-02) the arm swings through every angle (tank_screen_*) */
-#define DEVICE_PAGE_BOWL 0
+#define DEVICE_LAYOUT    "devices/watch206_layout.h"   /* its pages' numbers (render.h, update.h) */

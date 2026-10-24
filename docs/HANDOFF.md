@@ -2,6 +2,64 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: the layout headers (refactor phase 4d; phase 4 done)
+
+**What changed.** A pure refactor, and the keeper's call: a layout header per
+board, holding every page number that differs between boards.
+- `common/devices/{amoled18,round175c,watch206}_layout.h`: the device header
+  names it `DEVICE_LAYOUT`, and render.h and update.h include it. It holds:
+  - the card, the tool chip, the battery pill and the toast
+  - the milestones page's rows, badges, arrow and CLOSE
+  - the shop's header and foot
+  - the settings page's rows, segments, foot, version line and bounds
+  - the update pages' buttons, password inset and calibration inset
+- Both kinds of per-board choice became plain numbers per board: the
+  `#ifdef` blocks and the flag ternaries (`PAGE_NARROW || DEVICE_PAGE_BOWL ?
+  172 : 176`).
+- render.c's literals (`render_settings_bounds`, CLOSE's slop, the toast's
+  height, the version line) and update.c's three `CAL_X` / `CAL_Y` arrays
+  became named numbers.
+- `DEVICE_PAGE_BOWL` and `PAGE_NARROW` had no users left and went (with
+  render.h's dead first `SET_CLOSE_X` and its `#undef`s). theme_test.c's bowl
+  check asks `TANK_RAD`.
+- The bowl's deep sand is keyed on `TANK_BOT < TANK_H`.
+
+`TANK_ROUND` / `TANK_WATCH` now appear only in device.h's selector and the
+firmware ports. A new board is a device header and a layout header (and its
+ports).
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | oracles and snapshot pages identical | yes (5.4.4, throwaway key) | no | no |
+| 1.75C round | passes | identical | yes | no | no |
+| 2.06 watch | passes | identical | yes | no | no |
+
+Firmware against 4c: every section byte for byte the same on each board.
+
+**Phase 4, overall** (4a-4d, on `refactor/devices`). Every step was pure:
+- both oracles and all 118 snapshot pages identical to 04b15e5's on all
+  three boards
+- the same sim warnings
+- firmware RAM unchanged from cd65114 on every board; `.flash.text` down
+  0.1-0.5 KB; the app still 0x271000
+
+**Open.**
+- Nothing is merged or pushed. The branches stack: `refactor/decor` ->
+  `refactor/helpers` -> `refactor/creatures` -> `refactor/devices`.
+- Not flashed. The first real flash (`tools/flash.sh`) is still the layout 3
+  save test (2026-10-22 entries).
+- The device's floats after 4b: glass.c's functions left their callers'
+  files, so the device's inlining and `-ffast-math` contraction may differ.
+  The sim can't show it.
+- The ports keep their board `#ifdef`s (display_port_sh8601.c,
+  touch_port_ft3168.c): the panels really differ. A port table would be its
+  own piece of work, testable only on the boards.
+- `tools/board_sheet.py` still hasn't run (no Python 3 here).
+- The keeper's icon edits (`assets/icons/icon_bold.png`,
+  `icon_cautious.png`) are still in the tree, unstaged.
+
 ## 2026-10-23: the bed table (refactor phase 4c)
 
 **What changed.** A pure refactor. A device header's `DEVICE_BEDS` (beds 1

@@ -31,4 +31,4 @@
 #define PLANT_X_DEFAULT 218.0f             /* the gap between the reef bed and bed 2 on the bowl's floor */
 
 #define DEVICE_WORN      0
-#define DEVICE_PAGE_BOWL 1                 /* the bowl's circle cuts the page's corners: a few buttons are drawn in from the glass */
+#define DEVICE_LAYOUT    "devices/round175c_layout.h"   /* its pages' numbers (render.h, update.h) */

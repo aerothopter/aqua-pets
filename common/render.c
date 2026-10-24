@@ -658,9 +658,10 @@ static void front_restore(uint16_t *fb, const uint32_t *mask, int wpr, int rows,
 static bool g_scene_front;                                   /* the baked scene holds the pieces IN FRONT */
 
 /* the floor's colour at (x,y), from a position hash so it is stable every
- * frame. The rectangle: a 14 px strip of speckled stones in four tones. The
- * bowl: the same speckle in 2 px grains over a bed that runs ~70 px down to
- * the glass, pebbles scattered through it, darkening with depth. */
+ * frame. The rectangle: a 14 px strip of speckled stones in four tones. A
+ * floor above the frame's bottom (the bowl's): the same speckle in 2 px
+ * grains over a bed that runs ~70 px down to the glass, pebbles scattered
+ * through it, darkening with depth. */
 static inline uint32_t floor_rgb(int x, int y) {
     if(theme_active()==THEME_QUIET_LAGOON) {
         unsigned grain=(unsigned)x*73856093u^(unsigned)y*19349663u;
@@ -693,7 +694,7 @@ static inline uint32_t floor_rgb(int x, int y) {
         int dx = x % 9 - 4, dy = y % 6 - 3;
         return sand[dx * dx + dy * dy * 2 < 13 ? (cell >> 4) % 3 : 3];
     }
-#ifdef TANK_ROUND
+#if TANK_BOT < TANK_H                                    /* a floor above the frame's bottom (the bowl's): a deep bed of sand */
     uint32_t g = (uint32_t)(x >> 1) * 0x9E3779B1u ^ (uint32_t)(y >> 1) * 0x85EBCA77u;
     g ^= g >> 15; g *= 0x2C1B3C6Du; g ^= g >> 12;
     uint32_t tone = g % 16;
@@ -1755,14 +1756,7 @@ static void shade_box(ctx_t *c, int x, int y, int w, int h) {
 }
 static void rect_fill(ctx_t *c, int x, int y, int w, int h, uint32_t rgb);   /* below */
 
-/* the chip: the tool at 1x and DONE, top left where the card would be */
-#ifdef TANK_ROUND                                    /* the bowl: up in the left shoulder, inside the glass */
-#define TOOL_CHIP_X 84
-#define TOOL_CHIP_Y 72
-#else
-#define TOOL_CHIP_X RENDER_CARD_X
-#define TOOL_CHIP_Y RENDER_CARD_Y
-#endif
+/* the chip: the tool at 1x and DONE, top left where the card would be (TOOL_CHIP_X / _Y: the board's) */
 #define TOOL_CHIP_H 40
 static int tool_chip_w(void) { return 8 + 24 + 8 + text_w("DONE", 2) + 10; }
 void render_tool_chip(const tank_t *t, int fish_idx, uint16_t *fb, int stride) {
@@ -2105,13 +2099,8 @@ void render_battery_info(uint16_t *fb, int stride, const bat_info_t *bi, float c
  * badge / a name / a strip opens a small detail modal in the reset prompt's
  * dress (the art at 2x, a title, the words); the next tap anywhere closes
  * it back to the page. Render-local state, cleared by render_milestones_leave. */
-/* The BOWL (TANK_ROUND; Strato on the glass, 2026-10-01: the top fish's
- * portrait and its last badge were cut by the circle - "nudge this down",
- * SETTINGS "to the top, dead center as it would fit in that opening",
- * UPGRADES and CLOSE "closer together centered"): the rows start where the
- * circle is wide enough for them and stand 34 px apart. (SETTINGS and
- * UPGRADES left the page for the main menu, 2026-10-21; CLOSE stays put.) */
-/* (the page's numbers, MSP_*: render.h) */
+/* (the page's numbers, MSP_*: render.h, and the board's in its layout header -
+ * the bowl's rows start where the circle is wide enough for them) */
 #define MSP_INK       0x031015
 #define MSP_DIM       0x2a3f45
 #define MSP_TEAL      0x9fd8e2
@@ -2575,7 +2564,7 @@ int render_milestones_tap(const tank_t *t, float x, float y) {
         }
         ms_close(); return MS_TAP_KEPT;                  /* any other tap: back to the page */
     }
-    if (y >= MSP_CLOSE_Y - 4) return x >= MSP_CLOSE_X - (DEVICE_PAGE_BOWL ? 6 : 8) ? MS_TAP_CLOSE : MS_TAP_NONE;   /* the foot: CLOSE, slop out to the glass edge */
+    if (y >= MSP_CLOSE_Y - 4) return x >= MSP_CLOSE_X - MSP_CLOSE_SLOP ? MS_TAP_CLOSE : MS_TAP_NONE;   /* the foot: CLOSE, slop out to the glass edge */
     int row = -1; bool tank_row = false, fry_row = false;
     fry_req_t req[FRY_REQ_MAX]; bool staged;
     int nreq = progression_next_fry(t, req, &staged);
@@ -3028,7 +3017,7 @@ void render_sd_toast(const tank_t *t, uint16_t *fb, int stride) {
     if (t->clock >= g_toast_until || t->clock < g_toast_until - TOAST_S - 1) return;   /* (a reset sends the clock back) */
     ctx_t c = ctx_full(fb, stride, 1.0f);
     char txt[16]; snprintf(txt, sizeof txt, "+%d", g_toast_n);
-    const int W = 30 + text_w(txt, 2), H = 22, X = (TANK_W - W) / 2, Y = DEVICE_PAGE_BOWL ? 44 : 8;   /* (the bowl's top is a narrow cap: lower) */
+    const int W = 30 + text_w(txt, 2), H = 22, X = (TANK_W - W) / 2, Y = RENDER_TOAST_Y;
     for (int y = Y; y < Y + H; y++)
         for (int x = X; x < X + W; x++) px_blend(&c, x, y, theme_ui_color(0x04141a), 215);
     rect_edge(&c, X, Y, W, H, MSP_TEAL);
@@ -3144,11 +3133,7 @@ static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, 
        The installer page shows the version it would write in the same words. */
     /* 2026-09-29: the release number first ("V0.2.0 ALPHA"), the build id after it */
     char ver[64]; snprintf(ver, sizeof ver, "V%s %s  BUILD %s", PT_RELEASE, PT_RELEASE_STAGE, version_port_string());
-#if DEVICE_WORN                                  /* the watch: centred under the foot, between the lower corners */
-    draw_text_8px(&c, (PAGE_W - ((int)strlen(ver) * 6 - 1)) / 2, SET_FOOT_Y + MSP_CLOSE_H + 2, MSP_DIM, ver);
-#else
-    draw_text_8px(&c, SET_LABEL_X + (DEVICE_PAGE_BOWL ? 96 : 0), PAGE_H - 8 - 6, MSP_DIM, ver);
-#endif
+    draw_text_8px(&c, SET_VER_X((int)strlen(ver) * 6 - 1), SET_VER_Y, MSP_DIM, ver);   /* where the board puts it (the watch: centred under the foot) */
     button(&c, SET_CLOSE_X, SET_FOOT_Y, SET_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
     /* UPDATES (2026-09-30, docs/OTA.md): bottom left; ABOUT and RESET (2026-10-10) between */
     button(&c, SET_UPD_X, SET_FOOT_Y, SET_UPD_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "UPDATES", 2);
@@ -3244,7 +3229,7 @@ static int original_settings_tap(float x, float y, int *value) {
     if (y >= SET_SEG_Y(SET_ROW2_Y) - 12 && y < SET_SEG_Y(SET_ROW3_Y) - 12) { if (seg < 0) return SET_TAP_NONE; *value = seg; return SET_TAP_VOLUME; }
     if (y >= SET_SEG_Y(SET_ROW3_Y) - 12 && y < SET_SEG_Y(SET_ROW4_Y) - 12) { if (seg < 0) return SET_TAP_NONE; *value = 0; return x < SET_SPAN_MID ? SET_HIT_LIGHT_PREV : SET_HIT_LIGHT_NEXT; }
     if (y >= SET_SEG_Y(SET_ROW4_Y) - 12 && y < SET_SEG_Y(SET_ROW5_Y) - 12) { if (two < 0) return SET_TAP_NONE; *value = two == 0; return SET_TAP_FEED; }
-    if (y >= SET_SEG_Y(SET_ROW5_Y) - 12 && y < (DEVICE_WORN ? SET_ABT_Y - 6 : SET_FOOT_Y - 4)) {
+    if (y >= SET_SEG_Y(SET_ROW5_Y) - 12 && y < SET_ROW5_END) {
         if (two < 0) return SET_TAP_NONE;
 #if DEVICE_WORN
         *value = two == 1; return SET_TAP_SCREEN;
@@ -3256,13 +3241,7 @@ static int original_settings_tap(float x, float y, int *value) {
 }
 /* Short pages inside an inscribed rectangle; all targets share these bounds. */
 void render_settings_bounds(int *x, int *y, int *w, int *h) {
-#if DEVICE_PAGE_BOWL
-    *x = 73; *y = 81; *w = 320; *h = 304;
-#elif DEVICE_WORN
-    *x = 28; *y = 33; *w = 354; *h = 436;
-#else
-    *x = 22; *y = 20; *w = 404; *h = 328;
-#endif
+    *x = SET_BOUNDS_X; *y = SET_BOUNDS_Y; *w = SET_BOUNDS_W; *h = SET_BOUNDS_H;   /* the board's (its layout header) */
 }
 /* the theme picker's tiles (2026-10-10, four themes): the page's height above the DONE button shared
    between them, a 62 px pitch at most (the 1.8 gets 53, the bowl 47, the watch 62) */

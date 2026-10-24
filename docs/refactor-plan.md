@@ -2,9 +2,9 @@
 
 Started 2026-10-21. Each family of things in the tank gets one definition
 table and one generic path, so a new item, species or board is a row plus its
-art. Phases 1 and 2 are done; this file says what they became (the plan they
-started from differed in places) and what phase 3 is now. The day-by-day
-narrative is in HANDOFF.md.
+art (a board: a device header and a layout header). All four phases are done
+(2026-10-23); this file says what each became (the plan they started from
+differed in places). The day-by-day narrative is in HANDOFF.md.
 
 ## The three families
 
@@ -237,7 +237,8 @@ holds:
 - the film grid, `VEG_SEG_PX`, `FEED_ZONE_Y`, `DECOR_MARGIN`,
   `PLANT_X_DEFAULT`
 - the flags `DEVICE_WORN` (was `TANK_WORN`) and `DEVICE_PAGE_BOWL` (was
-  render.h's `PAGE_BOWL`)
+  render.h's `PAGE_BOWL`; gone in 4d, when every number it chose moved into
+  the layout headers)
 
 The firmware's orientation (main.c) asks `DEVICE_WORN`, and the settings
 SCREEN row already did, so the plan's "feature branches" step (4e) folded in
@@ -274,9 +275,32 @@ follows `reef_x` and the sword plant its own place, as before; the ceiling
 still measures the reef bed at its widest from the reef's fixed x, which is
 where `tank_init` puts it.
 
-**4d. The layout sections.** render.h's and update.h's per-board blocks move
-into a layout section per device, and the literals (`render_settings_bounds`,
-the tool chip, update.c's calibration targets) become named constants.
+**4d. The layout headers (pure; done 2026-10-23).** The keeper's call: a
+layout header per board, holding every page number that differs between
+boards. As built: `common/devices/{amoled18,round175c,watch206}_layout.h`,
+named by the device header's `DEVICE_LAYOUT` and included by render.h and
+update.h (update.h through device.h). Each one has:
+- the card, the tool chip, the battery pill and the "+n" toast
+- the milestones page's rows, badges, portrait, page arrow and CLOSE (with
+  its tap slop)
+- the shop's header, foot and page arrows' inset
+- the settings page's rows, segments, foot, last row's band, version line
+  and `SET_BOUNDS_*` (was `render_settings_bounds`' literals)
+- the update pages' CLOSE, button pair, password inset and calibration
+  inset (was update.c's three `CAL_X` / `CAL_Y` arrays)
+
+Today's `#ifdef` blocks and the flag ternaries (`PAGE_NARROW ||
+DEVICE_PAGE_BOWL ? 172 : 176`) both became plain numbers per board, so a
+board's pages are one file. render.h's dead first `SET_CLOSE_X` (and its
+three `#undef`s) went. `DEVICE_PAGE_BOWL` and `PAGE_NARROW` had no users
+left and went; theme_test.c's bowl check asks `DEVICE_GLASS` and `TANK_RAD`.
+The bowl's deep sand (render.c `floor_rgb`) is keyed on what causes it:
+`TANK_BOT < TANK_H`, a floor above the frame's bottom. `DEVICE_WORN` stays,
+for the features that are the watch's own (the SCREEN row, the firmware's
+orientation).
+
+After 4d, `TANK_ROUND` / `TANK_WATCH` appear only in device.h's selector and
+the ports.
 
 The ports (`firmware/main/*_port_*`) keep their board `#ifdef`s: the panels
 differ, and BOARDS.md allows it.
