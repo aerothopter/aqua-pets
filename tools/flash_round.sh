@@ -18,7 +18,7 @@ cd "$(dirname "$0")/.."
 SERIAL=${ROUND_SERIAL:-}
 [ -n "$SERIAL" ] || { echo "flash_round: set ROUND_SERIAL=<the board's USB serial> (in tools/boards.local.sh, or the environment)"; exit 1; }
 B=~/.cache/aqua-pets/fw-build-175c
-. ~/esp/esp-idf/export.sh > /dev/null 2>&1 || { echo "flash_round: ESP-IDF export failed"; exit 1; }
+. tools/esp_env.sh || { echo "flash_round: ESP-IDF export failed (Windows: run from the ESP-IDF 5.4.4 PowerShell, tools/esp_env.sh)"; exit 1; }
 [ -f firmware/keys/ota_signing_key.pem ] || { echo "flash_round: no firmware/keys/ota_signing_key.pem - tools/ota_key.sh"; exit 1; }
 LOG=$(mktemp); trap 'rm -f "$LOG"' EXIT
 ( cd firmware && idf.py -B "$B" -DSDKCONFIG="$B/sdkconfig" -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.round" build ) > "$LOG" 2>&1 \

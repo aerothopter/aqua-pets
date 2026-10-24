@@ -18,7 +18,7 @@ cd "$(dirname "$0")/.."
 SERIAL=${WATCH_SERIAL:-}
 [ -n "$SERIAL" ] || { echo "flash_watch: set WATCH_SERIAL=<the board's USB serial> (in tools/boards.local.sh, or the environment)"; exit 1; }
 B=~/.cache/aqua-pets/fw-build-206
-. ~/esp/esp-idf/export.sh > /dev/null 2>&1 || { echo "flash_watch: ESP-IDF export failed"; exit 1; }
+. tools/esp_env.sh || { echo "flash_watch: ESP-IDF export failed (Windows: run from the ESP-IDF 5.4.4 PowerShell, tools/esp_env.sh)"; exit 1; }
 [ -f firmware/keys/ota_signing_key.pem ] || { echo "flash_watch: no firmware/keys/ota_signing_key.pem - tools/ota_key.sh"; exit 1; }
 LOG=$(mktemp); trap 'rm -f "$LOG"' EXIT
 ( cd firmware && idf.py -B "$B" -DSDKCONFIG="$B/sdkconfig" -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.watch" build ) > "$LOG" 2>&1 \

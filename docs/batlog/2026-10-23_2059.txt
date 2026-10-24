@@ -1,0 +1,24 @@
+# Aqua Pets preflight 2026-10-23_2059 on COM4
+I (12028) batlog: 1 samples (h:mm since the first | SoC | VBAT | bright | state | mA since previous)
+I (12029) batlog:     0:00 |  92% | 4058 mV |   0 | asleep | bed
+I (12033) batlog:   (SoC is 1% = 2 mAh; short awake windows are coarse, a night is not)
+I (16120) director: 0 skippy  fish    /0 elder age 94.2h size 1.51 hunger 1.8 energy 9.8 stress 0.0 curiosity 0.0 trust 0.0 ms 1f3f  visit_bubbles at 125,104
+I (16124) director: 1 mira    fish    /0 elder age 62.5h size 1.57 hunger 1.6 energy 9.2 stress 0.0 curiosity 2.6 trust 0.0 ms 1f3b  visit_bubbles at 320,243
+I (16138) director: 2 ripple  seahorse/3 elder age 31.3h size 1.11 hunger 1.0 energy 9.3 stress 0.0 curiosity 10.0 trust 0.0 ms 1f33  explore at 152,276
+I (16151) director: 3 coral   seahorse/1 elder age 31.3h size 1.26 hunger 2.0 energy 9.7 stress 0.0 curiosity 10.0 trust 0.0 ms 1f33  explore at 141,234
+I (16164) director: 4 pancho  crab    /0 elder age 31.3h size 1.23 hunger 10.0 energy 9.8 stress 0.0 curiosity 1.2 trust 0.1 ms 1e23  explore at 360,343
+I (16178) director: pellets 0 | trickle on | ravenous 0 | day (rotation locked) idle 14s | veg 0.48 0.48 0.47 | algae cells 25/644 | courting no | arrival -
+I (16191) director: sand dollars 369 (earned 1539) | shop: plant snail castle coral cluster shrimp urchin frogman submarine | colonies 404 | 8792 cm trimmed
+I (16205) director: species: fish 2, seahorse 2, crab 1 | 5 of 25 places | courting pair of one species: no
+I (16215) director: urchin at x 62 | ambling | appetite 0.001 | 7553 cm grazed so far (keeps the grass over 0.40)
+I (16225) director: snail at 180,149 heading 178 deg | after cell 257 at 88,152 (film 90) | 25 cells on the glass | 3335 grazed so far
+I (16237) director: bed 0 fronds (x from 19, pitch 12): 0.49 0.49 0.49 0.49 0.49 0.48 0.48 0.48 0.48 0.48 0.48 0.47 0.47 0.47 0.47
+I (16248) director: bed 1 fronds (x from 376, pitch 12): 0.48 0.48 0.48 0.48 0.49
+I (16256) director: bed 2 fronds (x from 278, pitch 12): 0.47 0.47 0.47 0.47 0.47 0.47 0.47 0.48
+I (16264) director: bed 3 leaves (x from 376, pitch 14): 0.48 0.48 0.49 0.49
+I (16271) director: plant placed: centre x 397 (the keeper's), depth AMONG the fish
+I (16278) director: castle placed: centre x 122 (the keeper's), BEHIND the grass
+I (16285) director: coral placed: centre x 106 (the keeper's), IN FRONT, colour f2698f, growth 0.87 of 1.25 (growing)
+I (16296) director: reef cluster placed: centre x 236 (the keeper's), IN FRONT, look REEF, growth 0.54 of 2 (filling out)
+I (16306) director: nursery bed 3 (a bed >= 0.12) | parked real tank: no (this IS the real tank)
+I (16315) director: battery 93% charging, VBAT 4203 mV | brightness 153/255 (level 60%)

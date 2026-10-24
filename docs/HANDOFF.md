@@ -2,6 +2,67 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: the 1.8 flashed from Windows (the refactor's first time on the glass)
+
+**The flash tools run on Windows now.** They were the original owner's Mac
+scripts: `/dev/cu.usbmodem*` ports, `~/esp/esp-idf/export.sh`, a
+`/Users/strato/...` python.
+- `tools/esp_env.sh` (sourced by flash.sh, flash_round.sh, flash_watch.sh
+  and ota_key.sh) is the ESP-IDF setup. On a Mac it is export.sh, as
+  before. On Windows it uses the environment of the ESP-IDF 5.4.4 PowerShell
+  that Git Bash was started from:
+  `. C:\Espressif\tools\Microsoft.v5.4.4.PowerShell_profile.ps1`, then
+  `& "C:\Program Files\Git\bin\bash.exe" tools/flash.sh`. `idf.py` and
+  `espsecure.py` become bash functions there.
+- One trap: `idf.py` does nothing at all while `MSYSTEM` is set. It warns
+  "MSys/Mingw is no longer supported" and never calls `main()`, so the exit
+  code is 0 and nothing is built. Git Bash puts `MSYSTEM` back into every
+  Windows program it starts, so the function has python drop it and then run
+  idf.py.
+- `tools/tank_ports.py` finds boards by Espressif's USB vendor id (0x303A).
+  flash.sh and preflight.py use it on both systems. The rules stay: more
+  than one board means name it with `TANK_PORT` (COM4 here), and preflight
+  refuses a port that doesn't answer as the tank's director.
+
+**The flash.** The keeper's calls:
+- the 1.8
+- a NEW signing key (`tools/ota_key.sh`; in firmware/keys, not in git, to be
+  backed up off the disk)
+- the old tank may start fresh
+
+Done in order:
+- `tools/preflight.py` (archive 2026-10-23_2056). It showed the tank as it
+  was: skippy, mira, ripple, coral and pancho, 369 sand dollars, every shop
+  item.
+- A raw backup of NVS, otadata, ota_0 and ota_1 with esptool `read_flash`
+  (to `~/.cache/aqua-pets/backup-2026-10-23_2056/`, not in git). The old
+  tank can be put back by writing all four back.
+- `tools/flash.sh --model` (archive 2026-10-23_2059): the v5j model and its
+  trailer (matches version.h), the app (0x271000) and otadata, every write
+  verified.
+
+On boot the layout-2 save started a fresh tank (kelp and pip, two fry). The
+model decides at ~10 tok/s, ~4.4 s a decision. The internal heap is 40 KB
+free, with 4.6 MB of PSRAM. No errors in the first 35 s of the log.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes | as at 4d | yes (the new key) | **yes, 2026-10-23 20:59** | running; not yet looked at by the keeper |
+| 1.75C round | passes | as at 4d | yes (throwaway key) | no | no |
+| 2.06 watch | passes | as at 4d | yes (throwaway key) | no | no |
+
+**Open.**
+- The rest of the layout 3 save test: after the tank has autosaved, a
+  reboot should bring kelp and pip back.
+- The keeper's eyes on the glass: the pages, the decor and the creatures on
+  the real panel.
+- Back up `firmware/keys/ota_signing_key.pem` off this disk. The tank only
+  takes OTA updates signed with it now.
+- The round and watch tools have the same Windows setup but haven't run here
+  (no board).
+
 ## 2026-10-23: the layout headers (refactor phase 4d; phase 4 done)
 
 **What changed.** A pure refactor, and the keeper's call: a layout header per

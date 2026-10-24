@@ -1,4 +1,4 @@
-#!/Users/strato/.espressif/python_env/idf5.4_py3.13_env/bin/python
+#!/usr/bin/env python3
 """preflight.py - archive what the tank knows BEFORE anything resets it.
 
 Run before every flash (tools/flash.sh does), and any morning after a night
@@ -15,15 +15,16 @@ a PMIC cut still clears it; the archive is the record.
   tools/preflight.py              # archive + print the summary lines
   tools/preflight.py --quiet      # archive only (flash.sh)
 """
-import glob, os, sys, time, datetime
+import os, sys, time, datetime
 import serial
+from tank_ports import tank_ports         # the boards on USB, by Espressif's vendor id (macOS and Windows)
 
 quiet = "--quiet" in sys.argv
-ports = sorted(glob.glob("/dev/cu.usbmodem*"))
+ports = tank_ports()
 port = os.environ.get("TANK_PORT") or (ports[0] if len(ports) == 1 else None)
 if not port:
-    sys.exit("preflight: no /dev/cu.usbmodem* - wake the tank (BOOT) and plug it in; refusing to continue" if not ports else
-             "preflight: more than one board on USB (" + ", ".join(ports) + ") - say which is the tank: TANK_PORT=/dev/cu.usbmodemNNN")
+    sys.exit("preflight: no board on USB - wake the tank (BOOT) and plug it in; refusing to continue" if not ports else
+             "preflight: more than one board on USB (" + ", ".join(ports) + ") - say which is the tank: TANK_PORT=<port>")
 here = os.path.dirname(os.path.abspath(__file__))
 out_dir = os.path.join(here, "..", "docs", "batlog")
 os.makedirs(out_dir, exist_ok=True)

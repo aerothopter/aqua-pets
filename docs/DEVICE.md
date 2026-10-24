@@ -52,6 +52,25 @@ reset the chip before anyone read the log.
 
 ## Firmware on the tank right now
 
+**Since 2026-10-23 20:59** (the keeper's machine, Windows): `refactor/devices`
+(the entity refactor, phases 1-4, from 9f8eaa9) plus the Windows flash tools,
+flashed with `tools/flash.sh --model`. Archives docs/batlog/2026-10-23_2056.txt
+(the standalone preflight) and 2026-10-23_2059.txt (flash.sh's).
+- App: save layout 3. The tank before it (skippy, mira, ripple, coral, pancho;
+  369 sand dollars, every shop item) was a layout-2 save and started fresh, as
+  planned: kelp and pip, two fry. NVS, otadata and both app slots from before
+  the flash are backed up raw in `~/.cache/aqua-pets/backup-2026-10-23_2056/`
+  on the keeper's machine (not in git): written back together, they are the
+  old tank.
+- **Signed with a NEW key** (`tools/ota_key.sh` on the keeper's machine,
+  2026-10-23; not the one the releases were signed with). This tank refuses
+  any over-the-air image signed with another key until it is flashed by cable.
+- Model partition: v5j, with its trailer (written by this flash).
+- Not yet checked: that a reboot brings the fresh tank back (the layout 3
+  save test).
+
+Before that (the original owner's tank, kept for the record):
+
 - App: everything through the 09-15 night (sand dollars, the shop, the
   snail, audio, settings, the light) PLUS 2026-09-16: the PWR key is the one
   sleep/wake key, sleep = 20 min grace (was 90 s; 2026-09-16 evening) then PMIC power-off, cold boot lives
