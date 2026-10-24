@@ -2,6 +2,19 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-23: the entity refactor merges to main
+
+The keeper looked through the flashed 1.8 tank ("all looked well") and
+called the refactor ready. `refactor/devices` (which carries
+`refactor/decor`, `refactor/helpers` and `refactor/creatures`) was
+fast-forwarded into `main`: 29 commits, phases 1-4 and the Windows flash
+tools. Not pushed. The four refactor branches still exist and can be deleted.
+
+Still open:
+- The round and watch boards: built, not flashed.
+- Back up `firmware/keys/ota_signing_key.pem` off this disk.
+- The device's floats after 4b (the 4d entry).
+
 ## 2026-10-23: the 1.8 flashed from Windows (the refactor's first time on the glass)
 
 **The flash tools run on Windows now.** They were the original owner's Mac
@@ -49,15 +62,13 @@ free, with 4.6 MB of PSRAM. No errors in the first 35 s of the log.
 
 | board | `make check-all` | pictured | firmware built | flashed | on the glass |
 |---|---|---|---|---|---|
-| 1.8 rect | passes | as at 4d | yes (the new key) | **yes, 2026-10-23 20:59** | running; not yet looked at by the keeper |
+| 1.8 rect | passes | as at 4d | yes (the new key) | **yes, 2026-10-23 20:59** | yes: the keeper looked through the tank, "all looked well" |
 | 1.75C round | passes | as at 4d | yes (throwaway key) | no | no |
 | 2.06 watch | passes | as at 4d | yes (throwaway key) | no | no |
 
 **Open.**
 - The layout 3 save test PASSED: a held PWR (on USB it powers straight
   back on) brought kelp and pip back at 0.1 h, older than the boot.
-- The keeper's eyes on the glass: the pages, the decor and the creatures on
-  the real panel.
 - Back up `firmware/keys/ota_signing_key.pem` off this disk. The tank only
   takes OTA updates signed with it now.
 - The round and watch tools have the same Windows setup but haven't run here
