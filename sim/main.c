@@ -1263,7 +1263,7 @@ static void saves_rich(tank_t *t) {
         t->sd_paid_fish[i] = (uint32_t)(i & 7);
     }
     t->tank_ms_bits = 0x1a7; t->tank_ms_seen = 0x107; t->player_feedings = 42; t->hold_approaches = 5; t->feed_spot_x = TANK_W * 0.4f;
-    t->light_idle_s = 30; t->light_auto = true; t->light_tip_seen = true; t->theme = 2; t->autofeed_off = true;
+    t->light_idle_s = 30; t->light_auto = true; t->light_tip_seen = true; t->theme = THEME_COUNT - 1; t->autofeed_off = true;   /* the last theme there is */
     tank_orient_lock(t, true);
     t->sd_balance = 321; t->sd_earned = 987; t->sd_colonies_paid = 3; t->sd_inches_paid = 4;
     t->trims = 17; t->cells_cleaned = 250; t->algae_colonies = 31; t->trim_px = 1234.5f;
@@ -5982,7 +5982,6 @@ int main(int argc, char **argv) {
             else if (r == SET_TAP_SCREEN) printf("screen: %s\n", v ? "TURNED" : "NORMAL");
             else if (r == SET_TAP_IDLE) printf("lights out after %d s still\n", v);
             else if (r == SET_TAP_FEED) printf("auto feed: %s\n", v ? "ON" : "OFF");
-            else if (r == SET_TAP_THEME) printf("theme: %s\n", theme_palette(v)->name);
             else if (r == SET_TAP_ROTATE) printf("rotation: %s\n", v ? "LOCKED" : "unlocked");
             else if (r == SET_TAP_RESET) { settings_view = false; confirm_view = true; confirm_ms = now_ms; selected_fish = -1;   /* RESET: the same prompt as the X key */
                                            printf("reset prompt (from settings): click YES or NO (it gives up after %d s)\n", CONFIRM_MS / 1000); }

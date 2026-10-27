@@ -51,10 +51,6 @@ static int  first_page(void) { return s_rename ? SETUP_PG_RENAME : s_place ? SET
 static bool nav_on_top(void) { return (page_is_name() && s_kbd != SETUP_KBD_GRID) || page_is_look() || s_page == SETUP_PG_BUBBLES || s_page == SETUP_PG_PLACE; }
 static int  place_y(void) { return s_item == 3 ? SETUP_PLACE_CORAL_Y : s_item == 4 ? SETUP_PLACE_CLUSTER_Y : SETUP_PLACE_Y; }   /* where the drag zone starts */
 static const char *fish_name(const tank_t *t, int i) { return i >= 0 && i < t->n_fish ? t->fish[i].name : "?"; }
-/* Modern wheel coordinates share the native device's safe settings rectangle. */
-static void wheel_bounds(int *x, int *y, int *w, int *h) {
-    render_settings_bounds(x, y, w, h); *x -= PAGE_X; *y -= PAGE_Y;
-}
 static void stage(tank_t *t);
 static void tidy_name(tank_t *t, int fish);
 /* the species' words (2026-10-05): what a creature is called on these pages
@@ -130,10 +126,6 @@ static void stage(tank_t *t) {                          /* who is on stage, and 
     if (s_active && (page_is_name() || page_is_look())) {
         t->stage_fish = (int8_t)page_fish(); t->stage_x = SETUP_STAGE_X;
         t->stage_y = page_is_name() ? SETUP_STAGE_NAME_Y : SETUP_STAGE_LOOK_Y;
-        if (t->theme && page_is_name() && !s_kbd) {
-            int x,y,w,h; wheel_bounds(&x,&y,&w,&h);
-            t->stage_y = PAGE_Y + y + 65;
-        }
     } else t->stage_fish = -1;
 }
 void setup_cancel(tank_t *t) {
@@ -289,19 +281,6 @@ static int nearest_slot(float x) {
 int setup_hit(float x, float y) {
     if (!s_active) return 0;
     x -= PAGE_X; y -= PAGE_Y;                           /* the page's own coordinates (render.h) */
-    if (theme_active() && page_is_name() && !s_kbd) {
-        int bx,by,bw,bh; wheel_bounds(&bx,&by,&bw,&bh);
-        int sy=by+137, foot=by+bh-44;
-        if (in_box(x,y,bx,foot,112,44,0)) return SETUP_HIT_BACK;
-        if (in_box(x,y,bx+bw-112,foot,112,44,0)) return SETUP_HIT_NEXT;
-        if (x < SETUP_SLOT_X-7 || x > SETUP_SLOT_X+6*SETUP_SLOT_PX+SETUP_SLOT_W+7) return 0;
-        if (y>=sy-10 && y<sy+SETUP_SLOT_H+16) return SETUP_HIT_SLOT0+nearest_slot(x);
-        float cx=SETUP_SLOT_X+s_slot*SETUP_SLOT_PX+SETUP_SLOT_W*0.5f;
-        if (fabsf(x-cx)>22) return 0;
-        if (y>=sy-54 && y<sy-10) return SETUP_HIT_UP;
-        if (y>=sy+SETUP_SLOT_H+16 && y<sy+SETUP_SLOT_H+60) return SETUP_HIT_DOWN;
-        return 0;
-    }
     const int m = 10;                                   /* a fingertip's slop, as on the reset prompt */
     if (page_one_button())
         return in_box(x, y, SETUP_MID_X, SETUP_BTN_Y, SETUP_BTN_W, SETUP_BTN_H, m) ? SETUP_HIT_NEXT : 0;
@@ -785,26 +764,19 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
            colour, its name spans the middle in that colour, the active slot
            bright with the chevrons, the rest dimmed; slots past the first
            blank are just faint underlines */
-        int bx=0,by=0,bw=0,bh=0; wheel_bounds(&bx,&by,&bw,&bh);
-        int sy=theme_active() ? by+137 : SETUP_SLOT_Y;
+        int sy=SETUP_SLOT_Y;
         const fish_t *f = &t->fish[page_fish()];
         fish_ring(fb, stride, f, render_fish_ring_r(f) + 6, f->color);
         render_rect_blend(fb, stride, -PAGE_X, sy - SETUP_ARROW_GAP - 2, TANK_W, SETUP_SLOT_H + 2 * SETUP_ARROW_GAP + 36, C_PANEL, 150);
         char ncap[40]; name_caption(ncap, sizeof ncap, t);
-        if (theme_active()) {
-            text_c(fb,stride,CX,by+4,2,C_CAPT,"NAME YOUR PET");
-            render_button(fb,stride,bx,by+bh-44,112,44,C_KEY,C_DIM,s_rename?"CANCEL":"BACK",2);
-            render_button(fb,stride,bx+bw-112,by+bh-44,112,44,C_GO,C_GO_E,s_rename?"DONE":"NEXT",2);
-        } else {
-            text_c(fb,stride,CX,SETUP_Y+7,2,C_CAPT,ncap);
-            nav(fb,stride,true,s_rename?"DONE":"NEXT",s_rename);
-        }
+        text_c(fb,stride,CX,SETUP_Y+7,2,C_CAPT,ncap);
+        nav(fb,stride,true,s_rename?"DONE":"NEXT",s_rename);
         int n = name_len(f);
         if (s_slot > n) s_slot = n;
         for (int i = 0; i < FISH_NAME_MAX; i++) {
             int x = SETUP_SLOT_X + i * SETUP_SLOT_PX;
             bool on = i == s_slot, reach = i <= n;
-            uint32_t col = theme_active() ? (on ? C_TEXT : reach ? C_EDGE : C_DIM) : on ? f->color : reach ? dim(f->color, 55) : C_DIM;
+            uint32_t col = on ? f->color : reach ? dim(f->color, 55) : C_DIM;
             int v = slot_val(f, i);
             if (v) { char ch[2] = { (char)('A' + v - 1), 0 }; render_text(fb, stride, x, sy, SETUP_SLOT_SCALE, col, ch); }
             render_rect(fb, stride, x, sy + SETUP_SLOT_H + 8, SETUP_SLOT_W, 4,
@@ -814,8 +786,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
                 chevron(fb, stride, x + SETUP_SLOT_W / 2, sy + SETUP_SLOT_H + SETUP_ARROW_GAP + 4, false, C_EDGE);
             }
         }
-        if (theme_active()) text_c(fb,stride,CX,by+238,2,C_CAPT,"SWIPE TO ROLL");
-        else { text_c(fb,stride,CX,sy+SETUP_SLOT_H+96,2,C_CAPT,"SWIPE A LETTER UP OR DOWN"); dots(fb,stride,PAGE_H-14); }
+        text_c(fb,stride,CX,sy+SETUP_SLOT_H+96,2,C_CAPT,"SWIPE A LETTER UP OR DOWN"); dots(fb,stride,PAGE_H-14);
     } else if (page_is_look()) {
         /* straight on the tank again: the ringed FRY is the preview (no
            grown-up look - that is the surprise); a row of body swatches; the

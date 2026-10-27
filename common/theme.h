@@ -1,11 +1,18 @@
-/* Presentation only. IDs are persisted: never reorder or reuse them. */
+/* Presentation only. IDs are persisted: never reorder or reuse them.
+ *
+ * One theme for now (2026-10-26): the Original. Quiet Lagoon (1), Tidepool
+ * Club (2) and Blackwater (3) were taken out while features are built, to
+ * come back later; their palettes, art, tunes and generated assets are at
+ * git tag multi-board-multi-theme. Their IDs stay reserved: a save that
+ * holds one loads as the Original (theme_valid). The hooks stay too - a
+ * theme is a palette row plus what it changes through theme_ui_color,
+ * theme_creature_color and theme_icon, and the art asks theme_active(). */
 #ifndef AQUA_THEME_H
 #define AQUA_THEME_H
 #include <stdint.h>
 #include "icons.h"
 
-typedef enum { THEME_ORIGINAL = 0, THEME_QUIET_LAGOON = 1,
-               THEME_TIDEPOOL_CLUB = 2, THEME_BLACKWATER = 3, THEME_COUNT = 4 } theme_id_t;
+typedef enum { THEME_ORIGINAL = 0, THEME_COUNT = 1 } theme_id_t;   /* 1-3: reserved (above) */
 typedef struct {
     const char *name;
     uint32_t background, panel, text, muted, accent, on_accent, border, gold;
@@ -16,15 +23,8 @@ typedef struct {
 int theme_valid(int id);
 const theme_palette_t *theme_palette(int id);
 int theme_active(void);
-int theme_asset_set(int id);   /* the icon + font set a theme draws with (Blackwater borrows the lagoon's: ~160 KB of flash each) */
 void theme_activate(int id); /* renderer owns activation and cache invalidation */
 uint32_t theme_ui_color(uint32_t original);
 uint32_t theme_creature_color(uint32_t original, int fin);
 const icon_t *theme_icon(const icon_t *original);
-
-/* Generated, flash-resident artwork. Original icons are never replaced in place. */
-const icon_t *theme_preview_icon(int theme);
-const icon_t *theme_asset_icon(int theme, const icon_t *original);
-/* Antialiased fixed-cell glyphs retain all existing layout/hit-test metrics. */
-const uint8_t *theme_font_glyph(int theme, int scale, unsigned char ch);
 #endif

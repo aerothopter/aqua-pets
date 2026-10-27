@@ -3,38 +3,17 @@
  * top), flippers kicking behind him, drifting across the water (helper.c: frogman.x, frogman.yaw -
  * the body thins through a turn, as a fish does), bobbing on the water's slow lift. His
  * arm reaches forward - and every 23 s, for 2.6 s, it goes up and the forearm waves from the
- * elbow. A mist of fine bubbles rises from his mask. The suit is the theme's, brighter than
- * the wreck's old grey diver: Original a yellow-and-black banded wetsuit with red fins,
- * Quiet Lagoon turquoise with coral bands and violet fins, Tidepool Club hot pink with lime
- * bands and cyan fins. Live every frame; the rect he and his mist cover comes back. */
+ * elbow. A mist of fine bubbles rises from his mask. The suit is brighter than the wreck's
+ * old grey diver: a yellow-and-black banded wetsuit with red fins (each theme had its own:
+ * git tag multi-board-multi-theme). Live every frame; the rect he and his mist cover comes back. */
 static void draw_frogman(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *bx1, int *by1) {
     float clock = t->clock;
     float fx = t->frogman.x, fy = t->frogman.y + sinf(clock * 1.4f) * 2.5f + sinf(clock * 0.6f + 1) * 1.5f;
     float d = t->frogman.yaw >= 0 ? 1 : -1, sx = fabsf(t->frogman.yaw) < 0.15f ? 0.15f : fabsf(t->frogman.yaw);
-    int th = theme_active();
-    bool bw = th == THEME_BLACKWATER;   /* Blackwater: a real diver - black neoprene, high-vis amber bands and fins, an aluminium tank */
-    uint32_t suit  = bw ? 0x202428 : th == THEME_QUIET_LAGOON ? 0x2fb8a6 : th == THEME_TIDEPOOL_CLUB ? 0xff4f9a : 0xf5c242;
-    uint32_t band  = bw ? 0xffb020 : th == THEME_QUIET_LAGOON ? 0xff7f66 : th == THEME_TIDEPOOL_CLUB ? 0xb6f05a : 0x1d2a33;
-    uint32_t fin   = bw ? 0xf2c230 : th == THEME_QUIET_LAGOON ? 0x8a5cc8 : th == THEME_TIDEPOOL_CLUB ? 0x33c7e0 : 0xd8402c;
-    uint32_t tankc = bw ? 0xd4dade : th == THEME_QUIET_LAGOON ? 0xe8d9a0 : th == THEME_TIDEPOOL_CLUB ? 0xff9f3f : 0xb8c4cc;
-    uint32_t glass = bw ? 0xaee6f0 : th == THEME_QUIET_LAGOON ? 0xc4e6d1 : th == THEME_TIDEPOOL_CLUB ? 0xfff6d9 : 0x9fd8e2;
-    uint32_t mask  = bw ? 0x0f1215 : th == THEME_TIDEPOOL_CLUB ? 0x5a2d7a : th == THEME_QUIET_LAGOON ? 0x264a44 : 0x1d2a33, skin = 0xf1c69b;
-    uint32_t mist  = bw ? 0xc8e8ee : th == THEME_TIDEPOOL_CLUB ? 0x3d8e83 : th == THEME_QUIET_LAGOON ? 0xc4e6d1 : 0x9fd8e2;
+    uint32_t suit  = 0xf5c242, band = 0x1d2a33, fin = 0xd8402c, tankc = 0xb8c4cc;
+    uint32_t glass = 0x9fd8e2, mask = 0x1d2a33, skin = 0xf1c69b, mist = 0x9fd8e2;
 #define FX(lx) (fx + (lx) * d * sx)                                                /* local x along the body, + = forward */
     float kick = sinf(clock * 2.6f) * 2.5f;
-    if (bw) {
-        /* the abyss (2026-10-12): a TORCH in the forward hand, its beam a cone of pale light ahead of him,
-           undimmed; the hand is up and waving for 2.6 s every 23 s, the beam swings up with it */
-        float wph2 = fmodf(clock, 23.0f), lift = wph2 < 2.6f ? fminf(1, wph2 * 4) * fminf(1, (2.6f - wph2) * 4) : 0;
-        float hx = FX(12.5f) * (1 - lift) + (FX(4) + sinf(sinf(clock * 9.0f) * 0.55f) * 7 * d) * lift, hy = (fy + 2.5f) * (1 - lift) + (fy - 9 - cosf(sinf(clock * 9.0f) * 0.55f) * 7) * lift;
-        float ang = -lift * 1.2f, cx_ = cosf(ang) * d, sy_ = sinf(ang);
-        src_t beam = src_color(0xbfefff, 1);
-        for (int i = 0; i < 3; i++) {
-            float L = (30 - i * 7) * sx, hw = (8 - i * 2) * fminf(1, L / 14);
-            float px[3] = { hx, hx + L * cx_ - hw * sy_ * -1, hx + L * cx_ + hw * sy_ * -1 }, py[3] = { hy, hy + L * sy_ - hw * cx_, hy + L * sy_ + hw * cx_ };
-            fill_poly_s(c, px, py, 3, &beam, 16);
-        }
-    }
     /* the mist: a dozen fine bubbles rising from the mask, each on its own slow loop; behind him */
     for (int i = 0; i < 12; i++) {
         float ph = fmodf(clock * (0.42f + 0.03f * (i % 4)) + i * 0.083f, 1.0f);
@@ -75,7 +54,6 @@ static void draw_frogman(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *bx1
     fill_ellipse(c, FX(12.5f), fy - 2, 2.9f * sx + 0.4f, 1.9f, mask, 255);
     fill_ellipse(c, FX(12.8f), fy - 2, 2.0f * sx + 0.2f, 1.2f, glass, 255);
     px_blend(c, (int)(FX(13.5f) + 0.5f), (int)(fy - 2.5f), 0xffffff, 170);
-    if (bw) { float tx = wph < 2.6f ? FX(4) : FX(12.5f); fill_ellipse(c, tx, wph < 2.6f ? fy - 9 : fy + 2.5f, 1.2f, 1.2f, 0xfff8e0, 255); }   /* the torch's lens */
 #undef FX
-    *bx0 = (int)fx - 46; *bx1 = (int)fx + 46; *by0 = (int)fy - 58; *by1 = (int)fy + 12;   /* 46: the Blackwater torch beam reaches 43 */
+    *bx0 = (int)fx - 46; *bx1 = (int)fx + 46; *by0 = (int)fy - 58; *by1 = (int)fy + 12;   /* 46: room Blackwater's torch beam needed (43), kept */
 }

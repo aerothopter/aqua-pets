@@ -1,5 +1,20 @@
 # Display themes
 
+> **One theme for now (2026-10-26).** The keeper took Quiet Lagoon, Tidepool
+> Club and Blackwater out while features are built; only the Original is
+> built. Their art (the themed branches in creatures.inc, render.c, the decor
+> and helper `.inc` files, blackwater_castle.inc / blackwater_wreck.inc), the
+> picker, the tunes and `common/theme_assets.c` are at git tag
+> `multi-board-multi-theme`. What stays: `theme_id_t` with the Original alone
+> (IDs 1-3 reserved; a save holding one loads as the Original), the palette
+> table with one row, the hooks (`theme_ui_color`, `theme_creature_color`,
+> `theme_icon`, `theme_active`, `render_use_theme`), the tune table `J_SONGS`
+> with one row, and the selftests' loops over `THEME_COUNT`. The settings
+> title is plain text again (it was the picker's button). The four small
+> generated thumbnail files (jellyfish, wreck, frogman, sub `_assets.c`) still
+> carry their themed variants; trimming them needs their generators run (Pillow).
+> The rest of this file describes the themes as they were, for bringing them back.
+
 Open **Settings → SETTINGS / THEMES** (the title button, in every theme). Tap Original, Quiet Lagoon, Tidepool Club or Blackwater. The selection applies immediately and is saved; Done returns to settings. The four tiles share the page above DONE (a 62 px pitch at most: 53 on the 1.8, 47 on the bowl).
 
 Original is the default for new tanks and existing saves. It keeps the original tank art, fonts, menus and character wheel, with a theme entry added to the settings heading. Quiet Lagoon implements the approved Living Lagoon direction with layered teal water, shaded naturalistic creatures, soft baked light shafts and dark-glass controls. Tidepool Club uses pale water, cream panels, green controls and bolder lettering. Blackwater (2026-10-10; the abyss since 2026-10-12) is the deep-sea one: indigo water falling to black under a cold glow from above, marine snow, blue-black sand with bioluminescent grains, realistic creatures rimmed in moonlight and glowing with an aura and a row of photophores of their own, a drowned marble temple with cyan crystals and hanging lamps for a castle, a sunken galleon with lit lanterns for a wreck, a diver with a torch and a sub with a headlight (its own section below). All four retain the live procedural creatures, their growth stages, animations and individual saved colours.

@@ -35,7 +35,6 @@ static inline bool sn_seg(float lx, float ly, float x0, float y0, float x1, floa
 /* the shell's tone from its lighting terms: band = the whorl's lit / mid /
  * groove, lit = -1..1 (upper left .. lower right), rim = on the edge */
 static inline int sn_shell_tone(int band, float lit, bool rim) {
-    if(theme_active()==THEME_TIDEPOOL_CLUB)return rim?3:band==3?2:lit>.35f?0:1;
     int tone = band;
     if (lit > 0.35f) tone--; else if (lit < -0.15f) tone++;
     if (lit < -0.55f) tone++;
@@ -59,7 +58,7 @@ static int snail_upright_tone(int lx, int ly, float top, float clock, const sn_s
     if (r <= R) {
         float ax = lx - (cx - 1.5f), ay = ly - (cy + 0.5f);
         float ar = sqrtf(ax * ax + ay * ay), th = atan2f(ay, ax);
-        const float pitch = theme_active()==THEME_TIDEPOOL_CLUB?5.0f:theme_active()?4.3f:2.25f;                                 /* ~4 turns: Strato asked for one more groove */
+        const float pitch = 2.25f;                                 /* ~4 turns: Strato asked for one more groove */
         float w = fmodf(ar - th / TAU * pitch, pitch); if (w < 0) w += pitch; w /= pitch;
         int tone = sn_shell_tone(w < 0.5f ? 1 : w < 0.74f ? 2 : 3, (-dx * 0.55f - dy * 0.83f) / R, r > R - 1.3f);
         if (ar < 2.2f) tone = 3;                                   /* the apex whorl is tight and dark */
@@ -116,7 +115,7 @@ static int snail_glass_body(float lx, float ly, float sx, float sy, float clock,
     float qx = lx / 11.0f, qy = (ly + 2.5f) / 10.6f;
     float sr = sqrtf(qx * qx + qy * qy);
     if (sr <= 1 && ly < 6.5f) {
-        float lobe = fast_sin(atan2f(ly + 2.5f, lx) * (theme_active()==THEME_TIDEPOOL_CLUB?8.0f:theme_active()?3.0f:5.0f) - 0.3f + 8 * TAU);
+        float lobe = fast_sin(atan2f(ly + 2.5f, lx) * 5.0f - 0.3f + 8 * TAU);
         int tone = sn_shell_tone(lobe > 0.15f ? 1 : 2, lit, sr > 0.88f);
         if (sr < 0.78f) tone++;                                    /* shadow where the foot meets it */
         { float gx = sx + 5.0f, gy = sy + 7.8f; if (gx * gx + gy * gy < 2.9f) tone = 0; }   /* gleam */
@@ -140,9 +139,7 @@ static inline void snail_put(ctx_t *c, int x, int y, int tone, float tint, sn_ro
     if (tone == SN_NONE || !CTX_IN(c, x, y)) return;
     if (r->y != y) { r->y = y; r->have = 0; r->w = water_rgb(y < 0 ? 0 : y >= TANK_H ? TANK_H - 1 : y); }
     if (!(r->have >> tone & 1)) {
-        static const uint32_t lagoon[SN_NONE]={0xead5b3,0xbd8c65,0xa47553,0x79533d,0x503d31,0xd8dcc3,0x9ebbaa,0x6f9682,0x496e60,0x244b40,0x19392f};
-        static const uint32_t club[SN_NONE]={0xffe6ab,0xefad79,0xb7684c,0x8f513c,0x623e30,0xf3dca5,0xd9bc83,0xb39662,0x8a7454,0x334e3a,0x223c2e};
-        uint32_t rgb=theme_active()==THEME_QUIET_LAGOON?lagoon[tone]:theme_active()==THEME_TIDEPOOL_CLUB?club[tone]:SNAIL_RGB[tone];
+        uint32_t rgb=SNAIL_RGB[tone];
         r->s[tone]=src_color(mix(r->w,rgb,tint),c->dim);r->have|=(uint16_t)(1u<<tone);
     }
     px_blend_s(c, x, y, &r->s[tone], 255);

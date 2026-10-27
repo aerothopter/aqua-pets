@@ -25,15 +25,6 @@ static const char *const SHRIMP_DART[8] = {      /* the escape: tail snapped und
     "..................", "aaaa..ohhs........", "....ohrrrhhhs.....", "...orrrrrrrrrea...",
     "...ttrrrrrrrrrr...", "...tt.oorrrroo....", "..................", ".................." };
 static void draw_shrimp(ctx_t *c, const shrimp_t *q, const src_t *pal) {
-    if(theme_active() && theme_active()!=THEME_BLACKWATER) {   /* Blackwater keeps the pixel cherry shrimp: legs, antennae, a fanned tail */
-        bool club=theme_active()==THEME_TIDEPOOL_CLUB;
-        float dir=q->yaw<0?-1:1;
-        for(int i=0;i<5;i++)fill_ellipse(c,q->x+dir*(3-i*2),q->y-1+i*.35f,2,club?2:1.4f,
-                     i%2?(club?0xe89f77:0xc9bba2):(club?0xb77359:0x89a69a),255);
-        fill_ellipse(c,q->x+dir*4,q->y-2,.65f,.65f,0x29463b,255);
-        for(int i=0;i<4;i++){px_blend(c,(int)(q->x+dir*(4+i)),(int)(q->y-3-i*.4f),0xd4d9b7,200);px_blend(c,(int)(q->x-i*2),(int)(q->y+2),0xa78768,220);}
-        return;
-    }
     float sp2 = q->vx * q->vx + q->vy * q->vy;
     const char *const *fr = q->dart > 0 ? SHRIMP_DART
                           : q->pecking ? (fmodf(q->ph * 3, 1) < 0.5f ? SHRIMP_PECK : SHRIMP_IDLE_A)

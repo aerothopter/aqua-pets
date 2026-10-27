@@ -1,4 +1,7 @@
-/* Theme regression tests run headlessly on every board, through real touch/save/render paths. */
+/* Theme regression tests run headlessly on every board, through real touch/save/render paths.
+ * One theme for now (2026-10-26): the Original. The picker, the theme switches and the themed
+ * castle's mask went with the other three (git tag multi-board-multi-theme); the loops over
+ * THEME_COUNT stay, so a theme brought back is tested here again. */
 #define _POSIX_C_SOURCE 200809L
 #include "render.h"
 #include "progression.h"
@@ -40,12 +43,8 @@ static void shot(const char *prefix,const char *page,int theme) {
 #define SETP_SEG_X(i)  (SET_SEG_X + (i) * SET_SEG_DX + SET_SEG_W / 2)
 #define SETP_PREV_X    (SET_SEG_X + SET_ARW_W / 2)
 #define SETP_NEXT_X    (SET_SEG_X + SET_SPAN_W - SET_ARW_W / 2)
-static void settings_open_themes(tank_t *t) {
-    int x,y,w,h,v; render_settings_bounds(&x,&y,&w,&h);
+static void settings_open(tank_t *t) {
     render_settings_leave(); render_settings(t,fb,TANK_W,60,1);
-    (void)x;(void)y;(void)w;(void)h;
-    tap(t,PAGE_X+PAGE_W/2,PAGE_Y+SET_TITLE_Y+12,&v);   /* the SETTINGS / THEMES title button, in every theme (2026-10-10) */
-    render_settings(t,fb,TANK_W,60,1);
 }
 /* Native art sheets exercise every new drawing path and the shared cache. */
 static int art_sheets(const tank_t *base,const char *prefix) {
@@ -80,24 +79,6 @@ static int art_sheets(const tank_t *base,const char *prefix) {
             else{a.sd_unlocks=SD_ITEM_SNAIL|SD_ITEM_SHRIMP|SD_ITEM_URCHIN;tank_snail_place(&a);tank_shrimp_place(&a,3);tank_urchin_place(&a);a.snail.x=TANK_W/2;a.snail.y=SNAIL_FLOOR_Y;a.snail.front=true;a.urchin.x=TANK_W/2+48;label="companions";}
             for(int j=0;j<5;j++){a.food[j].alive=true;a.food[j].x=TANK_W/2-45+j*17;a.food[j].y=TANK_H/2-25+j%2*10;}
             render_tank(&a,fb,TANK_W);render_tank(&a,fb,TANK_W);shot(prefix,label,id);
-            /* Re-entering a theme with growth unchanged must rebuild all geometry caches. */
-            memcpy(first,fb,sizeof fb);a.theme=(id+1)%THEME_COUNT;render_tank(&a,fb,TANK_W);
-            a.theme=id;render_tank(&a,fb,TANK_W);
-            CHECK(!memcmp(first,fb,sizeof fb),"decor cache restores exact geometry");
-            if(which==0&&id){
-                /* the themed castle IN FRONT is baked with a mask (2026-10-10): a busy frame - fish in and
-                   around the arch, pellets, bubbles - must come out pixel for pixel as the old per-rect
-                   repaint drew it */
-                tank_t b=a; b.sd_unlocks=SD_ITEM_CASTLE; tank_castle_place(&b); b.decor[DK_CASTLE].x=TANK_W/2; b.decor[DK_CASTLE].z=DECOR_Z_FRONT;
-                for(int f=0;f<6&&f<N_FISH_MAX;f++){ tank_make_fish(&b,f,f%2,.5f,.5f,STAGE_ADULT); b.fish[f].x=TANK_W/2-60+f*24; b.fish[f].y=TANK_BOT-30-(f%3)*40; b.fish[f].heading=f%2?3.1f:0; tank_fish_face(&b.fish[f]); }
-                b.n_fish=6; if(b.n_fish>1)tank_set_species(&b,1,SP_OCTOPUS,0);
-                static uint16_t masked[TANK_W*TANK_H], live[TANK_W*TANK_H];
-                render_debug_castle_live(false); render_tank(&b,fb,TANK_W); b.clock+=.3f; render_tank(&b,fb,TANK_W); memcpy(masked,fb,sizeof masked);
-                render_debug_castle_live(true);  render_tank(&b,fb,TANK_W); b.clock-=.3f; render_tank(&b,fb,TANK_W); b.clock+=.3f; render_tank(&b,fb,TANK_W); memcpy(live,fb,sizeof live);
-                render_debug_castle_live(false);
-                int diff=0; for(int i=0;i<TANK_W*TANK_H;i++) diff+=masked[i]!=live[i];
-                CHECK(diff==0,"the baked castle front matches the per-rect repaint pixel for pixel");
-            }
         }
         for(int effect=0;effect<5;effect++) {
             tank_t a=t; a.sd_unlocks=0;
@@ -195,7 +176,7 @@ static int jellyfish_checks(void) {
             else CHECK(memcmp(first,fb,sizeof fb),"each design keeps its own colours in every theme");
         }
     }
-    printf("jellyfish: shop, save/reload, offspring, %d swim pulses / %d resting, three theme renderers PASS\n",pulses,slow);
+    printf("jellyfish: shop, save/reload, offspring, %d swim pulses / %d resting, %d theme renderer(s) PASS\n",pulses,slow,THEME_COUNT);
     return 0;
 }
 static int flourish_checks(void) {
@@ -245,16 +226,10 @@ int selftest_themes(const char *prefix) {
     render_set_dirty_mask(dirty); render_set_card_cache(card);
     render_tank(&t,fb,TANK_W); memcpy(first,fb,sizeof fb);
     for (int id=0;id<THEME_COUNT;id++) {
-        settings_open_themes(&t); CHECK(safe_page(),"theme picker is inside safe area");
-        /* Sliding from one option to another must not silently select it. */
-        render_settings_touch(&t,x+w/2,y+90,true,&v);
-        CHECK(render_settings_touch(&t,x+w/2,y+152,false,&v)==SET_TAP_NONE,"drag does not select another theme");
-        { int ax,ay,aw,ah; render_theme_tile_rect(id,&ax,&ay,&aw,&ah); CHECK(tap(&t,ax+aw/2,ay+ah/2,&v)==SET_TAP_THEME,"theme option touch routes"); }
-        CHECK(t.theme==id && v==id,"chosen theme applied");
-        CHECK(t.n_fish==count && t.fish[0].color==body && t.fish[0].trust==6.25f && t.sd_balance==173 && !strcmp(t.fish[0].name,"miso"),"theme selection preserves the simulation");
-        render_settings(&t,fb,TANK_W,60,1); CHECK(safe_page(),"selected picker safe"); shot(prefix,"picker",id);
-        tap(&t,x+w/2,y+h-22,&v);
-        render_settings(&t,fb,TANK_W,60,1); shot(prefix,"settings",id);
+        t.theme=id; settings_open(&t); shot(prefix,"settings",id);
+        /* the title is a title: it opened the theme picker while there were themes to pick */
+        CHECK(tap(&t,PAGE_X+PAGE_W/2,PAGE_Y+SET_TITLE_Y+12,&v)==SET_TAP_NONE,"the SETTINGS title is no button");
+        CHECK(t.n_fish==count && t.fish[0].color==body && t.fish[0].trust==6.25f && t.sd_balance==173 && !strcmp(t.fish[0].name,"miso"),"the settings page preserves the simulation");
         /* one layout for every theme (2026-10-10): the Original's rows and foot, in the theme's colours.
            BRIGHTNESS between arrows, VOLUME segments, LIGHTS OUT, AUTO FEED, then ABOUT, RESET, CLOSE */
         {
@@ -281,40 +256,35 @@ int selftest_themes(const char *prefix) {
         CHECK(loaded.theme==id && loaded.n_fish==count && !strcmp(loaded.fish[0].name,"miso") && loaded.sd_balance==173,"theme/name/population/balance survive reload");
         unsigned before; const uint16_t *baked=render_scene_buf(&before); if(baked){memcpy(fb,baked,sizeof fb);render_fb_primed(fb,before);}
         render_tank(&t,fb,TANK_W); shot(prefix,"tank",id);
-        if (id) CHECK(memcmp(first,fb,sizeof fb)!=0,"theme changes native tank pixels");
-        t.night=true; render_tank(&t,fb,TANK_W); render_tank(&t,fb,TANK_W); shot(prefix,"night",id); t.night=false; render_tank(&t,fb,TANK_W);   /* lights out (2026-10-10: the Blackwater moon) */
+        t.night=true; render_tank(&t,fb,TANK_W); render_tank(&t,fb,TANK_W); shot(prefix,"night",id); t.night=false; render_tank(&t,fb,TANK_W);   /* lights out */
         render_stats_card(&t,0,fb,TANK_W); shot(prefix,"card",id);
         render_milestones_leave(); render_milestones(&t,fb,TANK_W); shot(prefix,"milestones",id);
         render_shop_leave(); render_shop(&t,fb,TANK_W); shot(prefix,"shop",id);
         setup_begin_rename(&t,0); render_tank(&t,fb,TANK_W); render_setup(&t,fb,TANK_W,0); shot(prefix,"naming",id);
-        if (id) {
-            CHECK(setup_hit(x+30,y+h-22)==SETUP_HIT_BACK,"safe wheel cancel hit");
-            CHECK(setup_hit(x+w-30,y+h-22)==SETUP_HIT_NEXT,"safe wheel done hit");
-            int sx=PAGE_X+SETUP_SLOT_X+15,sy=y+137+10;
-            CHECK(setup_hit(sx,sy)==SETUP_HIT_SLOT0,"native wheel slot hit");
-            setup_touch(&t,sx,sy,true); setup_touch(&t,sx,sy-31,true); setup_touch(&t,sx,sy-31,false);
-        } else { setup_activate(&t,SETUP_HIT_SLOT0); setup_activate(&t,SETUP_HIT_UP); }
+        setup_activate(&t,SETUP_HIT_SLOT0); setup_activate(&t,SETUP_HIT_UP);
         CHECK(t.fish[0].name[0]=='n',"original character wheel still spins");
         setup_activate(&t,SETUP_HIT_BACK);
         CHECK(!strcmp(t.fish[0].name,"miso"),"cancel restores original name");
-        /* Every preview icon is a flash-backed replacement with the same dimensions. */
+        /* a theme's icon has the Original's extent; the Original's is the Original */
         const icon_t *a=theme_icon(&icon_shop_shark);
         CHECK(a->w==icon_shop_shark.w && a->h==icon_shop_shark.h,"icon extent unchanged");
-        CHECK((a==&icon_shop_shark)==(id==0),"Original assets preserved; modern assets used");
+        CHECK(id || a==&icon_shop_shark,"Original assets preserved");
     }
-    /* Return to Original with all caches live: no tinted leftovers or stale priming. */
-    t.theme=0; render_use_theme(0); render_tank(&t,fb,TANK_W); memcpy(first,fb,sizeof fb);
-    t.theme=2; render_tank(&t,fb,TANK_W);
-    t.theme=0; render_tank(&t,fb,TANK_W);
-    CHECK(!memcmp(first,fb,sizeof fb),"Original framebuffer restored exactly after theme switches");
-    CHECK(progression_save(&t),"save before corruption check");
-    FILE *f=fopen(save,"r+b"); CHECK(f!=NULL,"saved file exists");
-    CHECK(!fseek(f,56,SEEK_SET) && fputc(255,f)!=EOF,"write unknown theme fixture"); fclose(f);   /* save_t.theme (progression.c's SAVE LAYOUT LOCK) */
-    tank_init(&loaded,2); progression_boot(&loaded); CHECK(loaded.theme==0 && loaded.n_fish==count,"unknown IDs safely fall back to Original, the fish kept");
+    /* a save from a themed tank (Quiet Lagoon 1, Tidepool Club 2, Blackwater 3: retired 2026-10-26) or
+       with an unknown ID loads as the Original, the tank kept */
+    t.theme=0; render_use_theme(0);
+    static const int retired[]={1,2,3,255};
+    for (int i=0;i<4;i++) {
+        CHECK(progression_save(&t),"save before the retired-theme check");
+        FILE *f=fopen(save,"r+b"); CHECK(f!=NULL,"saved file exists");
+        CHECK(!fseek(f,56,SEEK_SET) && fputc(retired[i],f)!=EOF,"write a retired theme"); fclose(f);   /* save_t.theme (progression.c's SAVE LAYOUT LOCK) */
+        tank_init(&loaded,2); progression_boot(&loaded);
+        CHECK(loaded.theme==THEME_ORIGINAL && loaded.n_fish==count && loaded.sd_balance==173,"a retired or unknown theme loads as the Original, the fish kept");
+    }
     CHECK(!flourish_checks(),"occasional creature behaviours");
     CHECK(!art_sheets(&t,prefix),"native art regression sheets");
     CHECK(!jellyfish_checks(),"jellyfish integration");
     unlink(save);
-    printf("selftest-themes: PASS (%dx%d): %d themes, safe touch pages, persistence, legacy saves, wheel, native assets, cache invalidation, exact Original restoration\n",TANK_W,TANK_H,THEME_COUNT);
+    printf("selftest-themes: PASS (%dx%d): %d theme(s), safe touch pages, persistence, retired themes load as the Original, wheel, native assets\n",TANK_W,TANK_H,THEME_COUNT);
     return 0;
 }

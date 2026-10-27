@@ -510,6 +510,9 @@ staghorn coral and an anemone on basalt (all three redrawn that night to read
 at a glance against the dark water). (A moving caustic light lived in it for a few hours that night and was
 taken out again.) docs/THEMES.md has the details.
 
+*For now (since 2026-10-26) only the Original is built, while new features
+are made; the other three themes will come back.*
+
 **One settings page.** Since 2026-10-10 every theme uses the same settings
 layout - the rows of segments and arrows, the foot of UPDATES / ABOUT / RESET /
 CLOSE - drawn in the theme's own colours and font; only the theme picker (from
@@ -894,7 +897,7 @@ seven-minute prompt check before an overnight run is always worth it.
 - ✅ Sand dollars: care earns points, the shop spends them; a sword plant,
   an algae-grazing snail, a swim-through castle, a sunken wreck (a different boat in each theme), a drifting frogman and a cruising submarine with a periscope; twelve species besides the fish, the swordfish (2026-10-10 night) and the sea turtle (2026-10-11; it naps on the sand and surfaces for a breath) the latest; what you buy you place yourself,
   (four themes: Original, Quiet Lagoon, Tidepool Club and the realistic
-  Blackwater)
+  Blackwater; for now only the Original is built)
   where along the floor and whether it stands behind, among or in front
   of the fish
 - ✅ Browser installer: one click from Chrome or Edge, from the hosted

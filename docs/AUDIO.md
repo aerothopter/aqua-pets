@@ -244,7 +244,9 @@ void audio_port_sleep(void);                          // amp low, codec down, AL
   kalimba at 96 BPM (30 s), Quiet Lagoon a slow Lydian lullaby on a muffled
   marimba at 72 (40 s), Tidepool Club a perky steel-pan tune at 120 (24 s),
   Blackwater sparse D-minor bells over a fuller pad at 60 (48 s). The tune is
-  chosen from the active theme when the jingle starts from silence. Starts when
+  chosen from the active theme when the jingle starts from silence. (One
+  theme for now, 2026-10-26: `J_SONGS` holds the Original's alone; the
+  others are at git tag multi-board-multi-theme.) Starts when
   the settings page's ABOUT page opens (`SET_TAP_ABOUT`, value 1) and stops
   when it closes (value 0).
 - **Sim parity:** `sim/` gets the same `audio_port.h` on SDL2 audio

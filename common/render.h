@@ -296,18 +296,15 @@ enum { SET_TAP_NONE = 0, SET_TAP_CLOSE = 1, SET_TAP_BRIGHT = 2, SET_TAP_VOLUME =
        SET_TAP_SCREEN = 7,      /* a worn tank's SCREEN row (2026-10-02): *value 1 = TURNED, already applied and marked
                                    for the save - the platform only logs it (the picture turns on the next frame) */
        SET_TAP_FEED = 8,        /* AUTO FEED (0.3.2): *value 1 = ON; applied and marked for the save */
-       SET_TAP_ROTATE = 9, SET_TAP_THEME = 10,      /* ROTATION (0.3.2): *value 1 = locked; applied and marked for the save */
+       SET_TAP_ROTATE = 9,      /* ROTATION (0.3.2): *value 1 = locked; applied and marked for the save */
+                                /* (10: the theme picker's, while there were themes to pick; 2026-10-26) */
        SET_TAP_ABOUT = 11,      /* the ABOUT page (2026-10-10) opened (*value 1) or left (0): the platform starts / stops
                                    its jingle (audio_jingle / audio_port_jingle); the page itself is render_settings' */
        SET_TAP_RESET = 12 };    /* RESET (2026-10-10): the platform leaves the page and opens the reset confirm prompt
                                    (render_confirm_reset: NO / YES, a timeout) - nothing is wiped here */
 void render_settings_leave(void);
-/* tests (2026-10-10): true = a themed castle IN FRONT is repainted per dirty rect, the way it was
- * before it was baked with a mask; the theme selftest proves both paths give the same pixels */
-void render_debug_castle_live(bool on);
 /* Native-frame geometry shared with the settings hit tests and simulator. */
 void render_settings_bounds(int *x, int *y, int *w, int *h);
-void render_theme_tile_rect(int i, int *x, int *y, int *w, int *h);   /* the picker's tile i (2026-10-10) */
 void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, int volume);
 int  render_settings_tap(float x, float y, int *value);
 int  render_settings_touch(tank_t *t, float x, float y, bool down, int *value);

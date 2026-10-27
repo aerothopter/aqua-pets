@@ -462,7 +462,7 @@ void touch_port_poll(tank_t *t) {
     if (s_set && !s_cf && !su) {                             /* the settings page owns the glass: segments, LIGHTS OUT's arrows, CLOSE */
         int v = 0, r = render_settings_touch(t, tx, ty, touched, &v);
         if (r) ESP_LOGI(TAG, "settings: %s %d", r == SET_TAP_CLOSE ? "CLOSE" : r == SET_TAP_BRIGHT ? "brightness" : r == SET_TAP_VOLUME ? "volume"
-                                                  : r == SET_TAP_THEME ? "theme" : r == SET_TAP_LIGHT ? "lights out" : r == SET_TAP_SCREEN ? "screen (1 = turned)"
+                                                  : r == SET_TAP_LIGHT ? "lights out" : r == SET_TAP_SCREEN ? "screen (1 = turned)"
                                                   : r == SET_TAP_FEED ? "auto feed (1 = on)" : r == SET_TAP_ROTATE ? "rotation (1 = locked)" : r == SET_TAP_ABOUT ? "about (1 = up)" : r == SET_TAP_RESET ? "reset" : "idle seconds", v);
         if (r == SET_TAP_CLOSE) { s_set = false; s_menu = true; s_back = true; }   /* back to the main menu (2026-10-21); the release is spent */
         else if (r == SET_TAP_UPDATES) { s_set = false; s_upd = true; s_back = true; ESP_LOGI(TAG, "updates page up"); }

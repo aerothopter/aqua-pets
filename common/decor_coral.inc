@@ -27,23 +27,6 @@ static const coral_seg_t CORAL_SEGS[] = {
 #define CORAL_TOP_X   18.0f                                  /* the crown's root: the trunk tip's end, in cells */
 #define CORAL_TOP_Y   (41.0f * CORAL_Y_SCALE)
 static float coral_sd(float px, float py, float g, bool *tip) {
-    if(theme_active()) {
-        bool club=theme_active()==THEME_TIDEPOOL_CLUB;
-        float scale=.2f+.8f*fminf(fmaxf(g,0),1), best=1e9f;
-        px=16+(px-16)/scale;py/=scale;*tip=false;
-        for(int i=0;i<7;i++) {
-            float ex=i==0?18:16+(i%2?1:-1)*(6+(i/2)*3);
-            float ey=i==0?CORAL_TOP_Y:32-(i/2)*6;
-            float sx=16,sy=i==0?0:5+(i/2)*4;
-            float dx=ex-sx,dy=ey-sy,u=fminf(1,fmaxf(0,((px-sx)*dx+(py-sy)*dy)/(dx*dx+dy*dy)));
-            float bend=club?0:1.8f*sinf(u*3.14159f)*(i%2?1:-1);
-            float ax=px-sx-dx*u-bend,ay=py-sy-dy*u;
-            float r=club?2.2f+u*.6f:1.05f+(1-u)*.5f;
-            float d=sqrtf(ax*ax+ay*ay)-r;if(d<best)best=d;
-            if((px-ex)*(px-ex)+(py-ey)*(py-ey)<(r+1)*(r+1))*tip=true;
-        }
-        return best*scale;
-    }
     float best = 1e9f; *tip = false;
     if (g > 1) g = 1;
     float thin = 0.72f + 0.28f * g;                          /* a young coral is slimmer all over */
@@ -100,7 +83,7 @@ static void coral_build(float g) {
                 else if (edge) t = (out_r || out_d) ? CO_RIM : CO_LIT;
                 else {
                     uint32_t h = chash(i, j) % 100;
-                    t = theme_active()==THEME_TIDEPOOL_CLUB ? CO_BODY : h < 22 ? CO_SHADE : h < 28 ? CO_LIT : CO_BODY;
+                    t = h < 22 ? CO_SHADE : h < 28 ? CO_LIT : CO_BODY;
                 }
             }
             ds()->co_sprite[j][i] = t;
@@ -113,8 +96,6 @@ int render_coral_cells(float growth) {                       /* the selftest: ho
 }
 static void coral_tint_fill(uint32_t rgb, float dim) {
     if (g_coral_rgb == rgb && g_coral_dim == dim) return;
-    uint32_t saved_rgb=rgb;
-    if(theme_active())rgb=mix(rgb,theme_active()==THEME_TIDEPOOL_CLUB?0xefad91:0xbd8c65,theme_active()==THEME_QUIET_LAGOON?.65f:.4f);
     uint32_t tone[CO_N];
     tone[CO_NONE]  = 0;
     tone[CO_RIM]   = mix(rgb, 0x30060e, 0.58f);
@@ -127,7 +108,7 @@ static void coral_tint_fill(uint32_t rgb, float dim) {
         uint32_t w = water_rgb(y < 0 ? 0 : y >= TANK_H ? TANK_H - 1 : y);
         for (int k = 1; k < CO_N; k++) ds()->co_row[k][r] = rgb565(mix(w, tone[k], k == CO_TIP ? 0.94f : 0.90f), dim);   /* a light haze: the art's colour stays saturated */
     }
-    g_coral_rgb = saved_rgb; g_coral_dim = dim;
+    g_coral_rgb = rgb; g_coral_dim = dim;
 }
 /* the crown (2026-09-23, Strato: "after it's fully grown it should sprout a
  * ring of delicate tentacles out of the top"): CORAL_TENT one-pixel
@@ -201,10 +182,6 @@ static void draw_floor_mound(ctx_t *c, int cx, int half_w, int rise, bool final)
             float up = (float)(fl - y) / rise;                           /* 0 at the floor line, 1 at the crest */
             if (up > 0) col = mix(col, 0x56684f, 0.25f + 0.40f * up);   /* the hump rises into the light; its skirt is the floor */
             if (up > 0.15f && (chash(x, y) & 15) == 0) col = 0x6e7f66;   /* a few lit grains */
-            if(theme_active()==THEME_QUIET_LAGOON) {
-                col=mix(0x798471,0x9d9d88,clamp01(up)*.55f);
-                if((h2%37)==0)col=mix(col,0xb4b298,.2f);
-            }
             uint16_t *p = &CTX_PX(c, x, y);
             *p = rgb565(col, c->dim);
             rec_px(x, y);

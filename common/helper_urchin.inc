@@ -83,18 +83,6 @@ static int urchin_tone(float lx, float ly, const ur_pose_t *p) {
 }
 static void draw_urchin(ctx_t *c, const tank_t *t) {
     if (!(t->sd_unlocks & SD_ITEM_URCHIN) || t->urchin.x < 0) return;
-    if(theme_active() && theme_active()!=THEME_BLACKWATER) {   /* Blackwater keeps the Original's fine-spined urchin */
-        bool club=theme_active()==THEME_TIDEPOOL_CLUB;
-        float cx=t->urchin.x,cy=URCHIN_FLOOR_Y;
-        uint32_t body=club?0xcf9e95:0x849f96,tip=club?0xffdf9a:0xd5dfbd;
-        for(int i=0;i<11;i++) {
-            float a=3.14159f+i*3.14159f/10,rr=11+1.2f*sinf(t->clock*2+i);
-            for(int j=7;j<=(int)rr;j++)fill_ellipse(c,cx+cosf(a)*j,cy+sinf(a)*j,club?1.6f:.8f,club?1.6f:.8f,j+1>rr?tip:body,255);
-        }
-        fill_ellipse(c,cx,cy,10,7,body,255);
-        for(int i=0;i<5;i++)fill_ellipse(c,cx-6+i*3,cy-2+(i%2)*3,club?1.3f:.65f,club?1.3f:.65f,tip,240);
-        return;
-    }
     ur_pose_t p; urchin_pose(&p, t->clock, tank_urchin_chewing(t));
     int cx = (int)floorf(t->urchin.x + 0.5f), cy = (int)URCHIN_FLOOR_Y;
     for (int ly = -16; ly <= (int)UR_BASE; ly++) {

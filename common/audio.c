@@ -213,11 +213,9 @@ static float    s_jlp;                             /* the low-pass's state */
 static uint32_t s_jlfo;
 /* a tune per theme (2026-10-10 night, Alvin: "different creature, movement and music for each of
    the theme"): the same four voices, each theme its own tempo (the 16th's samples - an integer,
-   so the loop still wraps on a sample), chords, arpeggio figure, melody, chirps and timbre:
-   Original the kalimba at 96 BPM (30 s); Quiet Lagoon a slow lullaby over Lydian chords at 72
-   (40 s), a muffled marimba, a deep wobble; Tidepool Club a perky steel-pan tune at 120 (24 s),
-   bright, chirps everywhere; Blackwater a sparse minor-key bell piece at 60 (48 s), the pad up,
-   the low-pass down - deep water. */
+   so the loop still wraps on a sample), chords, arpeggio figure, melody, chirps and timbre - a row
+   of J_SONGS. One theme for now (2026-10-26): the Original's kalimba at 96 BPM (30 s). The other
+   themes' tunes are at git tag multi-board-multi-theme. */
 typedef struct { uint8_t step; int8_t note; uint8_t len; } jnote_t;
 typedef struct {
     uint16_t step;                 /* samples per 16th */
@@ -249,48 +247,9 @@ static const jnote_t J_MELODY[] = {
     { 160,  9, 8 }, { 168, 12, 4 }, { 172, 11, 4 },                     /* A5  C6  B5 */
     { 176, 14, 10 }, { 188, 11, 3 } };                                  /* D6 ... B5, into the E6 at the wrap */
 static const uint8_t J_CHIRP_STEPS[] = { 5, 23, 38, 55, 71, 87, 101, 118, 133, 150, 166, 183 };
-/* Quiet Lagoon: F Lydian, long pentatonic phrases */
-static const int8_t JL_CHORD[12][4] = {
-    { 5, 9, 12, 16 }, { 0, 4, 7, 11 }, { 2, 5, 9, 12 }, { -5, -1, 2, 7 },
-    { 5, 9, 12, 16 }, { 9, 12, 16, 19 }, { 2, 5, 9, 12 }, { -5, -1, 2, 7 },
-    { 5, 9, 12, 16 }, { 0, 4, 7, 11 }, { -3, 0, 4, 7 }, { -5, 0, 2, 7 } };
-static const int8_t JL_ARP[8] = { 0, 2, 1, 3, 2, 0, 1, 2 };
-static const jnote_t JL_MELODY[] = {
-    { 0, 12, 12 }, { 12, 9, 4 }, { 16, 14, 16 }, { 32, 12, 8 }, { 40, 9, 8 }, { 48, 7, 16 },
-    { 64, 12, 12 }, { 76, 14, 4 }, { 80, 16, 12 }, { 92, 14, 4 }, { 96, 12, 16 }, { 112, 9, 16 },
-    { 128, 14, 12 }, { 140, 16, 4 }, { 144, 19, 12 }, { 156, 17, 4 }, { 160, 14, 16 }, { 176, 12, 12 }, { 188, 9, 4 } };
-static const uint8_t JL_CHIRP[] = { 10, 42, 74, 106, 138, 170 };
-/* Tidepool Club: C major, a bouncing figure, a perky tune */
-static const int8_t JC_CHORD[12][4] = {
-    { 0, 4, 7, 12 }, { 5, 9, 12, 17 }, { -5, -1, 2, 7 }, { 0, 4, 7, 12 },
-    { 9, 12, 16, 21 }, { 5, 9, 12, 17 }, { -5, -1, 2, 7 }, { 0, 4, 7, 12 },
-    { 0, 4, 7, 12 }, { 5, 9, 12, 17 }, { -5, -1, 2, 7 }, { -5, 0, 2, 7 } };
-static const int8_t JC_ARP[8] = { 0, 2, 1, 3, 0, 2, 1, 3 };
-static const jnote_t JC_MELODY[] = {
-    { 0, 12, 2 }, { 2, 12, 2 }, { 4, 16, 4 }, { 8, 19, 4 }, { 12, 16, 4 }, { 16, 17, 4 }, { 20, 16, 2 }, { 22, 14, 2 }, { 24, 12, 8 },
-    { 32, 14, 4 }, { 36, 14, 2 }, { 38, 16, 2 }, { 40, 19, 8 }, { 48, 21, 4 }, { 52, 19, 4 }, { 56, 16, 8 },
-    { 64, 12, 2 }, { 66, 12, 2 }, { 68, 16, 4 }, { 72, 19, 4 }, { 76, 24, 4 }, { 80, 21, 4 }, { 84, 19, 2 }, { 86, 17, 2 }, { 88, 16, 8 },
-    { 96, 14, 4 }, { 100, 16, 4 }, { 104, 17, 4 }, { 108, 16, 2 }, { 110, 14, 2 }, { 112, 12, 12 },
-    { 128, 19, 4 }, { 132, 19, 2 }, { 134, 21, 2 }, { 136, 24, 8 }, { 144, 21, 4 }, { 148, 19, 4 }, { 152, 17, 8 },
-    { 160, 16, 4 }, { 164, 14, 4 }, { 168, 12, 4 }, { 172, 14, 4 }, { 176, 16, 8 }, { 184, 14, 4 }, { 188, 11, 4 } };
-static const uint8_t JC_CHIRP[] = { 3, 11, 19, 27, 35, 43, 51, 59, 67, 75, 83, 91, 99, 107, 115, 123, 131, 139, 147, 155, 163, 171, 179, 187 };
-/* Blackwater: D minor, a bell every other 8th, long low notes */
-static const int8_t JB_CHORD[12][4] = {
-    { 2, 5, 9, 14 }, { -2, 2, 5, 10 }, { -7, -3, 0, 5 }, { -5, -1, 2, 7 },
-    { 2, 5, 9, 14 }, { -3, 0, 4, 9 }, { -2, 2, 5, 10 }, { -5, -1, 2, 7 },
-    { 2, 5, 9, 14 }, { -7, -3, 0, 5 }, { -3, 0, 4, 9 }, { -5, 0, 2, 9 } };
-static const int8_t JB_ARP[8] = { 0, -1, 2, -1, 1, -1, 3, -1 };
-static const jnote_t JB_MELODY[] = {
-    { 0, 14, 16 }, { 16, 12, 8 }, { 24, 10, 8 }, { 32, 9, 16 }, { 48, 5, 16 },
-    { 64, 14, 12 }, { 76, 17, 4 }, { 80, 16, 16 }, { 96, 12, 16 }, { 112, 9, 16 },
-    { 128, 17, 12 }, { 140, 14, 4 }, { 144, 12, 16 }, { 160, 10, 12 }, { 172, 9, 4 }, { 176, 5, 12 }, { 188, 9, 4 } };
-static const uint8_t JB_CHIRP[] = { 9, 41, 73, 105, 137, 169 };
 #define J_N(a) ((int)(sizeof (a) / sizeof (a)[0]))
 static const jsong_t J_SONGS[THEME_COUNT] = {
-    { 2500, J_CHORD,  J_ARP,  J_MELODY,  J_N(J_MELODY),  J_CHIRP_STEPS, J_N(J_CHIRP_STEPS), 900, 0.35f, 0.10f, 0.99975f, 0.22f, 0.085f, 0.004f, 0.12f, 0.55f },
-    { 3333, JL_CHORD, JL_ARP, JL_MELODY, J_N(JL_MELODY), JL_CHIRP,      J_N(JL_CHIRP),      800, 0.20f, 0.04f, 0.99988f, 0.18f, 0.110f, 0.006f, 0.18f, 0.35f },
-    { 2000, JC_CHORD, JC_ARP, JC_MELODY, J_N(JC_MELODY), JC_CHIRP,      J_N(JC_CHIRP),     1100, 0.55f, 0.06f, 0.99960f, 0.24f, 0.060f, 0.003f, 0.06f, 0.75f },
-    { 4000, JB_CHORD, JB_ARP, JB_MELODY, J_N(JB_MELODY), JB_CHIRP,      J_N(JB_CHIRP),      700, 0.05f, 0.40f, 0.99992f, 0.20f, 0.140f, 0.005f, 0.20f, 0.30f } };
+    { 2500, J_CHORD,  J_ARP,  J_MELODY,  J_N(J_MELODY),  J_CHIRP_STEPS, J_N(J_CHIRP_STEPS), 900, 0.35f, 0.10f, 0.99975f, 0.22f, 0.085f, 0.004f, 0.12f, 0.55f } };
 static const jsong_t *s_song = &J_SONGS[0];
 #define J_STEP      ((uint32_t)s_song->step)
 static float j_hz(int semis) { return 523.2511f * powf(2.0f, semis / 12.0f); }    /* from C5 */

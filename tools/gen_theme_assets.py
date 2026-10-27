@@ -5,6 +5,11 @@ Requires Pillow and system librsvg-2/libcairo (no network at generation/runtime)
 Run: python3 tools/gen_theme_assets.py [--check]
 --check regenerates into memory and verifies every tracked output.
 Existing Original icons remain untouched. UI replacements have identical extents.
+
+One theme for now (2026-10-26): common/theme_assets.c is out of the tree and
+the build, with the themes (git tag multi-board-multi-theme); don't run this
+until they come back. Its raster() and array() stay in use: the jellyfish,
+wreck, frogman and sub generators import them.
 """
 from pathlib import Path
 import argparse
