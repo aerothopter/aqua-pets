@@ -18,11 +18,3 @@ idf_component_register(
 # between, on older decisions.
 target_compile_options(${COMPONENT_LIB} PRIVATE -O2 -ffast-math -DPOP_CAP=25)
 target_compile_definitions(${COMPONENT_LIB} PUBLIC POP_CAP=25)
-# the world's shape is compiled in (common/tank.h): the bowl for the round board.
-# PUBLIC: every component that sees tank.h must see the same world.
-if(CONFIG_AQUA_PETS_ROUND)
-    target_compile_definitions(${COMPONENT_LIB} PUBLIC TANK_ROUND)
-endif()
-if(CONFIG_AQUA_PETS_WATCH)   # the watch's 410 x 502 portrait tank
-    target_compile_definitions(${COMPONENT_LIB} PUBLIC TANK_WATCH)
-endif()

@@ -44,9 +44,8 @@ void display_port_deep_sleep_bus(void);   /* the round board: the QSPI clock + d
 void display_port_deep_standby(void);   /* the CO5300's 4Fh deep standby (~3 uA vs sleep-in's ~135); only a reset ends it */
 bool board_has_expander(void);                  /* the 1.8, positively: its IO expander answered */
 /* the WATCH (Waveshare 2.06, 410 x 502 portrait), with GPIO resets like the
- * round board's. Its own build (TANK_WATCH) is a portrait tank that IS the
- * panel, sent unturned; the rectangle image still runs on it the 1.8's way -
- * its 448 x 368 frame turned 90 degrees, centred in the glass. */
+ * round board's. The image runs on it the 1.8's way - its 448 x 368 frame
+ * turned 90 degrees, centred in the glass. */
 bool board_is_watch(void);
 int  board_pwr_sense_pin(void);                 /* the GPIO that is high while the PWR key is down (the 1.75C: 3, the watch: 10), -1 = none */
 /* a portrait panel bigger than the frame (the rectangle image on the watch):

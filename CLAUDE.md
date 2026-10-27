@@ -12,15 +12,13 @@ All simulator work runs from `sim/`. One-time setup: `git clone --depth 1 --bran
 - **macOS:** the Makefile builds x86_64 by default. Use `make ARCH=` for a native build.
 
 ```bash
-make                 # ./fishsim (the 1.8" rectangle, the reference board)
-make ROUND=1         # ./fishsim-round (1.75C pendant, 466px circle), objects in build-round/
-make WATCH=1         # ./fishsim-watch (2.06 watch, 410x502 portrait), objects in build-watch/
-make check           # every selftest, rectangle only
-make check-all       # every selftest on all three boards (required gate for any change to common/)
+make                 # ./fishsim (the 1.8" rectangle, the one board for now)
+make check           # every selftest
+make check-all       # every selftest on every board (one for now; the required gate for any change to common/)
 make NOMODEL=1 check-all   # skip --selftest-llm when model/out/model_q4.bin is absent
 ```
 
-**Run a single test:** run one selftest flag on the built binary, e.g. `./fishsim --selftest-shop` or `./fishsim-round --selftest-pop`. The full list is `SELFTESTS` in [sim/Makefile](sim/Makefile): `--selftest-themes`, `--selftest`, `--selftest-hunger`, `--selftest-shop`, `--selftest-battery`, `--selftest-pop`, `--selftest-card`, `--selftest-menu`, `--selftest-sleep`, `--selftest-tend`, `--selftest-llm`, `--selftest-saves`, `--selftest-update`, `--selftest-species`, `--selftest-encoder`, `--selftest-decor`, `--selftest-helpers`, `--selftest-creatures`.
+**Run a single test:** run one selftest flag on the built binary, e.g. `./fishsim --selftest-shop`. The full list is `SELFTESTS` in [sim/Makefile](sim/Makefile): `--selftest-themes`, `--selftest`, `--selftest-hunger`, `--selftest-shop`, `--selftest-battery`, `--selftest-pop`, `--selftest-card`, `--selftest-menu`, `--selftest-sleep`, `--selftest-tend`, `--selftest-llm`, `--selftest-saves`, `--selftest-update`, `--selftest-species`, `--selftest-encoder`, `--selftest-decor`, `--selftest-helpers`, `--selftest-creatures`.
 
 `--golden-decor [prefix]` (not a selftest) prints a hash per frame for a fixed tank with every decor piece and helper, every depth mix, each helper's poses and cards, all themes, cache on and off, plus a save. Run it on two builds to prove a refactor changed no pixel. `--golden-creatures [prefix]` does the same for the creatures: every kind (the classic fish too) in every design, stage, pose and theme, the pages' previews, then a run of all thirteen kinds with a hash of what the model hears, a night asleep and a save.
 
@@ -31,7 +29,7 @@ Other checks that CI runs ([.github/workflows/checks.yml](.github/workflows/chec
 - Batched vs sequential inference: `firmware/host_test/q4_host.c` against `model/out/model_q4.bin`
 - `python3 -m compileall -q tools model`
 
-Firmware (ESP-IDF v5.4): `cd firmware && idf.py build` builds the 1.8. For the other boards, use `-B build-round ... sdkconfig.round` or `-B build-watch ... sdkconfig.watch` (full commands are in the README). `firmware/run_qemu.sh` boots the app in QEMU. The first build needs a signing key from `tools/ota_key.sh`, written to `firmware/keys/`, which is never committed.
+Firmware (ESP-IDF v5.4): `cd firmware && idf.py build` builds the 1.8. `firmware/run_qemu.sh` boots the app in QEMU. The first build needs a signing key from `tools/ota_key.sh`, written to `firmware/keys/`, which is never committed.
 
 ## Architecture
 
@@ -57,11 +55,12 @@ Platform-specific code is limited to the **ports**: `sim/*_port_sim.c` and `firm
 ## Rules for changes (from docs/BOARDS.md; read it before a feature)
 
 - **Write a feature once, in `common/`.** Pages return what was tapped (`MS_TAP_*`, `SHOP_TAP_*`, ...). The routing is duplicated in `sim/main.c` and in the firmware's `touch_port_ft3168.c` + `main.c`, so keep it to one or two calls. Sounds go through `tank_emit`, not the platform.
-- **A board is a device header.** `common/device.h` picks one of `common/devices/{amoled18,round175c,watch206}.h` (the frame, the glass's shape, the floor, the film grid, the grass beds, `PT_BOARD`, the flag `DEVICE_WORN`), and that header names its layout header, `devices/<board>_layout.h` (`DEVICE_LAYOUT`): every page number that differs between boards. render.h and update.h hold the shared ones. **Board `#ifdef`s (`TANK_ROUND`, `TANK_WATCH`) belong only in** `device.h`'s selector and the ports. Every glass shape's code is in `glass.c` (by `DEVICE_GLASS`). Feature code asks the header's names and flags (`GLASS_CURVED` where it only needs to know the glass curves). If feature logic needs a board name, it was written against a pixel instead of a name.
+- **One board for now (since 2026-10-26).** The round 1.75C and the 2.06 watch were taken out while features are built; everything they needed is at git tag `multi-board-multi-theme` (docs/BOARDS.md says what and how to bring one back). Keep the seams below intact: write features against the device's names, never against the 1.8's pixels.
+- **A board is a device header.** `common/device.h` picks one of `common/devices/<board>.h` (only `amoled18.h` for now) (the frame, the glass's shape, the floor, the film grid, the grass beds, `PT_BOARD`, the flag `DEVICE_WORN`), and that header names its layout header, `devices/<board>_layout.h` (`DEVICE_LAYOUT`): every page number that differs between boards. render.h and update.h hold the shared ones. **Board `#ifdef`s (`TANK_ROUND`, `TANK_WATCH`) belong only in** `device.h`'s selector and the ports. Every glass shape's code is in `glass.c` (by `DEVICE_GLASS`). Feature code asks the header's names and flags (`GLASS_CURVED` where it only needs to know the glass curves). If feature logic needs a board name, it was written against a pixel instead of a name.
 - **There are two coordinate spaces.** Fish live in TANK coordinates (`TANK_W`/`TANK_H`/`TANK_BOT`/`TANK_FX0`/`TANK_FX1`). Pages draw in a 448×368 PAGE space centered at `PAGE_X`/`PAGE_Y`. Anything crossing between them must subtract `PAGE_X`/`PAGE_Y`. New page elements go inside PAGE x 56..392, y 60..300, the area every board shows whole.
 - **Tests ask the layout where things are** (`render_milestones_card`, the `MSP_*`/`SHP_*`/`SET_*`/`UPD_*` constants). A literal pixel in a test only tests one board.
 - **The save layout is locked** (`SAVE LAYOUT LOCK` in [common/progression.c](common/progression.c)). The save is layout 3 ("PTK3", since 2026-10-21). New fields only go at the end of `save_t`, and the `_Static_assert` offsets must hold. Decor and helpers are records keyed by kind, so a new kind needs no new field. Every layout 3 save must still load. PTK2 saves (before 2026-10-21) start a fresh tank: the keeper chose that break for the decor refactor. `sim/testdata/saves/` holds both kinds for `--selftest-saves`.
-- **A change is not done until all three boards pass:** `make check-all`, the side-by-side picture (`tools/board_sheet.py --selftest-card`), and firmware builds for each board (`tools/flash.sh`, `flash_round.sh --build-only`, `flash_watch.sh --build-only`). Watch `.bss`: internal RAM has only ~23 KB headroom.
+- **A change is not done until every board passes** (one for now): `make check-all`, the picture (`tools/board_sheet.py --selftest-card`), and the firmware build (`tools/flash.sh`). Watch `.bss`: internal RAM has only ~23 KB headroom.
 
 ## Generated files: do not hand-edit
 
@@ -75,7 +74,7 @@ Platform-specific code is limited to the **ports**: `sim/*_port_sim.c` and `firm
 
 ## Device safety (docs/DEVICE.md)
 
-- Flash a real board **only** through `tools/flash.sh` (`--model` to include the model partition; `flash_round.sh`/`flash_watch.sh` for the other boards). It runs `tools/preflight.py`, which archives the battery log and state to `docs/batlog/<date_time>.txt`. Commit that archive with the flash.
+- Flash a real board **only** through `tools/flash.sh` (`--model` to include the model partition). It runs `tools/preflight.py`, which archives the battery log and state to `docs/batlog/<date_time>.txt`. Commit that archive with the flash.
 - Never run raw `esptool`/`idf.py flash` or reset a connected tank without the preflight. Check the "In flight on the device" table in DEVICE.md first.
 
 ## Repo notes

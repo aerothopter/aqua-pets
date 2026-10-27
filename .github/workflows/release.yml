@@ -3,7 +3,9 @@
 # board's OTA manifest, and attach the images and the manifests to the GitHub
 # Release for that tag. A tank fetches its own board's
 #   https://aquapets.com/install/latest-<board>.json
-# (amoled18, round175c, watch206: PT_BOARD in common/devices/<board>.h)
+# (amoled18: PT_BOARD in common/devices/<board>.h; one board for now,
+# 2026-10-26 - the round175c and watch206 builds are at git tag
+# multi-board-multi-theme)
 # so a release is live for every tank the moment it is published - and a
 # PRE-RELEASE is skipped by "latest": the private test channel (the
 # director's `ota url` points a tank at a pre-release's own asset URL).
@@ -45,31 +47,15 @@ jobs:
           esp_idf_version: v5.4.1
           target: esp32s3
           path: firmware
-      # the other boards (docs/BOARDS.md): the same tree on top of their
-      # sdkconfig fragment, each in its own build dir
-      - name: Build (signed) - the round board (1.75C)
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: v5.4.1
-          target: esp32s3
-          path: firmware
-          command: idf.py -B build-round -DSDKCONFIG=build-round/sdkconfig "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.round" build
-      - name: Build (signed) - the watch (2.06)
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: v5.4.1
-          target: esp32s3
-          path: firmware
-          command: idf.py -B build-watch -DSDKCONFIG=build-watch/sdkconfig "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.watch" build
       - name: OTA image + manifest
         run: |
           TAG="${GITHUB_REF_NAME}"
-          for B in firmware/build firmware/build-round firmware/build-watch; do   # the board comes from each image's marker
+          for B in firmware/build; do   # the board comes from each image's marker
             python3 tools/make_ota_manifest.py --build-dir "$B" \
               --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}" --out ota
           done
           ls -la ota
-          test "$(ls ota/latest-*.json | wc -l)" -eq 3 || { echo "expected three board manifests"; exit 1; }
+          test "$(ls ota/latest-*.json | wc -l)" -eq 1 || { echo "expected one board manifest"; exit 1; }
           rm -f firmware/keys/ota_signing_key.pem
       - name: Attach to the release
         env:

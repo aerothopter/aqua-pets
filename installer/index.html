@@ -46,8 +46,8 @@ if(("usb" in navigator)&&(!("serial" in navigator)||android||new URLSearchParams
 </main>
 <script>
 const BOARDS={{BOARDS}};
-const LABEL={amoled18:'Rectangle · 1.8 inch',round175c:'Pendant · 1.75 inch round',watch206:'Watch · 2.06 inch'};
-const NOTE={amoled18:'448 × 368 · Waveshare AMOLED 1.8 V1 / V2',round175c:'466 × 466 · Waveshare AMOLED 1.75C',watch206:'410 × 502 · Waveshare AMOLED 2.06'};
+const LABEL={amoled18:'Rectangle · 1.8 inch'};   // one board for now (2026-10-26; the others: git tag multi-board-multi-theme)
+const NOTE={amoled18:'448 × 368 · Waveshare AMOLED 1.8 V1 / V2'};
 const main=document.querySelector('esp-web-install-button:not(.fresh)'),fresh=document.querySelector('.fresh'),list=document.querySelector('.boards'),status=document.querySelector('#connection');
 const supported=isSecureContext && ('serial' in navigator || 'usb' in navigator);   /* WebUSB alone: the polyfill above serves Android Chrome */
 if(!isSecureContext){status.classList.add('warn');status.replaceChildren(document.createTextNode('USB installation needs HTTPS. '));const a=document.createElement('a'),url=new URL(location.href);url.protocol='https:';url.port='8766';a.href=url.href;a.textContent='Open the secure installer ↗';status.append(a)}else if(!supported){status.classList.add('warn');status.textContent='Use Chrome or Edge on a computer, or Chrome on an Android phone, for USB installation.'}else status.textContent=('serial' in navigator?'Browser ready for USB installation. ':'Android: ready to install over USB (WebUSB). ')+'Select your device, then connect.';

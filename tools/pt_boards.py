@@ -9,11 +9,11 @@ the 1.8's image under the bowl's name.
 import os, sys
 
 # id (PT_BOARD, common/devices/<board>.h), the maker's name, the sdkconfig fragment on top of
-# sdkconfig.defaults (None = the 1.8, the default build)
+# sdkconfig.defaults (None = the 1.8, the default build). One board for now (2026-10-26): the
+# 1.75C (round175c, sdkconfig.round) and the 2.06 (watch206, sdkconfig.watch) are at git tag
+# multi-board-multi-theme.
 BOARDS = [
     ("amoled18",  "Waveshare ESP32-S3-Touch-AMOLED-1.8",  None),
-    ("round175c", "Waveshare ESP32-S3-Touch-AMOLED-1.75C", "sdkconfig.round"),
-    ("watch206",  "Waveshare ESP32-S3-Touch-AMOLED-2.06",  "sdkconfig.watch"),
 ]
 IDS = [b[0] for b in BOARDS]
 MAGIC = b"PTBOARD\0"

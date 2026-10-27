@@ -2,15 +2,18 @@
  *
  * A board is a compile-time world (docs/BOARDS.md): its glass, its floor,
  * its film grid, its numbers, its id. Each board's are in one header under
- * devices/, and the build picks it: TANK_ROUND (the 1.75C bowl) or
- * TANK_WATCH (the 2.06 watch), neither for the 1.8 rectangle. Those two
- * names are only the selector - the code asks the header's names:
+ * devices/, and the selector below picks it. One board for now (2026-10-26):
+ * the 1.8 rectangle. The 1.75C bowl (TANK_ROUND) and the 2.06 watch
+ * (TANK_WATCH) were taken out while features are built; their headers, the
+ * glass shapes below and their ports' builds are at git tag
+ * multi-board-multi-theme. A board's build flag is only the selector - the
+ * code asks the header's names:
  *
  *   PT_BOARD, PT_BOARD_NAME     the image's id and the maker's name (version.h)
  *   TANK_W, TANK_H              the frame
- *   DEVICE_GLASS                the glass's shape: GLASS_RECT, GLASS_BOWL (a
- *                               circle, TANK_RAD) or GLASS_CORNERS (the frame
- *                               with round corners, TANK_CORNER_R)
+ *   DEVICE_GLASS                the glass's shape: GLASS_RECT (glass.c has a
+ *                               body per shape; the bowl's GLASS_BOWL and the
+ *                               watch's GLASS_CORNERS are at the tag)
  *   TANK_BOT, TANK_FX0, TANK_FX1  the floor (tank.h)
  *   ALGAE_CELL, _COLS, _ROWS    the film grid
  *   VEG_SEG_PX                  a frond segment's height
@@ -30,15 +33,11 @@
 #define AQUA_PETS_DEVICE_H
 
 #define GLASS_RECT    0
-#define GLASS_BOWL    1
+#define GLASS_BOWL    1     /* (the shapes' ids stay: a board brought back keeps its own) */
 #define GLASS_CORNERS 2
 
-#if defined(TANK_ROUND) && defined(TANK_WATCH)
-#error "one board a build: TANK_ROUND or TANK_WATCH, not both"
-#elif defined(TANK_ROUND)
-#include "devices/round175c.h"
-#elif defined(TANK_WATCH)
-#include "devices/watch206.h"
+#if defined(TANK_ROUND) || defined(TANK_WATCH)
+#error "the round and watch boards are out for now (git tag multi-board-multi-theme)"
 #else
 #include "devices/amoled18.h"
 #endif

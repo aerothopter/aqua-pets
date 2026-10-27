@@ -87,9 +87,9 @@ static void print_roster(const tank_t *t) {
 }
 
 /* ---------- the selftests' geometry (2026-10-01) ----------
- * Three boards run these tests - the rectangle, the round bowl (TANK_ROUND),
- * the portrait watch (TANK_WATCH) - so a test never carries one board's
- * pixels: it asks the code. The pages are laid out in PAGE space (render.h)
+ * The tests are written for every board (one for now, the rectangle; the
+ * round bowl and the portrait watch are at git tag multi-board-multi-theme),
+ * so a test never carries one board's pixels: it asks the code. The pages are laid out in PAGE space (render.h)
  * and sit centered on each glass, and a tap is the frame's: PG_X / PG_Y put a
  * page point on this board's glass; the spots under them are where a finger
  * aims, from the layouts' own numbers (render.h MSP_ / SHP_ / SET_, setup.h,

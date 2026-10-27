@@ -27,12 +27,14 @@ firmware/keys/
 
 # over-the-air release output (tools/make_ota_manifest.py)
 ota/
+# the round and watch boards' sim builds (at git tag multi-board-multi-theme;
+# old ones may still be on disk)
 sim/build-round/
 sim/build-watch/
 sim/fishsim-round
 sim/fishsim-watch
-# tools/board_sheet.py: the three glasses side by side
+# tools/board_sheet.py: the glasses side by side
 sim/sheets/
 
-# this bench's boards (USB serials) for flash_round.sh / flash_watch.sh
+# this bench's boards (USB serials; flash_round.sh / flash_watch.sh, at git tag multi-board-multi-theme)
 tools/boards.local.sh

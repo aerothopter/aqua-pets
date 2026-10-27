@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""board_sheet.py - the same pictures on all three glasses, side by side.
+"""board_sheet.py - the same pictures on every board's glass, side by side.
 
 Runs one picture-writing mode of the simulator on each board's build and
-pastes the pictures of the same name into one PNG per name: the rectangle
-(the 1.8), the bowl (the 1.75C) and the watch (the 2.06), each cut to the
-shape of its glass, so what the bezel hides is hidden here too. Look at the
+pastes the pictures of the same name into one PNG per name, each cut to the
+shape of its glass, so what the bezel hides is hidden here too. One board for
+now (2026-10-26): the 1.8. The bowl (the 1.75C, fishsim-round, a circle) and
+the watch (the 2.06, fishsim-watch, corners of 100) are at git tag
+multi-board-multi-theme; a board brought back is a row in BOARDS. Look at the
 sheets before anything is flashed (docs/BOARDS.md): a page that is right on
 one board and cut, shifted or crowded on another shows at a glance.
 
@@ -14,8 +16,7 @@ one board and cut, shifted or crowded on another shows at a glance.
 
 The mode is any simulator flag that takes a path prefix as its next argument
 and writes <prefix>_<name>.ppm files; anything after it is passed on. The
-three simulators must be built (`make`, `make ROUND=1`, `make WATCH=1` in
-sim/, or `make check-all`). Sheets land in sim/sheets/ (not tracked) unless
+simulators must be built (`make` in sim/, or `make check-all`). Sheets land in sim/sheets/ (not tracked) unless
 --out says otherwise. No dependencies beyond the standard library.
 """
 import glob
@@ -28,7 +29,7 @@ import zlib
 
 SIM = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sim"))
 # the board, its simulator, the corner radius of its glass (None = a circle)
-BOARDS = [("1.8", "fishsim", 40), ("1.75C", "fishsim-round", None), ("2.06", "fishsim-watch", 100)]
+BOARDS = [("1.8", "fishsim", 40)]
 GAP, BACK, OFF = 16, (30, 30, 30), (70, 0, 70)     # between glasses; the sheet; what the bezel hides
 
 

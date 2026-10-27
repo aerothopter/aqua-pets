@@ -16,7 +16,7 @@
  * directly over I2C; its panel px go through the display port's view
  * (display_port_panel_to_tank) and everything after that is the same.
  * The WATCH (2.06, 2026-10-02) has the FT3168 of the 1.8's V1 board, its
- * reset on a GPIO. Its own build is a portrait tank: panel px = tank px. */
+ * reset on a GPIO. */
 #include "touch_port.h"
 #include "display_port.h"
 #include "update.h"
@@ -345,11 +345,7 @@ static void map_touch(uint16_t px, uint16_t py, float *tx, float *ty) {
      * 180-degree turn comes after it (cal_view). Until 2026-10-02 the turn came
      * first, and a turned picture's taps were off by the fit's asymmetry: ~15 px
      * on the watch, ~20 at the top of the bowl, ~2 on the 1.8. */
-#ifdef TANK_WATCH                                     /* the watch's portrait tank: the panel's px are the tank's */
-    int rx = fx, ry = fy;
-#else
     int rx = TANK_W - 1 - fy, ry = fx;
-#endif
     if (board_is_round()) {                           /* square panel, no turn: the display port's view of the frame, undone */
         float fx, fy; display_port_panel_to_tank(px, py, &fx, &fy);
         rx = (int)fx; ry = (int)fy;

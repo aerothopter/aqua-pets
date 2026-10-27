@@ -10,10 +10,10 @@
  * or px for px with the corners cropped (FULL); see display_port.h.
  *
  * And the WATCH (the 2.06, 2026-10-02; CO5300, 410x502 portrait), with GPIO
- * resets and its own init. Its own build (TANK_WATCH) is a PORTRAIT tank,
- * 410x502: the frame is the panel, sent row for row, nothing turned. The
- * rectangle image on a watch takes the 1.8's path - its 448x368 frame turned
- * 90 degrees, centred in the glass (a black border, drawn once). */
+ * resets and its own init. The image on a watch takes the 1.8's path - its
+ * 448x368 frame turned 90 degrees, centred in the glass (a black border,
+ * drawn once). (The round and watch boards' own builds were removed on
+ * 2026-10-26, to come back later: git tag multi-board-multi-theme.) */
 #include "display_port.h"
 #include "board_pins.h"
 #include "tank.h"
@@ -125,9 +125,6 @@ bool board_has_expander(void) { return s_expander; }
 int  display_port_view(void) { return s_view; }
 void display_port_set_view(int view) {
     s_view = view == DISPLAY_VIEW_FULL ? DISPLAY_VIEW_FULL : DISPLAY_VIEW_FIT;
-#ifdef TANK_ROUND                               /* the round build's frame IS the panel: one view, px for px */
-    s_view = DISPLAY_VIEW_FULL;
-#endif
     s_ow = s_view == DISPLAY_VIEW_FULL ? TANK_W : FIT_W; s_oh = s_view == DISPLAY_VIEW_FULL ? TANK_H : FIT_H;
     s_ox = ((R_PANEL - s_ow) / 2) & ~1; s_oy = ((R_PANEL - s_oh) / 2) & ~1;
     s_round_clear = true;
@@ -260,18 +257,6 @@ bool display_port_init(void) {
                       "power the board off and on (unplug USB; with a battery, hold PWR until it cuts, then press it)");
         return false;
     }
-#ifdef TANK_ROUND
-    if (!s_round) {
-        ESP_LOGE(TAG, "this is the ROUND build (a 466 px bowl) and the board is not the 1.75C: it has no picture here - flash the 1.8's image");
-        return false;
-    }
-#endif
-#ifdef TANK_WATCH
-    if (!s_watch) {
-        ESP_LOGE(TAG, "this is the WATCH build (a 502 x 410 tank) and the board is not the 2.06 watch: it has no picture here - flash this board's own image");
-        return false;
-    }
-#endif
     if (s_watch) {
         ESP_LOGI(TAG, "board: the WATCH, 2.06 (CO5300 410x502 / FT3168) - no expander, an ES7210 at 0x%02x, an RTC at 0x%02x", I2C_ADDR_ES7210, I2C_ADDR_RTC);
         for (size_t i = 0; i < HELD_N; i++) gpio_hold_dis(WATCH_HELD[i].pin);   /* a deep sleep's holds end here */
@@ -293,12 +278,10 @@ bool display_port_init(void) {
         s_v2 = i2c_master_probe(s_i2c, I2C_ADDR_CST816, 50) == ESP_OK;
         ESP_LOGI(TAG, "board revision: %s", s_v2 ? "V2 (CO5300/CST816)" : "V1 (SH8601/FT3168)");
     }
-#ifndef TANK_WATCH                                    /* (the watch's own build: the frame is the panel, origin 0, 0) */
     if (!s_round) {                                   /* a portrait panel: the turned frame centred on it (the whole of it, on the 1.8) */
         s_fx = ((s_pw - FRAME_PW) / 2) & ~1; s_fy = ((s_ph - FRAME_PH) / 2) & ~1;
         s_border_clear = s_fx > 0 || s_fy > 0;
     }
-#endif
 
     for (int i = 0; i < 2; i++) {
         s_stripe[i] = heap_caps_malloc(STRIPE_BYTES, MALLOC_CAP_DMA);
@@ -325,18 +308,10 @@ bool display_port_init(void) {
     ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_set_gap(s_panel, panel_x_gap(), 0));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));
-#ifdef TANK_ROUND
-    if (s_round) ESP_LOGI(TAG, "panel up: %d px round, the bowl px for px", R_PANEL);
-#else
     if (s_round) ESP_LOGI(TAG, "panel up: %d px round, the %dx%d tank frame %s", R_PANEL, TANK_W, TANK_H,
                           s_view == DISPLAY_VIEW_FULL ? "px for px (corners cropped)" : "at 4/5 (all of it inside the circle)");
-#endif
-#ifdef TANK_WATCH
-    else ESP_LOGI(TAG, "panel up: %dx%d portrait, the portrait tank px for px", s_pw, s_ph);
-#else
     else if (s_fx || s_fy) ESP_LOGI(TAG, "panel up: %dx%d portrait, the %dx%d tank frame rotated 90 deg and centred (%d, %d)", s_pw, s_ph, TANK_W, TANK_H, s_fx, s_fy);
     else ESP_LOGI(TAG, "panel up: %dx%d portrait, tank frame rotated 90 deg", s_pw, s_ph);
-#endif
     return true;
 }
 
@@ -391,7 +366,6 @@ uint8_t display_port_brightness(void) { return s_brightness; }
 #define RGB_SPREAD(c) ((((uint32_t)(c)) | ((uint32_t)(c) << 16)) & 0x07E0F81Fu)
 typedef uint32_t __attribute__((may_alias)) u32a_t;       /* a pair of frame px read as one word */
 static inline uint16_t be565(uint32_t c) { return (uint16_t)(((c & 0xFF) << 8) | ((c >> 8) & 0xFF)); }
-#ifndef TANK_ROUND
 static void round_row_full(const uint16_t *fb, int j, uint16_t *out) {
     if (!s_inverted) {
         const uint16_t *s = fb + j * TANK_W;
@@ -420,7 +394,6 @@ static void round_row_fit(const uint16_t *fb, int j, uint16_t *out) {
         }
     }
 }
-#endif
 static void round_send(int x0, int y0, int w, int n, const uint16_t *stripe) {
     int64_t t = esp_timer_get_time();
     esp_err_t err = esp_lcd_panel_draw_bitmap(s_panel, x0, y0, x0 + w, y0 + n, stripe);
@@ -430,43 +403,6 @@ static void round_send(int x0, int y0, int w, int n, const uint16_t *stripe) {
         if (logged++ < 3) ESP_LOGE(TAG, "draw_bitmap y0=%d: %s", y0, esp_err_to_name(err));
     }
 }
-#ifdef TANK_ROUND
-/* The round build: the frame is the panel's own 466 x 466, and only the
- * circle exists on the glass - each stripe sends the columns its widest row
- * spans (even, as the CO5300 wants), a fifth fewer bytes than the square. */
-static void round_flush(const uint16_t *fb) {
-    int cur = 0;
-    const int rows = 24;
-    for (int y0 = 0; y0 < R_PANEL; y0 += rows) {
-        int n = R_PANEL - y0 < rows ? R_PANEL - y0 : rows;
-        float c = R_PANEL * 0.5f, a = y0 + 0.5f - c, b = y0 + n - 0.5f - c;
-        float d = (a < 0 && b > 0) ? 0 : (a < 0 ? -b : a);          /* the stripe's row nearest the centre line */
-        float half = sqrtf(c * c - d * d);
-        int x0 = (int)(c - half) & ~1, x1 = ((int)(c + half) + 2) & ~1;
-        if (x0 < 0) x0 = 0;
-        if (x1 > R_PANEL) x1 = R_PANEL;
-        int w = x1 - x0;
-        stripe_take();
-        uint16_t *stripe = s_stripe[cur];
-        for (int r = 0; r < n; r++) {
-            uint16_t *o = stripe + r * w;
-            /* two px a step (2026-10-03: the fill was 20 of the flush's 22 ms, the wire never the wait):
-               x0 and w are even and the frame 4-aligned, so each pair is one aligned 32-bit load, a
-               byte swap inside both halves, one store */
-            uint32_t *o32 = (uint32_t *)o;
-            if (!s_inverted) {
-                const u32a_t *s = (const u32a_t *)(fb + (y0 + r) * TANK_W + x0);
-                for (int x = 0; x < w / 2; x++) { uint32_t v = s[x]; o32[x] = ((v & 0x00FF00FFu) << 8) | ((v >> 8) & 0x00FF00FFu); }
-            } else {
-                const u32a_t *s = (const u32a_t *)(fb + (TANK_H - 1 - y0 - r) * TANK_W + (TANK_W - 2 - x0));   /* the pair ending at the mirrored px */
-                for (int x = 0; x < w / 2; x++) { uint32_t v = s[-x]; v = (v >> 16) | (v << 16); o32[x] = ((v & 0x00FF00FFu) << 8) | ((v >> 8) & 0x00FF00FFu); }
-            }
-        }
-        round_send(x0, y0, w, n, stripe);
-        cur ^= 1;
-    }
-}
-#else
 static void round_flush(const uint16_t *fb) {
     int cur = 0;
     if (s_round_clear) {                               /* the whole square black, once: the picture's window covers its part again below */
@@ -491,7 +427,6 @@ static void round_flush(const uint16_t *fb) {
         cur ^= 1;
     }
 }
-#endif
 
 /* landscape fb[y][x] (TANK_W x TANK_H) -> portrait panel: px = y, py = TANK_W-1-x.
  * Colors are byte-swapped for the panel (big-endian RGB565 over SPI).
@@ -500,39 +435,10 @@ static void round_flush(const uint16_t *fb) {
  * stripe buffer; two stripe buffers ping-pong so the transpose of stripe N+1
  * overlaps the DMA of stripe N. The frame is FRAME_PW x FRAME_PH on the panel,
  * FRAME_ROWS of it a stripe (the last may be short), at (s_fx, s_fy): the
- * whole panel on the 1.8 and on the watch's own build. */
-#ifdef TANK_WATCH
-/* The watch's own build: the frame is the panel's 410 x 502, row for row -
- * no turn. As many whole rows as fit a stripe buffer (28); flipped, the same
- * picture turned 180 degrees. */
-static void native_flush(const uint16_t *fb) {
-    int cur = 0;
-    const int rows = (STRIPE_BYTES / (TANK_W * 2)) & ~1;
-    for (int y0 = 0; y0 < TANK_H; y0 += rows) {
-        const int n = TANK_H - y0 < rows ? TANK_H - y0 : rows;
-        stripe_take();
-        uint16_t *stripe = s_stripe[cur];
-        for (int r = 0; r < n; r++) {
-            uint32_t *o = (uint32_t *)(stripe + r * TANK_W);        /* two px a store (TANK_W is even, the stripe 4-aligned) */
-            if (!s_inverted) {                                      /* ... and two px a load (2026-10-03, as the bowl's fill) */
-                const u32a_t *s = (const u32a_t *)(fb + (y0 + r) * TANK_W);
-                for (int x = 0; x < TANK_W / 2; x++) { uint32_t v = s[x]; o[x] = ((v & 0x00FF00FFu) << 8) | ((v >> 8) & 0x00FF00FFu); }
-            } else {
-                const u32a_t *s = (const u32a_t *)(fb + (TANK_H - 1 - y0 - r) * TANK_W + TANK_W - 2);
-                for (int x = 0; x < TANK_W / 2; x++) { uint32_t v = s[-x]; v = (v >> 16) | (v << 16); o[x] = ((v & 0x00FF00FFu) << 8) | ((v >> 8) & 0x00FF00FFu); }
-            }
-        }
-        round_send(0, y0, TANK_W, n, stripe);
-        cur ^= 1;
-    }
-}
-#endif
+ * whole panel on the 1.8. */
 void display_port_flush(const uint16_t *fb) {
     if (!s_panel) return;
     if (s_round) { round_flush(fb); return; }
-#ifdef TANK_WATCH
-    native_flush(fb); return;
-#else
     int cur = 0;
     if (s_border_clear) {                              /* the whole panel black, once: the frame covers its part again below */
         s_border_clear = false;
@@ -575,5 +481,4 @@ void display_port_flush(const uint16_t *fb) {
         round_send(s_fx, s_fy + py0, FRAME_PW, n, stripe);
         cur ^= 1;
     }
-#endif
 }

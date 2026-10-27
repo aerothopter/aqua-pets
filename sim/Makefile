@@ -13,24 +13,14 @@ ARCH    ?=
 SDL_CFLAGS := $(shell sdl2-config --cflags)
 SDL_LIBS   := $(shell sdl2-config --libs)
 
-# `make ROUND=1`: the round 466 px bowl (the Waveshare 1.75C's world) as
-# ./fishsim-round, built beside the rectangle's in build-round/.
-# `make WATCH=1`: the watch's 410 x 502 portrait tank (the Waveshare 2.06) as ./fishsim-watch
-ifdef ROUND
-BUILD   := build-round
-OUT     := fishsim-round
-ROUNDF  := -DTANK_ROUND
-else ifdef WATCH
-BUILD   := build-watch
-OUT     := fishsim-watch
-ROUNDF  := -DTANK_WATCH
-else
+# One board for now (2026-10-26): the 1.8 rectangle. The round bowl's and the
+# watch's builds (`make ROUND=1` / `make WATCH=1`, a BOARDF of -DTANK_ROUND /
+# -DTANK_WATCH, each in its own build dir) are at git tag multi-board-multi-theme.
 BUILD   := build
 OUT     := fishsim
-ROUNDF  :=
-endif
+BOARDF  :=
 
-CFLAGS  := $(ROUNDF) -O2 -std=c11 $(ARCH) -I. -I../common -I../common/llm -DLV_CONF_INCLUDE_SIMPLE -DSOUNDS_BIN='"../assets/sounds/sounds.bin"' -DPT_VERSION='"$(shell git describe --always --dirty --exclude='*' 2>/dev/null || echo sim)"' $(SDL_CFLAGS) \
+CFLAGS  := $(BOARDF) -O2 -std=c11 $(ARCH) -I. -I../common -I../common/llm -DLV_CONF_INCLUDE_SIMPLE -DSOUNDS_BIN='"../assets/sounds/sounds.bin"' -DPT_VERSION='"$(shell git describe --always --dirty --exclude='*' 2>/dev/null || echo sim)"' $(SDL_CFLAGS) \
            -Wall -Wextra -Wno-unused-parameter -MMD -MP
 LDFLAGS := $(ARCH) $(SDL_LIBS) -lm
 
@@ -58,16 +48,13 @@ ifdef NOMODEL
 SELFTESTS := $(filter-out --selftest-llm,$(SELFTESTS))
 endif
 
-# `make check` tests the rectangle; `make ROUND=1 check` / `make WATCH=1 check`
-# the same selftests in that board's world; `make check-all` all three - the
-# gate for anything in common/ (docs/BOARDS.md)
+# `make check` tests one board; `make check-all` every board - the gate for
+# anything in common/ (docs/BOARDS.md). One board for now: the two are the same.
 check: $(OUT)
 	@set -e; for test in $(SELFTESTS); do echo "RUN $(OUT) $$test"; ./$(OUT) "$$test"; done
 
 check-all:
 	$(MAKE) check
-	$(MAKE) ROUND=1 check
-	$(MAKE) WATCH=1 check
 
 check-nomodel:
 	$(MAKE) NOMODEL=1 check
@@ -85,7 +72,7 @@ $(BUILD)/%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf build build-round build-watch fishsim fishsim-round fishsim-watch
+	rm -rf build fishsim
 
 -include $(OBJS:.o=.d)
 

@@ -42,6 +42,9 @@ fishbowl, and the 2.06-inch **watch**, a tall tank you can wear. Same fish,
 same shop, same saves on all three. From 0.3 on a tank updates itself
 over Wi-Fi, so the cable is only for the first install.
 
+*For now (since 2026-10-26) only the 1.8 is built, while new features are
+made; the pendant and the watch will come back.*
+
 | The 1.8 | The pendant | The watch |
 |:---:|:---:|:---:|
 | <img src="docs/media/board-amoled18.webp" width="220" alt="The Waveshare 1.8-inch board from the front: a black rectangle with rounded corners"> | <img src="docs/media/board-round175c.webp" width="220" alt="The Waveshare 1.75C board from the front: a round screen in a silver aluminum ring"> | <img src="docs/media/board-watch206.webp" width="220" alt="The Waveshare 2.06-inch watch on its strap"> |
@@ -754,33 +757,20 @@ vendored flasher). Any HTTPS static host will do, GitHub Pages included;
 
 ## Run it on real hardware
 
-Three Waveshare boards are supported, all ESP32-S3R8 with 16 MB flash and
-8 MB PSRAM, an AMOLED, capacitive touch, an IMU and a PMIC:
-
-| Board | Glass | Build |
-|---|---|---|
-| **ESP32-S3-Touch-AMOLED-1.8** (V1 and V2, auto-detected) | 368×448, shown as a 448×368 tank | the default |
-| **ESP32-S3-Touch-AMOLED-1.75C**, the pendant | 466 px circle | `sdkconfig.round` |
-| **ESP32-S3-Touch-AMOLED-2.06**, the watch | 410×502, portrait | `sdkconfig.watch` |
-
-Each board's touch panel is calibrated in its touch port, so a tap lands
-where the finger is. [docs/BOARDS.md](docs/BOARDS.md) has what the three
-share and where they differ; each board's own traps are in its doc. The
-browser installer above is the no-toolchain path; this is the developer one.
+One Waveshare board is supported for now: the
+**ESP32-S3-Touch-AMOLED-1.8** (V1 and V2, auto-detected), an ESP32-S3R8 with
+16 MB flash and 8 MB PSRAM, an AMOLED (368×448, shown as a 448×368 tank),
+capacitive touch, an IMU and a PMIC. The round 1.75C pendant and the 2.06
+watch had their own builds until 2026-10-26; they were taken out while
+features are built and will come back (git tag `multi-board-multi-theme`,
+[docs/BOARDS.md](docs/BOARDS.md)). The browser installer above is the
+no-toolchain path; this is the developer one.
 
 ```bash
 . ~/esp/esp-idf/export.sh
 cd firmware && idf.py build
 idf.py -p /dev/cu.usbmodem* flash
 esptool.py --chip esp32s3 -p /dev/cu.usbmodem* write_flash 0x290000 ../model/out/model_q4.bin
-```
-
-The other two boards build from the same tree on top of their own fragment,
-each in its own build directory:
-
-```bash
-idf.py -B build-round -DSDKCONFIG=build-round/sdkconfig "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.round" build
-idf.py -B build-watch -DSDKCONFIG=build-watch/sdkconfig "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.watch" build
 ```
 
 Every build is signed, so the first build needs a key: `tools/ota_key.sh`

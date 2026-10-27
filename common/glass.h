@@ -1,8 +1,8 @@
 /* glass.h - the glass, whatever its shape (refactor phase 4b, 2026-10-23).
  *
  * The board's header says the shape (device.h DEVICE_GLASS): the
- * rectangle's glass is its frame; the bowl's is the circle, with the flat
- * bottom at TANK_BOT; the watch's is the frame with an arc in each corner.
+ * rectangle's glass is its frame (the one shape for now, 2026-10-26; the
+ * bowl's and the watch's are at git tag multi-board-multi-theme).
  * glass.c holds every shape's code, picked at compile time; the rest of the
  * tank asks these calls (and, inside the reflex layer, the ones in
  * tank_internal.h) instead of a board's name. */

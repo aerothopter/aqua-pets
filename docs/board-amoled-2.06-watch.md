@@ -1,5 +1,7 @@
 # Third board: Waveshare ESP32-S3-Touch-AMOLED-2.06, the WATCH (410 x 502) - port notes, 2026-10-01
 
+> **Out for now (2026-10-26).** This board's own build (`flash_watch.sh`, `sdkconfig.watch`, its device and layout headers) was taken out while features are built; it is at git tag `multi-board-multi-theme` (docs/BOARDS.md). The hardware notes below still hold, and the 1.8 image still runs on this board.
+
 Strato's watch (the "unidentified third board" of the round board's
 day). Sources:
 `resources/ESP32-S3-Touch-AMOLED-2.06-Watch/` (schematic, wiki page, the

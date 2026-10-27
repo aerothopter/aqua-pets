@@ -1,19 +1,33 @@
-# Three boards, one tank: how a change reaches all of them
+# Boards, one tank: how a change reaches all of them
 
-Since 2026-10-01 the tank runs on three boards. This file is the rule for
+From 2026-10-01 the tank ran on three boards. This file is the rule for
 changing anything they share - read it before a feature, the way DEVICE.md is
 read before a flash.
+
+**One board for now (2026-10-26).** The keeper took the round and watch
+boards out while features are built: one board to check, picture, build and
+flash. Everything they needed is at git tag `multi-board-multi-theme`: their
+device and layout headers, the bowl's and the watch's glass bodies in
+glass.c, the ports' `#ifdef TANK_ROUND` / `TANK_WATCH` branches, the Kconfig
+options, `sdkconfig.round` / `sdkconfig.watch`, `flash_round.sh` /
+`flash_watch.sh`, and the CI builds. The seams stay: device.h's selector, the
+layout header, `DEVICE_GLASS` and `GLASS_CURVED`, `DEVICE_WORN`, the
+`BOARDS` lists in tools/pt_boards.py and tools/board_sheet.py, and the rules
+below. The 1.8 image still knows the 1.75C and 2.06 panels at runtime (it
+fits or centres its frame on them), as before. To bring a board back, restore
+its files from the tag, then put back its row in each list and its build in
+the Makefile and the workflows.
 
 ## The boards
 
 | board | glass | build | simulator | firmware | finds the board by |
 |---|---|---|---|---|---|
 | Waveshare 1.8 AMOLED (the tank, the reference) | 448 x 368, round corners | default | `make` -> `fishsim` | `tools/flash.sh` (preflight; build dir `fw-build`) | port, `TANK_PORT=` with several on USB |
-| Waveshare 1.75C (the bowl) | 466 circle | `TANK_ROUND` | `make ROUND=1` -> `fishsim-round` | `tools/flash_round.sh` (`fw-build-175c`) | its USB serial (`ROUND_SERIAL`, tools/boards.local.sh) |
-| Waveshare 2.06 (the watch) | 410 x 502 portrait, 100 px corners | `TANK_WATCH` | `make WATCH=1` -> `fishsim-watch` | `tools/flash_watch.sh` (`fw-build-206`) | its USB serial (`WATCH_SERIAL`, tools/boards.local.sh) |
+| *(at the tag)* Waveshare 1.75C (the bowl) | 466 circle | `TANK_ROUND` | `make ROUND=1` -> `fishsim-round` | `tools/flash_round.sh` (`fw-build-175c`) | its USB serial (`ROUND_SERIAL`, tools/boards.local.sh) |
+| *(at the tag)* Waveshare 2.06 (the watch) | 410 x 502 portrait, 100 px corners | `TANK_WATCH` | `make WATCH=1` -> `fishsim-watch` | `tools/flash_watch.sh` (`fw-build-206`) | its USB serial (`WATCH_SERIAL`, tools/boards.local.sh) |
 
 Each board's own traps are in its doc (board-amoled-1.75c.md,
-board-amoled-2.06-watch.md).
+board-amoled-2.06-watch.md; kept for the hardware notes).
 
 ## What is shared, and where a board may differ
 
@@ -63,14 +77,14 @@ pixel instead of a name - ask the device's names and flags instead.
 4. **A save field only ever appends** (progression.c's SAVE LAYOUT LOCK; save
    layout 3 since 2026-10-21, PTK2 saves before it start fresh), and the save
    means the same on every board.
-5. **Nothing is done until all three say so:**
+5. **Nothing is done until every board says so** (one for now: the 1.8):
 
    | step | command (from the project root) | what it proves |
    |---|---|---|
-   | the checks | `make -C aqua-pets/sim check-all` | every selftest on all three worlds |
-   | the pictures | `aqua-pets/tools/board_sheet.py --selftest-card` (or `--snapshot 20`) | the same page on three glasses, side by side, cut to each glass |
-   | the firmware | `aqua-pets/tools/flash.sh` builds the 1.8; `flash_round.sh --build-only`, `flash_watch.sh --build-only` | it compiles for each board; compare `.bss` with the last flashed build (internal RAM is ~23 KB) |
-   | the glass | flash the 1.8 first (it is the reference and has the preflight), then the other two | Strato's finger |
+   | the checks | `make -C sim check-all` | every selftest on every board's world |
+   | the pictures | `tools/board_sheet.py --selftest-card` (or `--snapshot 20`) | the same page on each glass, side by side, cut to each glass |
+   | the firmware | `tools/flash.sh` builds the 1.8 (each other board: its `flash_<board>.sh --build-only`) | it compiles for each board; compare `.bss` with the last flashed build (internal RAM is ~23 KB) |
+   | the glass | flash the 1.8 first (it is the reference and has the preflight), then any other | the keeper's finger |
 
    The handoff entry for a feature says where each board stands: checked /
    pictured / built / flashed / tried on the glass. "Not flashed" is a fine
@@ -79,7 +93,11 @@ pixel instead of a name - ask the device's names and flags instead.
 ## Releases
 
 One image per board, one release number. Built 2026-10-02 for 0.3.0 (Strato:
-the bowl and the watch ship in 0.3.0; nothing public until the release):
+the bowl and the watch ship in 0.3.0; nothing public until the release). Since
+2026-10-26 the workflows build and publish the 1.8 alone; the machinery below
+is unchanged and takes a board back as a row in `pt_boards.py` and a build in
+each workflow. A 1.75C or 2.06 tank on its own image gets no newer release
+until then:
 
 | piece | how a board is kept to its own image |
 |---|---|

@@ -1,5 +1,7 @@
 # Second board: Waveshare ESP32-S3-Touch-AMOLED-1.75C (round, 466 px) - port notes, 2026-10-01
 
+> **Out for now (2026-10-26).** This board's own build (`flash_round.sh`, `sdkconfig.round`, its device and layout headers) was taken out while features are built; it is at git tag `multi-board-multi-theme` (docs/BOARDS.md). The hardware notes below still hold, and the 1.8 image still runs on this board.
+
 Strato's board is on the bench. Sources:
 `resources/ESP32-S3-Touch-AMOLED-1.75C/` (schematic, wiki page, the factory
 image to restore it: `...-FactoryOnly-260114.bin`, written at 0x0),
