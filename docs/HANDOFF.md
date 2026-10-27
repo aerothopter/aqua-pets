@@ -2,6 +2,73 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-26: one board and one theme for now (two of the keeper's TODOs)
+
+**What changed.** The keeper's calls: delete (not just hide) the round and
+watch boards and the three newer themes, tag first, keep the extensible
+seams, and trim CI to the 1.8. On branch `strip/one-board-one-theme`, two
+commits:
+- The annotated tag **`multi-board-multi-theme`** (a48a503, local, not
+  pushed) holds everything removed. To bring a board or a theme back,
+  restore its files from the tag. docs/BOARDS.md and the top of
+  docs/THEMES.md list what went and what stayed.
+- **One board** (47a65dc). Gone: the round175c/watch206 device and layout
+  headers, the bowl's and the watch's glass bodies, the ports'
+  compile-time `TANK_ROUND`/`TANK_WATCH` branches, the Kconfig options,
+  `sdkconfig.round`/`.watch`, `flash_round.sh`/`flash_watch.sh`, the
+  Makefile's `ROUND=1`/`WATCH=1`, and their CI builds and installer
+  entries. Kept: device.h's selector (an `#error` for the old flags names
+  the tag), the layout header, `DEVICE_GLASS`/`GLASS_CURVED` (glass.c errors
+  on a shape it has no body for), `DEVICE_WORN`, the `BOARDS` lists in
+  pt_boards.py and board_sheet.py, and `make check-all` (= `check` for
+  now). The 1.8 image's runtime handling of the 1.75C and 2.06 panels
+  stays, because it is part of what the 1.8 image runs.
+- **One theme** (69137be). Gone: every themed branch of the art, the
+  themed castle's front mask, `theme_assets.c`, blackwater_*.inc, the
+  picker (`SET_TAP_THEME`), the about page's per-theme creatures, the
+  themed naming wheel and the three other tunes. Kept: `theme_id_t` with
+  the Original alone (IDs 1-3 reserved), the palette table, the hooks
+  (`theme_ui_color`, `theme_creature_color`, `theme_icon`,
+  `render_use_theme`), `J_SONGS` and the tests' loops over `THEME_COUNT`.
+  The settings title is the plain "SETTINGS" it was before the themes.
+
+**How it was proven pure.** A baseline sim and firmware were built from the
+tag in a scratch worktree.
+- Boards: both golden oracles and all 118 snapshot pages identical. The
+  firmware's sections are the same size, with the same bytes apart from
+  `__TIME__` and eight `__LINE__`s (ESP_ERROR_CHECK in display_port_init:
+  17 lines were removed above it).
+- Themes: both oracles identical to the tag's Original (`t0_`) lines and
+  save hashes. 116 of 118 snapshot pages are identical; the other two are
+  the settings page (its title, looked at side by side). The full sim build
+  has the tag's same 5 warnings.
+- `--selftest-themes` now checks that a save holding IDs 1, 2, 3 or 255
+  loads as the Original with the tank kept.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | oracles and snapshot pages as above; board_sheet.py not run | yes (5.4.4, throwaway key): app 0x201000, was 0x271000 (20% of the slot free, was 2%); `.dram0.bss` 59,096 (-8) | no | no |
+| 1.75C round | removed (at the tag) | - | - | - | - |
+| 2.06 watch | removed (at the tag) | - | - | - | - |
+
+**Open.**
+- Not merged, not pushed: `strip/one-board-one-theme`, and the tag.
+- On the next flash, a tank whose save holds a theme comes up in the
+  Original. The theme is presentation only, so nothing else changes.
+- A 1.75C or 2.06 tank on its own image gets no newer release until that
+  board is back. The release now publishes `latest-amoled18.json` alone.
+- jellyfish/wreck/frogman/sub `_assets.c` still carry their themed icon
+  variants (unused, still in flash; not measured). Their generators need Pillow, which isn't
+  installed; trim them when it is.
+- `assets/themes/`, `docs/design/` and `tools/export_living_lagoon_art.cjs`
+  stay as the themes' sources.
+- Python 3.13 is on this machine now (no Pillow), so
+  `tools/board_sheet.py` (standard library only) can run. It hasn't yet.
+- The keeper's icon edits (`icon_bold.png`, `icon_cautious.png`) are still
+  unstaged.
+
 ## 2026-10-23: the keeper's TODOs (end of session)
 
 Next, in no fixed order (the keeper, at sign-off):
