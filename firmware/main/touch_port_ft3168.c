@@ -213,9 +213,10 @@ static bool panel_read(uint16_t *x, uint16_t *y) {
     if (s_cst) return cst9217_read(x, y);
     if (s_ft) return ft3168_read(x, y);
     if (!s_tp) return false;
-    uint16_t st[1]; uint8_t n = 0;
+    esp_lcd_touch_point_data_t pt; uint8_t n = 0;
     esp_lcd_touch_read_data(s_tp);
-    if (!esp_lcd_touch_get_coordinates(s_tp, x, y, st, &n, 1) || n == 0) return false;
+    if (esp_lcd_touch_get_data(s_tp, &pt, &n, 1) != ESP_OK || n == 0) return false;   /* (2026-10-28: was get_coordinates) no points = no finger */
+    *x = pt.x; *y = pt.y;
     s_seen_us = esp_timer_get_time();
     return true;
 }
@@ -547,12 +548,15 @@ void touch_port_poll(tank_t *t) {
             if (s_menu) {                                           /* the main menu (2026-10-21): a page, a tool, or off the grid */
                 int r = render_menu_tap(t, s_px, s_py);
                 ESP_LOGI(TAG, "menu tap at %.0f,%.0f -> %s", s_px, s_py, r == MENU_TAP_TANK ? "TANK" : r == MENU_TAP_UPGRADES ? "UPGRADES" : r == MENU_TAP_SETTINGS ? "SETTINGS"
-                         : r == MENU_TAP_SPONGE ? "SPONGE" : r == MENU_TAP_SCISSORS ? "SCISSORS" : r == MENU_TAP_CLOSE ? "off the grid: closed" : "nothing");
+                         : r == MENU_TAP_SPONGE ? "SPONGE" : r == MENU_TAP_SCISSORS ? "SCISSORS" : r == MENU_TAP_BATTERY ? (s_pill ? "the pill: battery page" : "off the grid: closed")
+                         : r == MENU_TAP_CLOSE ? "off the grid: closed" : "nothing");
                 if (r == MENU_TAP_TANK || r == MENU_TAP_UPGRADES || r == MENU_TAP_SETTINGS) {
                     s_menu = false; s_ms = r == MENU_TAP_TANK; s_shop = r == MENU_TAP_UPGRADES; s_set = r == MENU_TAP_SETTINGS;
                 } else if (r == MENU_TAP_SPONGE || r == MENU_TAP_SCISSORS) {
                     int tl = r == MENU_TAP_SPONGE ? TOOL_SPONGE : TOOL_SCISSORS;
                     tank_set_tool(t, t->tool == tl ? TOOL_HAND : tl); s_menu = false;   /* the same tool again: back to bare hands */
+                } else if (r == MENU_TAP_BATTERY) {               /* the pill (2026-10-28: it shows with the menu): its page, if it shows */
+                    s_menu = false; if (s_pill) { s_bat = true; s_bat_us = now; }
                 } else if (r == MENU_TAP_CLOSE) s_menu = false;
                 goto released;
             }

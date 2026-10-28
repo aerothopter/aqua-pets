@@ -40,29 +40,31 @@
 #define SHP_CLOSE_X   MSP_CLOSE_X
 #define SHP_ARROW_IN  28                /* the page arrows, in from the right edge */
 
-/* the settings page */
-#define SET_TITLE_Y   14
-#define SET_ROW1_Y    58             /* BRIGHTNESS */
-#define SET_ROW2_Y    108            /* VOLUME */
-#define SET_NOTE_Y    146            /* "FISH ARE QUIET AT NIGHT" */
-#define SET_ROW3_Y    176            /* LIGHTS OUT */
-#define SET_ROW4_Y    222            /* AUTO FEED */
-#define SET_ROW5_Y    268            /* ROTATION */
-#define SET_FOOT_Y    MSP_CLOSE_Y    /* UPDATES and CLOSE: the milestones page's foot */
+/* the settings page (2026-10-28: no title; UPDATES and RESET a row of their
+ * own under ROTATION, the foot ABOUT and CLOSE) */
+#define SET_ROW1_Y    26             /* BRIGHTNESS (its arrows clear of the top right corner's curve) */
+#define SET_ROW2_Y    72             /* VOLUME */
+#define SET_NOTE_Y    108            /* "FISH ARE QUIET AT NIGHT" */
+#define SET_ROW3_Y    136            /* LIGHTS OUT */
+#define SET_ROW4_Y    182            /* AUTO FEED */
+#define SET_ROW5_Y    228            /* ROTATION */
+#define SET_ROW6_Y    274            /* UPDATES | RESET */
+#define SET_FOOT_Y    MSP_CLOSE_Y    /* ABOUT and CLOSE: the milestones page's foot */
 #define SET_SEG_X     190            /* the first segment */
 #define SET_SEG_DX    82
-/* the foot: four across 32..418 */
-#define SET_UPD_X     32
-#define SET_UPD_W     104
-#define SET_ABT_X     150
+/* row 6: two buttons from the labels' x to the controls' right edge, 32..430 */
+#define SET_UPD_X     SET_LABEL_X
+#define SET_UPD_W     194
+#define SET_RST_X     (SET_UPD_X + SET_UPD_W + 10)
+#define SET_RST_W     194
+#define SET_UPD_Y     SET_SEG_Y(SET_ROW6_Y)
+#define SET_RST_Y     SET_UPD_Y
+/* the foot: ABOUT bottom left, CLOSE bottom right */
+#define SET_ABT_X     32
 #define SET_ABT_W     80
-#define SET_RST_X     244
-#define SET_RST_W     80
+#define SET_ABT_Y     SET_FOOT_Y
 #define SET_CLOSE_X   338
 #define SET_CLOSE_W   80
-#define SET_ABT_Y     SET_FOOT_Y
-#define SET_RST_Y     SET_FOOT_Y
-#define SET_ROW5_END  (SET_FOOT_Y - 4)              /* the last row's tap band stops at the foot's */
 #define SET_VER_X(w)  SET_LABEL_X                   /* the version line (w px wide): bottom left, on the labels' x */
 #define SET_VER_Y     (PAGE_H - 8 - 6)
 /* the short pages' inscribed rectangle (the frame's: render_settings_bounds) */

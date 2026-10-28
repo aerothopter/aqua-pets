@@ -16,7 +16,7 @@
  *                          name / family; S drops it), A auto-light, Q quit,
  *                          V volume (off / quiet / normal), B the low-battery notice,
  *                          P the cable in / out (a pretend battery: the pill
- *                          shows for a few seconds; with a card up it is
+ *                          shows for a few seconds; with the menu up it is
  *                          always there - click it for the battery page),
  *                          4 ($) the shop page, D +50 sand dollars,
  *                          5 a pair of the next species (free; the shop sells them),
@@ -1428,10 +1428,10 @@ static int selftest_update(void) {
     #define EXPECT(cond, ...) do { if (!(cond)) { printf("FAIL: " __VA_ARGS__); printf("\n"); return 1; } } while (0)
     /* the settings page's UPDATES button, and the UPDATES page's taps */
     { int v = 0, r;
-      render_settings_touch(&tank, PG_X(SET_UPD_X + 40), PG_Y(SET_FOOT_Y + 12), true, &v); r = render_settings_touch(&tank, PG_X(SET_UPD_X + 40), PG_Y(SET_FOOT_Y + 12), false, &v);
+      render_settings_touch(&tank, PG_X(SET_UPD_X + 40), PG_Y(SET_UPD_Y + 12), true, &v); r = render_settings_touch(&tank, PG_X(SET_UPD_X + 40), PG_Y(SET_UPD_Y + 12), false, &v);
       EXPECT(r == SET_TAP_UPDATES, "settings: the UPDATES button -> %d", r);
       render_settings_touch(&tank, PG_X(SETP_SEG_X(0)), PG_Y(SET_ROW5_Y + 10), true, &v); r = render_settings_touch(&tank, PG_X(SETP_SEG_X(0)), PG_Y(SET_ROW5_Y + 10), false, &v);
-      EXPECT(r != SET_TAP_UPDATES && r != SET_TAP_CLOSE, "settings: the last row read as a foot button (%d)", r);
+      EXPECT(r != SET_TAP_UPDATES && r != SET_TAP_CLOSE, "settings: the ROTATION row read as a button below it (%d)", r);
       render_settings_touch(&tank, PG_X(SETP_SEG_X(0)), PG_Y(SET_ROW5_Y + 10), true, &v); render_settings_touch(&tank, PG_X(SETP_SEG_X(0)), PG_Y(SET_ROW5_Y + 10), false, &v);   /* (and back) */
       EXPECT(updates_page_tap(PG_X(UPD_CLOSE_X + 40), PG_Y(UPD_CLOSE_Y + 12)) == UPD_TAP_CLOSE, "updates page: CLOSE");
       EXPECT(updates_page_tap(PG_X(UPD_CHECK_X + UPD_CHECK_W / 2), PG_Y(UPD_CHECK_Y + 20)) == UPD_TAP_CHECK, "updates page: CHECK");
@@ -2036,7 +2036,7 @@ static uint32_t confirm_ms;          /* when it opened; it gives up after CONFIR
 #define CONFIRM_MS 20000
 /* the battery (2026-09-24): the sim has no gauge, so a pretend cell drains
  * and charges at the device's default rates and P moves the cable. The pill
- * shows with a card, when low, and for BAT_POPUP_S after P plugs in; a
+ * shows with the main menu, when low, and for BAT_POPUP_S after P plugs in; a
  * click on it opens the battery page (any click closes it), as on the glass. */
 static bat_t sim_bat;
 static float sim_bat_pct = 72.0f;    /* --battery <pct> sets it */
@@ -2046,8 +2046,8 @@ static uint32_t battery_view_ms, bat_popup_ms;
 #define BATTERY_VIEW_MS 30000
 static int sim_bat_gauge(void) { return (int)(sim_bat_pct + 0.5f); }
 static bool sim_pill_up(void) {
-    return !milestones_view && !menu_view && !settings_view && !shop_view && !battery_view && !confirm_view && !setup_active() &&
-           ((ui_visible && selected_fish >= 0) || (!BAT_ON_POWER(sim_bat_state) && sim_bat_gauge() <= 10) ||
+    return !milestones_view && !settings_view && !shop_view && !battery_view && !confirm_view && !setup_active() &&
+           (menu_view || (!BAT_ON_POWER(sim_bat_state) && sim_bat_gauge() <= 10) ||
             (bat_popup_ms && SDL_GetTicks() - bat_popup_ms < BAT_POPUP_S * 1000));
 }
 
@@ -2207,14 +2207,14 @@ static void frame_cb(lv_timer_t *timer) {
       if (rf >= 0) { milestones_view = true; render_milestones_show_fish(&tank, rf); printf("milestones: back on %s's card\n", tank.fish[rf].name); } }
     sound_frame(now, dt);
     if (milestones_view) render_milestones(&tank, canvas_buf, TANK_W);
-    else if (menu_view) render_menu(&tank, canvas_buf, TANK_W);
     else if (settings_view) render_settings(&tank, canvas_buf, TANK_W, sim_bright, audio_volume());
     else if (updates_view) render_updates_page(canvas_buf, TANK_W);
     else if (shop_view) render_shop(&tank, canvas_buf, TANK_W);
     else {
         render_tank(&tank, canvas_buf, TANK_W);
-        render_sd_toast(&tank, canvas_buf, TANK_W);      /* "+N" sand dollars, as they are earned */
-        if (ui_visible) {
+        if (menu_view) render_menu(&tank, canvas_buf, TANK_W);   /* the main menu: over the live tank, as the card is (2026-10-28) */
+        else render_sd_toast(&tank, canvas_buf, TANK_W);      /* "+N" sand dollars, as they are earned */
+        if (ui_visible && !menu_view) {
             draw_brain_dot();
             if (selected_fish >= tank.n_fish && !render_card_is_helper(&tank, selected_fish)) selected_fish = -1;   /* a helper sold, a tank reset: no card to show */
             if (selected_fish >= 0)
@@ -2226,7 +2226,7 @@ static void frame_cb(lv_timer_t *timer) {
             battery_info(&sim_bat, clock_port_now_unix(), sim_bat_gauge(), 3500 + (int)(sim_bat_pct * 7), sim_bat_state, &bi);
             render_battery_info(canvas_buf, TANK_W, &bi, tank.clock);
         } else if (sim_pill_up()) render_battery(canvas_buf, TANK_W, sim_bat_gauge() / 100.0f, sim_bat_state, tank.clock);
-        const notice_t *nt = notice_current();
+        const notice_t *nt = menu_view ? NULL : notice_current();
         if (nt) render_notice(&tank, canvas_buf, TANK_W, nt->kind, nt->fish, nt->bit, 1.0f - nt->age / NOTICE_UP_S);
     }
     if (setup_active()) render_setup(&tank, canvas_buf, TANK_W, tank.clock);
@@ -2550,7 +2550,7 @@ static int snapshot(const char *prefix, int seconds) {
     snprintf(path, sizeof path, "%s_card1.ppm", prefix); write_ppm(path, fb);   /* partly unrevealed */
     /* the main menu (2026-10-21, the BOOT key) with the scissors in hand, then the chip on the open tank */
     tank_set_tool(&tank, TOOL_SCISSORS);
-    render_menu(&tank, fb, TANK_W);
+    render_tank(&tank, fb, TANK_W); render_menu(&tank, fb, TANK_W);
     snprintf(path, sizeof path, "%s_menu.ppm", prefix); write_ppm(path, fb);
     render_tank(&tank, fb, TANK_W); render_tool_chip(&tank, -1, fb, TANK_W);
     snprintf(path, sizeof path, "%s_tool_chip.ppm", prefix); write_ppm(path, fb);
@@ -2730,14 +2730,14 @@ static int snapshot(const char *prefix, int seconds) {
       render_tank(&tank, fb, TANK_W); render_notice(&tank, fb, TANK_W, NOTICE_LIGHTS_OUT, -1, 0, 0.6f);
       snprintf(path, sizeof path, "%s_notice_lights.ppm", prefix); write_ppm(path, fb);
       tank.light_manual_off = mo; tank.light_auto = la; tank.night = ni; }
-    /* the battery (2026-09-24): the pill with a card in each state (clock
+    /* the battery (2026-09-24): the pill with the menu (2026-10-28) in each state (clock
        0.65 = the charging sweep mid-fill), then the page on battery, charging,
        full - its numbers from a staged history */
     { static const struct { const char *name; float frac; int state; } PILL[] = {
           { "on_battery", 0.63f, BAT_ON_BATTERY }, { "charging", 0.63f, BAT_CHARGING }, { "full", 1.0f, BAT_FULL },
           { "plugged", 0.82f, BAT_PLUGGED }, { "low", 0.08f, BAT_ON_BATTERY }, { "low_charging", 0.08f, BAT_CHARGING } };
       for (size_t i = 0; i < sizeof PILL / sizeof PILL[0]; i++) {
-          render_tank(&tank, fb, TANK_W); render_stats_card(&tank, 0, fb, TANK_W);
+          render_tank(&tank, fb, TANK_W); render_menu(&tank, fb, TANK_W);
           render_battery(fb, TANK_W, PILL[i].frac, PILL[i].state, 0.65f);
           snprintf(path, sizeof path, "%s_battery_pill_%s.ppm", prefix, PILL[i].name); write_ppm(path, fb);
       }
@@ -4691,6 +4691,23 @@ static int selftest_menu(void) {
     }
     if (render_menu_tap(&tank, PAGE_X + 10, PAGE_Y + 10) != MENU_TAP_CLOSE || render_menu_tap(&tank, PAGE_X + PAGE_W / 2, PAGE_Y + PAGE_H - 12) != MENU_TAP_CLOSE)
         CARD_FAIL("a tap off the grid did not close the menu");
+    {   /* the battery pill shows with the menu (2026-10-28): a tap on it is its page's, a tile under its slop still the tile's */
+        if (render_menu_tap(&tank, RENDER_BAT_X + 10, RENDER_BAT_Y + 5) != MENU_TAP_BATTERY) CARD_FAIL("a tap on the pill over the menu is not the battery's");
+        int x, y, w, h; render_menu_tile_rect(2, &x, &y, &w, &h);
+        if (render_menu_tap(&tank, x + w - 4, y + 3) != MENU_TAP_SETTINGS) CARD_FAIL("the SETTINGS tile's corner under the pill's slop is not SETTINGS'");
+    }
+    {   /* over the live tank (2026-10-28): off the tiles the frame is untouched; a tile is a pane the water shows through */
+        int x, y, w, h; render_menu_tile_rect(0, &x, &y, &w, &h);
+        uint16_t tile[2]; int off[2] = { 0, 0 };
+        for (int k = 0; k < 2; k++) {
+            for (int i = 0; i < TANK_W * TANK_H; i++) fb[i] = k ? 0x07e0 : 0x001f;
+            render_menu(&tank, fb, TANK_W);
+            tile[k] = fb[(y + 4) * TANK_W + x + 4];
+            off[k] = fb[(PAGE_Y + PAGE_H - 4) * TANK_W + PAGE_X + 4] == (k ? 0x07e0 : 0x001f);
+        }
+        if (!off[0] || !off[1]) CARD_FAIL("the menu painted the frame off its tiles (it stands over the live tank)");
+        if (tile[0] == tile[1]) CARD_FAIL("a tile is opaque (the water should show through it, as through the card)");
+    }
     {   /* the scissors in hand: their tile lit, the sponge's not */
         int x, y, w, h; render_menu_tile_rect(4, &x, &y, &w, &h);
         uint32_t hash[2];
@@ -6030,6 +6047,9 @@ int main(int argc, char **argv) {
                     int tl = r == MENU_TAP_SPONGE ? TOOL_SPONGE : TOOL_SCISSORS;
                     tank_set_tool(&tank, tank.tool == tl ? TOOL_HAND : tl); menu_view = false;
                     printf("menu: %s\n", tank.tool == TOOL_SPONGE ? "the SPONGE - strokes only wipe" : tank.tool == TOOL_SCISSORS ? "the SCISSORS - strokes only cut" : "back to bare hands");
+                } else if (r == MENU_TAP_BATTERY) {      /* the pill, which the menu always shows here (the sim has its pretend cell) */
+                    menu_view = false; battery_view = true; battery_view_ms = now_ms;
+                    printf("battery page: %d%%, %s\n", sim_bat_gauge(), sim_bat_state == BAT_CHARGING ? "charging" : sim_bat_state == BAT_FULL ? "full" : "on battery");
                 } else if (r == MENU_TAP_CLOSE) { menu_view = false; printf("menu: closed\n"); }
             }
             else if (shop_view) {                       /* the shop: a row's modal, UNLOCK, HOW TO EARN, CLOSE */

@@ -2,6 +2,64 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-28: the menu over the tank; the battery pill with the menu; settings rearranged
+
+**What changed** (two of the keeper's TODOs, then the keeper's settings asks):
+- **No titles.** The menu's "MENU" and the settings page's "SETTINGS" are
+  gone (the keeper: the settings title didn't match the other panels).
+- **Settings: UPDATES and RESET are a row under ROTATION**, two wide buttons
+  from the labels' column to the controls' right edge, RESET with its red
+  edge. The foot keeps ABOUT (bottom left) and CLOSE (bottom right). The
+  rows moved up into the title's room with a tighter pitch (amoled18_layout.h:
+  rows 26 / 72 / note 108 / 136 / 182 / 228, row 6 at 274, foot 312; 6 px
+  between rows). `SET_TITLE_Y` and `SET_ROW5_END` are gone; `SET_ROW6_Y` and
+  `SET_UPD_Y` are new. A tap in row 6's band is UPDATES left of the gap,
+  RESET right of it; the foot's band is ABOUT or CLOSE.
+- **The firmware builds with no warnings** (it had 3 deprecation warnings).
+  main.c's async memcpy config sets `dma_burst_size = 64`, the same union
+  field `psram_trans_align = 64` set (IDF 5.4.1 in CI and 5.4.4 here both
+  have it); `sram_trans_align` was read by nothing (the alignment comes from
+  the GDMA channel). touch_port_ft3168.c reads the 1.8's touch with
+  `esp_lcd_touch_get_data` instead of `get_coordinates`. It returns ESP_OK
+  with no finger too, so the point count (both drivers set it from the chip
+  on every read) is what says touched.
+- **The main menu stands over the live tank**, the way the fish card does.
+  `render_menu` no longer fills the frame. Each tile is a pane in the card's
+  look: the card's ink blended at 215 over the water, a teal edge, and the
+  tool in hand lit as before. The firmware already drew the tank before the
+  menu; the sim now does too. Announcements and the "+N" toast wait while
+  the menu is up, as they wait for any page.
+- **The battery pill shows with the menu, not with the fish card.** It still
+  shows while the charge is low and for a few seconds after the cable goes
+  in. A tap on it from the menu is `MENU_TAP_BATTERY`, so the platforms still
+  only route: the menu closes and the battery page opens (any tap closes it,
+  back to the tank). The pill's tap zone overlaps the SETTINGS tile's top,
+  so in the menu a tile always wins and only an off-grid tap is the pill's.
+- `--selftest-menu` checks both: the frame off the tiles is untouched, a
+  tile's pane shows what is behind it, a tap on the pill is the battery's,
+  and the SETTINGS corner under the pill's zone is still SETTINGS.
+- The snapshot mode draws the menu over the tank, and the pill pictures with
+  the menu. README's menu picture (docs/media/sim-menu.png) is the new
+  snapshot.
+
+**Proof.** Both golden oracles are unchanged. Of the 118 snapshot pages,
+the menu, the six pill pictures and the two settings pages changed as
+intended (looked at side by side); the updates pages changed only in their
+build line. The settings selftests tap UPDATES, RESET, ABOUT and CLOSE where
+the layout now puts them.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | snapshot pages as above; board_sheet.py not run | yes (5.4.4, throwaway key): app 0x201000, `.dram0.bss` 59,096 (both unchanged) | no | no |
+
+**Open.**
+- Not committed yet (on `main`, uncommitted), not flashed. On the glass,
+  check that the pill is easy to hit beside the SETTINGS tile, and that the
+  tiles read well over a busy tank, and that the settings rows (now 6 px
+  apart) are still easy to hit; BRIGHTNESS's arrows sit 16 px from the top.
+
 ## 2026-10-26: one board and one theme for now (two of the keeper's TODOs)
 
 **What changed.** The keeper's calls: delete (not just hide) the round and

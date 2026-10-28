@@ -227,8 +227,6 @@ int selftest_themes(const char *prefix) {
     render_tank(&t,fb,TANK_W); memcpy(first,fb,sizeof fb);
     for (int id=0;id<THEME_COUNT;id++) {
         t.theme=id; settings_open(&t); shot(prefix,"settings",id);
-        /* the title is a title: it opened the theme picker while there were themes to pick */
-        CHECK(tap(&t,PAGE_X+PAGE_W/2,PAGE_Y+SET_TITLE_Y+12,&v)==SET_TAP_NONE,"the SETTINGS title is no button");
         CHECK(t.n_fish==count && t.fish[0].color==body && t.fish[0].trust==6.25f && t.sd_balance==173 && !strcmp(t.fish[0].name,"miso"),"the settings page preserves the simulation");
         /* one layout for every theme (2026-10-10): the Original's rows and foot, in the theme's colours.
            BRIGHTNESS between arrows, VOLUME segments, LIGHTS OUT, AUTO FEED, then ABOUT, RESET, CLOSE */

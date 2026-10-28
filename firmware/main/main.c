@@ -701,7 +701,7 @@ static void tank_task(void *arg) {
             if (touch_port_milestones()) {       /* milestones page: covers the tank until a tap */
                 render_milestones(&tank, fb[cur], TANK_W);
                 sel = -1;
-            } else if (touch_port_menu()) {      /* the main menu (2026-10-21): the BOOT key's page */
+            } else if (touch_port_menu()) {      /* the main menu (2026-10-21): the BOOT key's page, over the live tank (2026-10-28) */
                 render_menu(&tank, fb[cur], TANK_W);
                 sel = -1;
             } else if (touch_port_settings()) {  /* settings page: brightness + volume */
@@ -714,12 +714,13 @@ static void tank_task(void *arg) {
                 render_shop(&tank, fb[cur], TANK_W);
                 sel = -1;
             } else render_sd_toast(&tank, fb[cur], TANK_W);   /* the live tank: "+N" as dollars are earned */
-            if (sel >= 0) render_stats_card(&tank, sel, fb[cur], TANK_W);   /* tapped fish: stats card (+ the pill) */
-            {   /* the battery pill: with a card, while low, and a few seconds after the cable goes in;
-                   the battery page (a tap on the pill) over the live tank in its place */
-                bool pages = touch_port_milestones() || touch_port_menu() || touch_port_settings() || touch_port_updates() || touch_port_shop() || setup_active() || touch_port_confirm_up();
+            if (sel >= 0) render_stats_card(&tank, sel, fb[cur], TANK_W);   /* tapped fish: stats card */
+            {   /* the battery pill: with the main menu (2026-10-28; with a card before), while low, and a few
+                   seconds after the cable goes in; the battery page (a tap on the pill) over the live tank in its place */
+                bool others = touch_port_milestones() || touch_port_settings() || touch_port_updates() || touch_port_shop() || setup_active() || touch_port_confirm_up();
+                bool pages = others || touch_port_menu();
                 bool bpage = touch_port_battery() && s_bat_ok && !pages;
-                bool pill = s_bat_ok && !pages && !bpage && (sel >= 0 || s_bat_low || now < s_bat_popup_us);
+                bool pill = s_bat_ok && !others && !bpage && (touch_port_menu() || s_bat_low || now < s_bat_popup_us);
                 if (bpage) {
                     bat_info_t bi;
                     battery_info(&s_bh, clock_port_now_unix(), (int)(s_bat_frac * 100 + 0.5f), s_bat_mv, s_bat_state, &bi);
@@ -963,7 +964,9 @@ void app_main(void) {
        slot and the panel silently loses its pixel path (black screen). */
     if (scene && fb[0] && fb[1] != fb[0]) {
         async_memcpy_config_t amc_cfg = ASYNC_MEMCPY_DEFAULT_CONFIG();
-        amc_cfg.backlog = 4; amc_cfg.sram_trans_align = 4; amc_cfg.psram_trans_align = 64;
+        amc_cfg.backlog = 4;
+        amc_cfg.dma_burst_size = 64;     /* (2026-10-28) what psram_trans_align = 64 set: the same union field. The
+                                            alignment comes from the GDMA channel now; sram_trans_align was unread */
         s_amc_done = xSemaphoreCreateBinary();
         if (esp_async_memcpy_install(&amc_cfg, &s_amc) != ESP_OK) {
             s_amc = NULL; ESP_LOGW(TAG, "async memcpy unavailable: CPU scene restore");

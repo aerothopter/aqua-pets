@@ -2760,7 +2760,8 @@ void render_shop_leave(void) { g_shp_modal = -1; g_shp_earn = false; g_shp_page 
  * icons are placeholders (the bubbles badge) until their own art lands:
  * assets/icons/menu_*.png through tools/gen_icons.py, then the table below.
  * The tool in hand is lit (the toolbox's look: a white double edge on a
- * lighter fill). */
+ * lighter fill). Over the live tank (2026-10-28): each tile a pane in the
+ * fish card's look, the water a sixth through. */
 static const icon_t *const MENU_ICON[MENU_TILES] = {
     &icon_ms_first_bubbles, &icon_ms_first_bubbles, &icon_ms_first_bubbles,   /* TANK, UPGRADES, SETTINGS (placeholders) */
     &icon_tool_sponge, &icon_tool_scissors, NULL,
@@ -2776,13 +2777,12 @@ void render_menu_tile_rect(int i, int *x, int *y, int *w, int *h) {
 void render_menu(const tank_t *t, uint16_t *fb, int stride) {
     render_use_theme(t->theme);
     ctx_t c = ctx_page(fb, stride);
-    rect_fill(&c, -PAGE_X, -PAGE_Y, TANK_W, TANK_H, MSP_INK);
-    draw_text(&c, (PAGE_W - text_w("MENU", 3)) / 2, MENU_Y0 - 38, 3, MSP_TEAL, "MENU");
     for (int i = 0; i < MENU_TILES; i++) {
         if (!MENU_ICON[i]) continue;                 /* the empty cell */
         int x, y; menu_tile_page(i, &x, &y);
         bool held = (i == 3 && t->tool == TOOL_SPONGE) || (i == 4 && t->tool == TOOL_SCISSORS);
-        rect_fill(&c, x, y, MENU_TILE_W, MENU_TILE_H, held ? 0x356670 : 0x14252b);
+        src_t bg = src_color(theme_ui_color(held ? 0x356670 : 0x04141a), 1.0f);   /* the card's backdrop (card_draw) */
+        for (int yy = y; yy < y + MENU_TILE_H; yy++) span(&c, x, x + MENU_TILE_W - 1, yy, &bg, 215);
         uint32_t edge = held ? 0xffffff : MSP_TEAL;
         rect_edge(&c, x, y, MENU_TILE_W, MENU_TILE_H, edge);
         if (held) rect_edge(&c, x + 1, y + 1, MENU_TILE_W - 2, MENU_TILE_H - 2, edge);
@@ -2796,7 +2796,8 @@ int render_menu_tap(const tank_t *t, float x, float y) {
     x -= PAGE_X; y -= PAGE_Y;                    /* the page's own coordinates */
     const int gw = 3 * MENU_TILE_W + 2 * MENU_GAP_X, gh = 2 * MENU_TILE_H + MENU_GAP_Y;
     if (x < MENU_X0 - MENU_SLOP || x >= MENU_X0 + gw + MENU_SLOP || y < MENU_Y0 - MENU_SLOP || y >= MENU_Y0 + gh + MENU_SLOP)
-        return MENU_TAP_CLOSE;                   /* off the grid: back to the tank */
+        return RENDER_BAT_HIT(x + PAGE_X, y + PAGE_Y) ? MENU_TAP_BATTERY   /* off the grid on the pill: its page */
+                                                      : MENU_TAP_CLOSE;    /* elsewhere off the grid: back to the tank */
     static const int CODE[MENU_TILES] = { MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS, MENU_TAP_NONE };
     for (int i = 0; i < MENU_TILES; i++) {       /* each tile with half the gap around it, so a near miss still lands */
         int tx, ty; menu_tile_page(i, &tx, &ty);
@@ -2903,8 +2904,7 @@ static void set_arrow_row(ctx_t *c, int row_y, const char *label, const char *te
 static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, int volume) {
     render_use_theme(t->theme);
     ctx_t c = ctx_page(fb, stride);
-    rect_fill(&c, -PAGE_X, -PAGE_Y, TANK_W, TANK_H, MSP_INK);
-    draw_text(&c, (PAGE_W - text_w("SETTINGS", 3)) / 2, SET_TITLE_Y, 3, 0xffffff, "SETTINGS");
+    rect_fill(&c, -PAGE_X, -PAGE_Y, TANK_W, TANK_H, MSP_INK);   /* (no title since 2026-10-28: the rows start at the top) */
     int bi = bright_index(bright_pct);
     set_arrow_row(&c, SET_ROW1_Y, "BRIGHTNESS", SET_BRIGHT[bi], bi > 0, bi < SET_BRIGHT_N - 1);   /* < the percent > */
     set_row(&c, SET_ROW2_Y, "VOLUME", SET_VOLUME, 3, volume < 0 ? 0 : volume > 2 ? 2 : volume);
@@ -2937,11 +2937,12 @@ static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, 
     /* 2026-09-29: the release number first ("V0.2.0 ALPHA"), the build id after it */
     char ver[64]; snprintf(ver, sizeof ver, "V%s %s  BUILD %s", PT_RELEASE, PT_RELEASE_STAGE, version_port_string());
     draw_text_8px(&c, SET_VER_X((int)strlen(ver) * 6 - 1), SET_VER_Y, MSP_DIM, ver);   /* where the board puts it (the watch: centred under the foot) */
-    button(&c, SET_CLOSE_X, SET_FOOT_Y, SET_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
-    /* UPDATES (2026-09-30, docs/OTA.md): bottom left; ABOUT and RESET (2026-10-10) between */
-    button(&c, SET_UPD_X, SET_FOOT_Y, SET_UPD_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "UPDATES", 2);
+    /* UPDATES (2026-09-30, docs/OTA.md) and RESET (2026-10-10): a row of their own under ROTATION
+       (2026-10-28, out of the foot); the foot keeps ABOUT and CLOSE */
+    button(&c, SET_UPD_X, SET_UPD_Y, SET_UPD_W, SET_SEG_H, 0x1c2f36, MSP_TEAL, "UPDATES", 2);
+    button(&c, SET_RST_X, SET_RST_Y, SET_RST_W, SET_SEG_H, 0x1c2f36, 0xe0785a, "RESET", 2);   /* a warm edge: it starts the tank over (after the prompt) */
     button(&c, SET_ABT_X, SET_ABT_Y, SET_ABT_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "ABOUT", 2);
-    button(&c, SET_RST_X, SET_RST_Y, SET_RST_W, MSP_CLOSE_H, 0x1c2f36, 0xe0785a, "RESET", 2);   /* a warm edge: it starts the tank over (after the prompt) */
+    button(&c, SET_CLOSE_X, SET_FOOT_Y, SET_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
 }
 /* ---- the ABOUT page (2026-10-10): the game's name, who makes it, the release and the build,
  * a little fish crossing above them and bubbles rising; a jingle plays while it is up (the
@@ -2996,10 +2997,13 @@ static bool g_settings_about;
 static int g_settings_page, g_settings_bright = 60, g_settings_volume = 2;
 static int original_settings_tap(float x, float y, int *value) {
     x -= PAGE_X; y -= PAGE_Y;                    /* the page's own coordinates */
-    if (x >= SET_ABT_X - 6 && x < SET_ABT_X + SET_ABT_W + 6 && y >= SET_ABT_Y - 6 && y < SET_ABT_Y + MSP_CLOSE_H + 8) return SET_HIT_ABOUT;   /* (before the foot's halves, on a wide foot they stand between them) */
-    if (x >= SET_RST_X - 6 && x < SET_RST_X + SET_RST_W + 6 && y >= SET_RST_Y - 6 && y < SET_RST_Y + MSP_CLOSE_H + 8) return SET_HIT_RESET;
-    if (x >= SET_CLOSE_X - 8 && y >= SET_FOOT_Y - 4) return SET_TAP_CLOSE;
-    if (x < SET_UPD_X + SET_UPD_W + 8 && y >= SET_FOOT_Y - 4) return SET_TAP_UPDATES;
+    if (y >= SET_FOOT_Y - 4) {                   /* the foot: ABOUT bottom left, CLOSE bottom right */
+        if (x >= SET_CLOSE_X - 8) return SET_TAP_CLOSE;
+        if (x < SET_ABT_X + SET_ABT_W + 8) return SET_HIT_ABOUT;
+        return SET_TAP_NONE;
+    }
+    if (y >= SET_SEG_Y(SET_ROW6_Y) - 12)         /* row 6 (2026-10-28): UPDATES | RESET, split between them */
+        return x < (SET_UPD_X + SET_UPD_W + SET_RST_X) / 2 ? SET_TAP_UPDATES : SET_HIT_RESET;
     /* the row bands: from a little above each segment down to the next row
        (fingers report low); the last one stops at the foot's */
     int seg = set_segment(x, 3), two = set_segment(x, 2);
@@ -3007,7 +3011,7 @@ static int original_settings_tap(float x, float y, int *value) {
     if (y >= SET_SEG_Y(SET_ROW2_Y) - 12 && y < SET_SEG_Y(SET_ROW3_Y) - 12) { if (seg < 0) return SET_TAP_NONE; *value = seg; return SET_TAP_VOLUME; }
     if (y >= SET_SEG_Y(SET_ROW3_Y) - 12 && y < SET_SEG_Y(SET_ROW4_Y) - 12) { if (seg < 0) return SET_TAP_NONE; *value = 0; return x < SET_SPAN_MID ? SET_HIT_LIGHT_PREV : SET_HIT_LIGHT_NEXT; }
     if (y >= SET_SEG_Y(SET_ROW4_Y) - 12 && y < SET_SEG_Y(SET_ROW5_Y) - 12) { if (two < 0) return SET_TAP_NONE; *value = two == 0; return SET_TAP_FEED; }
-    if (y >= SET_SEG_Y(SET_ROW5_Y) - 12 && y < SET_ROW5_END) {
+    if (y >= SET_SEG_Y(SET_ROW5_Y) - 12 && y < SET_SEG_Y(SET_ROW6_Y) - 12) {
         if (two < 0) return SET_TAP_NONE;
 #if DEVICE_WORN
         *value = two == 1; return SET_TAP_SCREEN;

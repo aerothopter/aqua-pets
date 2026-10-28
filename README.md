@@ -146,7 +146,8 @@ the card (or the open water) to put it away.
 
 **The main menu.** Press the BOOT key (the small one) for the main menu: TANK
 (the milestones page), UPGRADES (the shop) and SETTINGS across the top, the
-SPONGE and the SCISSORS below. Each page's CLOSE brings you back to the menu;
+SPONGE and the SCISSORS below, standing over the live tank the way a fish's
+card does, with the battery up in the corner. Each page's CLOSE brings you back to the menu;
 BOOT on a page does the same, and BOOT on the menu (or a tap off its tiles)
 goes back to the tank.
 
@@ -488,7 +489,7 @@ stops the loss.
 
 ![The battery page, charging](docs/media/sim-battery-page.png)
 
-**The battery.** A small battery sits top right whenever a fish's card is
+**The battery.** A small battery sits top right whenever the main menu is
 open, and stays up by itself when the charge runs low. On the cable a
 lightning bolt stands beside it, and while it charges a bright band runs
 through the fill, so you never have to tell two colors apart to know it is
@@ -514,9 +515,9 @@ taken out again.) docs/THEMES.md has the details.
 are made; the other three themes will come back.*
 
 **One settings page.** Since 2026-10-10 every theme uses the same settings
-layout - the rows of segments and arrows, the foot of UPDATES / ABOUT / RESET /
-CLOSE - drawn in the theme's own colours and font; only the theme picker (from
-the SETTINGS / THEMES title) keeps its tiles. RESET starts the tank over: it
+layout - the rows of segments and arrows, then (since 2026-10-28) UPDATES and
+RESET side by side under ROTATION, and ABOUT and CLOSE at the foot - drawn in
+the theme's own colours and font. RESET starts the tank over: it
 opens the same NO / YES prompt as the BOOT-and-tap chord, with its timeout, so a
 stray tap wipes nothing.
 

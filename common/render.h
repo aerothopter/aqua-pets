@@ -115,14 +115,16 @@ void render_set_card_cache(uint16_t *buf);
 void render_tool_chip(const tank_t *t, int fish_idx, uint16_t *fb, int stride);
 bool render_tool_chip_hit(const tank_t *t, float x, float y);
 
-/* Device battery pill (top-right), drawn with the stats card on hardware,
- * while the battery is low, and for BAT_POPUP_S after the cable goes in:
+/* Device battery pill (top-right), drawn with the main menu (since 2026-10-28;
+ * with the fish card before), while the battery is low, and for BAT_POPUP_S
+ * after the cable goes in:
  * frac 0..1, state = BAT_* (battery.h), clock (s) runs the sweep. Redrawn
  * 2026-09-24 for a color-blind keeper: on the cable a lightning bolt stands
  * left of the pill (gray while the charger rests), and while charge flows a
  * bright band sweeps the fill - shape and motion, hue only as a repeat.
  * A tap in RENDER_BAT_HIT (the pill plus a fingertip's slop, most of it
- * below and to the left) opens the battery page - while the pill shows.
+ * below and to the left) opens the battery page - while the pill shows (with
+ * the menu up, render_menu_tap says so: MENU_TAP_BATTERY).
  * The pill's place, RENDER_BAT_X / _Y, is the board's (its layout header). */
 #define RENDER_BAT_W 32
 #define RENDER_BAT_H 15
@@ -225,13 +227,17 @@ void render_shop_leave(void);
 /* The MAIN MENU (2026-10-21): the BOOT key's page, a grid of six tiles -
  * TANK (the milestones page), UPGRADES (the shop), SETTINGS; then the
  * SPONGE, the SCISSORS (tank.h TOOL_*; the one in hand is lit) and an
- * empty cell. render_menu_tap maps a tap (the frame's coordinates): a tile's
- * MENU_TAP_*, MENU_TAP_CLOSE off the grid (the platform puts the menu away),
- * MENU_TAP_NONE on the empty cell or the grid's slop. The platform opens
+ * empty cell. Since 2026-10-28 the tiles stand over the live tank, in the
+ * fish card's look; the platform draws the tank first, and the battery pill
+ * with it. render_menu_tap maps a tap (the frame's coordinates): a tile's
+ * MENU_TAP_*, MENU_TAP_BATTERY off the grid on the pill (RENDER_BAT_HIT: the
+ * platform opens the battery page if the pill shows, else puts the menu
+ * away), MENU_TAP_CLOSE elsewhere off the grid (the platform puts the menu
+ * away), MENU_TAP_NONE on the empty cell or the grid's slop. The platform opens
  * the page, or puts the tool in hand (the same tool again: back to the hand)
  * and closes the menu. BOOT on the platforms: from the tank the menu, from
  * the menu the tank, from any of its pages back to the menu. */
-enum { MENU_TAP_NONE = 0, MENU_TAP_CLOSE, MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS };
+enum { MENU_TAP_NONE = 0, MENU_TAP_CLOSE, MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS, MENU_TAP_BATTERY };
 void render_menu(const tank_t *t, uint16_t *fb, int stride);
 int  render_menu_tap(const tank_t *t, float x, float y);
 void render_menu_tile_rect(int i, int *x, int *y, int *w, int *h);   /* tile i (0..MENU_TILES-1, row by row) in the frame's coordinates */
@@ -292,7 +298,7 @@ int  render_confirm_hit(float x, float y);
  * (tank_screen_*) where the others have ROTATION, applied here like the light's.
  * render_settings_tap is the bare hit test (tests). */
 enum { SET_TAP_NONE = 0, SET_TAP_CLOSE = 1, SET_TAP_BRIGHT = 2, SET_TAP_VOLUME = 3, SET_TAP_LIGHT = 4, SET_TAP_IDLE = 5,
-       SET_TAP_UPDATES = 6,     /* the UPDATES button, bottom left (2026-09-30): the platform opens the updates page (update.h) */
+       SET_TAP_UPDATES = 6,     /* the UPDATES button (2026-09-30; under ROTATION since 2026-10-28): the platform opens the updates page (update.h) */
        SET_TAP_SCREEN = 7,      /* a worn tank's SCREEN row (2026-10-02): *value 1 = TURNED, already applied and marked
                                    for the save - the platform only logs it (the picture turns on the next frame) */
        SET_TAP_FEED = 8,        /* AUTO FEED (0.3.2): *value 1 = ON; applied and marked for the save */
@@ -417,10 +423,10 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define MENU_GAP_X    18
 #define MENU_GAP_Y    24
 #define MENU_SLOP     16             /* past the grid's edge a tap is still the grid's (nothing); further out it closes the menu */
-/* the settings page (the board's: the title and rows, SET_TITLE_Y ...
- * SET_FOOT_Y, the first segment and the pitch, SET_SEG_X / _DX, the foot's
- * buttons, the last row's band, the version line and the short pages'
- * rectangle, SET_BOUNDS_*) */
+/* the settings page (the board's: the rows, SET_ROW1_Y ... SET_ROW6_Y and
+ * SET_FOOT_Y, the first segment and the pitch, SET_SEG_X / _DX, row 6's
+ * UPDATES and RESET, the foot's ABOUT and CLOSE, the version line and the
+ * short pages' rectangle, SET_BOUNDS_*) */
 #define SET_LABEL_X   32
 #define SET_SEG_W     76
 #define SET_SEG_H     40
@@ -432,8 +438,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define SET_SPAN_MID  (SET_SEG_X + SET_SPAN_W / 2)
 /* ROTATION: one icon button where the first segment stands, its word beside it */
 #define SET_ROT_WORD_X (SET_SEG_X + SET_SEG_W + 14)
-/* the foot (2026-10-10, one layout for every theme): UPDATES | ABOUT | RESET | CLOSE on a wide
- * glass; the watch has no room for four, so ABOUT and RESET stand above the foot's pair
- * (SET_UPD_*, SET_ABT_*, SET_RST_*, SET_CLOSE_*: the board's) */
+/* the buttons (2026-10-28): UPDATES | RESET a row under ROTATION, ABOUT | CLOSE the foot
+ * (SET_UPD_*, SET_RST_*, SET_ABT_*, SET_CLOSE_*: the board's) */
 
 #endif
