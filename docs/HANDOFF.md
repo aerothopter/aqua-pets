@@ -2,6 +2,39 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-28: pushed; the keeper's TODOs so far
+
+The keeper looked at the flashed 1.8 ("it all looks good"). `main`
+(b424c4d) and the tag `multi-board-multi-theme` are pushed to
+`origin` (aerothopter/aqua-pets). The local refactor branches are deleted;
+`origin/refactor/helpers` is still on GitHub (delete it when the keeper says).
+
+The 2026-10-23 TODOs, where they stand:
+- [ ] **Docs:** comb through all the documentation and code comments for
+  accuracy and style.
+- [x] **One board for now** (2026-10-26, flashed 2026-10-28). The round and
+  watch boards are at the tag.
+- [x] **One theme for now** (2026-10-26, flashed 2026-10-28). The other
+  three themes are at the tag.
+- [x] **The menu over the tank** (2026-10-28, flashed). Also: no "MENU"
+  title.
+- [ ] **Solo mode:** a tank of one creature, with more interactive features.
+- [ ] **No startle by tap or shake:** remove the triple tap and the shake.
+- [ ] **Trust:** make an untrusting creature and a trusting one differ much
+  more.
+- [ ] **Play:** more games and interactions between the creatures and the
+  keeper.
+- [x] **Battery** shows with the menu, not the fish card (2026-10-28,
+  flashed).
+
+Done along the way (the keeper's asks, 2026-10-28): the settings page has
+no title, UPDATES and RESET are a row under ROTATION, and the firmware
+builds with no warnings.
+
+**Board status.** 1.8 rect: as in the entry below (checked, snapshot
+pages pictured, built, flashed 2026-10-28 14:17, looked at on the glass by
+the keeper).
+
 ## 2026-10-28: the menu over the tank; the battery pill with the menu; settings rearranged
 
 **What changed** (two of the keeper's TODOs, then the keeper's settings asks):
