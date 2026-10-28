@@ -1,0 +1,22 @@
+# Aqua Pets preflight 2026-10-28_1417 on COM4
+I (1827915) batlog: 7 samples (h:mm since the first | SoC | VBAT | bright | state | mA since previous)
+I (1827916) batlog:     0:00 | 100% | 4119 mV |   0 | asleep | bed
+I (1827920) batlog:   112:15 | 100% | 4105 mV | 153 | awake  | boot      0.0 mA
+I (1827927) batlog:   112:20 | 100% | 4106 mV | 153 | awake  |           0.0 mA
+I (1827934) batlog:   112:25 | 100% | 4105 mV | 153 | awake  |           0.0 mA
+I (1827941) batlog:   112:30 | 100% | 4105 mV | 153 | awake  |           0.0 mA
+I (1827948) batlog:   112:35 | 100% | 4106 mV | 153 | awake  |           0.0 mA
+I (1827955) batlog:   112:40 | 100% | 4106 mV | 153 | awake  |           0.0 mA
+I (1827962) batlog:   awake:  0.4 h, 0 mAh -> 0 mA average
+I (1827967) batlog:   asleep: 112.3 h, 0.0 mAh -> 0.00 mA average
+I (1827973) batlog:   (SoC is 1% = 2 mAh; short awake windows are coarse, a night is not)
+I (1831997) director: 0 kelp    fish    /0 elder age 28.9h size 1.10 hunger 0.1 energy 5.4 stress 1.3 curiosity 0.8 trust 4.6 ms f39  follow_friend at 150,58
+I (1832000) director: 1 pip     fish    /0 elder age 28.9h size 1.14 hunger 3.4 energy 5.4 stress 1.3 curiosity 0.4 trust 5.0 ms f33  seek_food at 46,47
+I (1832014) director: pellets 0 | trickle on | ravenous 0 | day idle 188s | veg 0.05 0.04 0.04 | algae cells 80/644 | courting no | arrival -
+I (1832026) director: sand dollars 157 (earned 157) | shop: - | colonies 14 | 995 cm trimmed
+I (1832035) director: species: fish 2 | 2 of 25 places | courting pair of one species: no
+I (1832043) director: bed 0 fronds (x from 19, pitch 12): 0.08 0.07 0.07 0.06 0.06 0.05 0.05 0.05 0.04 0.04 0.04 0.04 0.04 0.04 0.04
+I (1832054) director: bed 1 fronds (x from 376, pitch 12): 0.04 0.04 0.04 0.04 0.04
+I (1832062) director: bed 2 fronds (x from 278, pitch 12): 0.04 0.04 0.04 0.04 0.04 0.04 0.04 0.04
+I (1832070) director: nursery bed -1 (a bed >= 0.12) | parked real tank: no (this IS the real tank)
+I (1832079) director: battery 100% on the cable, full, VBAT 4108 mV | brightness 153/255 (level 60%)

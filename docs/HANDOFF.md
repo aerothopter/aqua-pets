@@ -52,11 +52,13 @@ the layout now puts them.
 
 | board | `make check-all` | pictured | firmware built | flashed | on the glass |
 |---|---|---|---|---|---|
-| 1.8 rect | passes (18 selftests) | snapshot pages as above; board_sheet.py not run | yes (5.4.4, throwaway key): app 0x201000, `.dram0.bss` 59,096 (both unchanged) | no | no |
+| 1.8 rect | passes (18 selftests) | snapshot pages as above; board_sheet.py not run | yes (5.4.4, no warnings): app 0x201000, `.dram0.bss` 59,096 (both unchanged) | **yes, 2026-10-28 14:17** (`tools/flash.sh`, app only; archive docs/batlog/2026-10-28_1417.txt) | not yet by the keeper; the serial log a minute after boot: 2 fish (the save kept), deciding at 11.2 tok/s, heap 40 KB, no errors |
+
+This flash also put the one-board / one-theme strip (2026-10-26) on the
+glass for the first time.
 
 **Open.**
-- Not committed yet (on `main`, uncommitted), not flashed. On the glass,
-  check that the pill is easy to hit beside the SETTINGS tile, and that the
+- On the glass, check that the pill is easy to hit beside the SETTINGS tile, and that the
   tiles read well over a busy tank, and that the settings rows (now 6 px
   apart) are still easy to hit; BRIGHTNESS's arrows sit 16 px from the top.
 
