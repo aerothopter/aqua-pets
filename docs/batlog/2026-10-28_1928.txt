@@ -1,0 +1,30 @@
+# Aqua Pets preflight 2026-10-28_1928 on COM4
+I (293997) aqua-pets: battery: cable in at 70% (charging) - the I (306898) batlog: 14 samples (h:mm since the first | SoC | VBAT | bright | state | mA since previous)
+I (306899) batlog:     0:00 |  74% | 3882 mV |   0 | asleep | bed
+I (306903) batlog:     1:10 |  70% | 3847 mV | 153 | asleep | sleep     6.8 mA
+I (306910) batlog:     1:10 |  70% | 3905 mV |   0 | asleep | nap       0.0 mA
+I (306917) batlog:     1:11 |  70% | 3846 mV | 153 | asleep | sleep     0.0 mA
+I (306924) batlog:     1:21 |  70% | 3898 mV |   0 | asleep | nap       0.0 mA
+I (306931) batlog:     1:21 |  70% | 3898 mV | 153 | awake  | boot
+I (306937) batlog:     1:21 |  70% | 3832 mV | 153 | asleep | sleep     0.0 mA
+I (306944) batlog:     1:28 |  70% | 3892 mV |   0 | asleep | nap       0.0 mA
+I (306951) batlog:     1:28 |  70% | 3892 mV | 153 | awake  |           0.0 mA
+I (306958) batlog:     1:29 |  70% | 3788 mV | 153 | asleep | sleep     0.0 mA
+I (306965) batlog:     1:30 |  70% | 3860 mV |   0 | asleep | nap       0.0 mA
+I (306972) batlog:     1:30 |  70% | 3791 mV | 153 | asleep | sleep     0.0 mA
+I (306979) batlog:     1:34 |  70% | 3841 mV |   0 | asleep | nap       0.0 mA
+I (306986) batlog:     1:34 |  70% | 3841 mV | 153 | awake  |
+I (306992) batlog:   awake:  0.0 h, 0 mAh -> 0 mA average
+I (306997) batlog:   asleep: 1.5 h, 8.0 mAh -> 5.20 mA average
+I (307002) batlog:   (SoC is 1% = 2 mAh; short awake windows are coarse, a night is not)
+I (310995) director: 0 kelp    fish    /0 elder age 30.5h size 1.13 hunger 5.8 energy 9.1 stress 0.1 curiosity 0.0 trust 0.1 ms 1f3b  rest at 64,208
+I (310999) director: 1 pip     fish    /0 elder age 30.5h size 1.17 hunger 0.5 energy 10.0 stress 0.6 curiosity 0.0 trust 0.1 ms 1f33  rest at 104,224
+I (311012) director: 2 clack   crab    /1 juv   age 0.6h size 0.77 hunger 6.8 energy 3.4 stress 1.3 curiosity 5.2 trust 4.0 ms 221  inspect_reef at 51,347
+I (311025) director: pellets 0 | trickle on | ravenous 0 | night idle 16s | veg 0.04 0.05 0.05 | algae cells 2/644 | courting no | arrival -
+I (311038) director: sand dollars 176 (earned 186) | shop: | colonies 64 | 1241 cm trimmed
+I (311046) director: species: fish 2, crab 1 | 3 of 25 places | courting pair of one species: no
+I (311055) director: bed 0 fronds (x from 19, pitch 12): 0.05 0.05 0.05 0.05 0.05 0.05 0.03 0.03 0.03 0.03 0.03 0.05 0.05 0.05 0.05
+I (311066) director: bed 1 fronds (x from 376, pitch 12): 0.05 0.05 0.05 0.05 0.05
+I (311073) director: bed 2 fronds (x from 278, pitch 12): 0.05 0.05 0.05 0.05 0.05 0.05 0.05 0.05
+I (311082) director: nursery bed -1 (a bed >= 0.12) | parked real tank: no (this IS the real tank)
+I (311091) director: battery 70% charging, VBAT 3929 mV | brightness 91/255 (level 60%)

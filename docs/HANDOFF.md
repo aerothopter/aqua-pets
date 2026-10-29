@@ -60,7 +60,7 @@ but okay for now"). The milestones page is second on the scroll helper.
 
 | board | `make check-all` | pictured | firmware built | flashed | on the glass |
 |---|---|---|---|---|---|
-| 1.8 rect | passes (18 selftests) | the milestones snapshots looked at (a full tank at the top and scrolled; the shrimp row peeking and scrolled) | yes (5.4.4, throwaway key, no warnings): app 0x201000, `.dram0.bss` 58,728 (+72: the two lists' state) | no | no |
+| 1.8 rect | passes (18 selftests) | the milestones snapshots looked at (a full tank at the top and scrolled; the shrimp row peeking and scrolled) | yes (5.4.4, throwaway key, no warnings): app 0x201000, `.dram0.bss` 58,728 (+72: the two lists' state) | **yes, 2026-10-28 19:28** (`tools/flash.sh`, app only; archive docs/batlog/2026-10-28_1928.txt; with the fades and the shop's foot) | not yet by the keeper; the serial log after boot: 3 creatures, 10.4 tok/s, heap 40 KB, no errors |
 
 **Then the edges fade (the keeper's ask, the same day).**
 - **`list_fade`** (render.c, beside `scroll_bar`): where a view cuts its
