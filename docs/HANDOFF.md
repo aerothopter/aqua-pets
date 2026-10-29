@@ -115,7 +115,7 @@ have a trick.
 
 | board | `make check-all` | pictured | firmware built | flashed | on the glass |
 |---|---|---|---|---|---|
-| 1.8 rect | passes (18 selftests) | the settings page (NEVER) and the care page looked at | yes (5.4.4, throwaway key, no warnings): app 0x201000, `.dram0.bss` 58,928 (58,632 without the startle; +296 for the tricks: `fish_t`'s three getaway floats) | no | no |
+| 1.8 rect | passes (18 selftests) | the settings page (NEVER) and the care page looked at | yes (5.4.4, throwaway key, no warnings): app 0x201000, `.dram0.bss` 58,928 (58,632 without the startle; +296 for the tricks: `fish_t`'s three getaway floats) | **yes, 2026-10-28 20:40** (`tools/flash.sh`, app only; archive docs/batlog/2026-10-28_2040.txt; with the FEED tool, the entry below) | not yet by the keeper; the serial log after boot: 3 creatures, 13.2 tok/s, heap 40 KB, no errors |
 
 **Open.** The keeper's TODO "no startle by tap or shake" is done (with the
 shake, earlier today).
@@ -183,7 +183,7 @@ shake, earlier today).
 
 | board | `make check-all` | pictured | firmware built | flashed | on the glass |
 |---|---|---|---|---|---|
-| 1.8 rect | passes (18 selftests) | the menu, the care page, both tool chips looked at | yes (5.4.4, throwaway key, no warnings): app 0x201000 | no | no |
+| 1.8 rect | passes (18 selftests) | the menu, the care page, both tool chips looked at | yes (5.4.4, throwaway key, no warnings): app 0x201000 | yes, 2026-10-28 20:40 (with the entry above) | not yet by the keeper |
 
 **Open.**
 - FEED's own art (`assets/icons/tool_feed.png` and gen_icons.py).

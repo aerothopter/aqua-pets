@@ -1,0 +1,27 @@
+# Aqua Pets preflight 2026-10-28_2040 on COM4
+I (2748749) batlog: 10 samples (h:mm since the first | SoC | VBAT | bright | state | mA since previous)
+I (2748750) batlog:     0:00 |  83% | 4140 mV |   0 | asleep | bed
+I (2748754) batlog:     0:09 | 100% | 4133 mV |  91 | awake  | boot   -209.9 mA
+I (2748761) batlog:     0:14 | 100% | 4123 mV |  91 | awake  |           0.0 mA
+I (2748768) batlog:     0:19 | 100% | 4120 mV |  91 | awake  |           0.0 mA
+I (2748775) batlog:     0:24 | 100% | 4118 mV |  91 | awake  |           0.0 mA
+I (2748782) batlog:     0:29 | 100% | 4116 mV |  91 | awake  |           0.0 mA
+I (2748789) batlog:     0:34 | 100% | 4115 mV |  91 | awake  |           0.0 mA
+I (2748796) batlog:     0:39 | 100% | 4113 mV |  91 | awake  |           0.0 mA
+I (2748804) batlog:     0:44 | 100% | 4115 mV |  91 | awake  |           0.0 mA
+I (2748811) batlog:     0:49 | 100% | 4113 mV |  91 | awake  |           0.0 mA
+I (2748818) batlog:   awake:  0.7 h, 0 mAh -> 0 mA average
+I (2748822) batlog:   asleep: 0.2 h, -34.0 mAh -> -209.95 mA average
+I (2748829) batlog:   (SoC is 1% = 2 mAh; short awake windows are coarse, a night is not)
+I (2752730) director: 0 kelp    fish    /0 elder age 31.4h size 1.17 hunger 2.5 energy 9.8 stress 0.0 curiosity 0.8 trust 0.1 ms 1f3b  explore at 203,265
+I (2752733) director: 1 pip     fish    /0 elder age 31.4h size 1.22 hunger 4.7 energy 10.0 stress 0.0 curiosity 0.0 trust 0.1 ms 1f33  rest at 117,299
+I (2752747) director: 2 clack   crab    /1 juv   age 1.5h size 0.80 hunger 0.9 energy 9.8 stress 0.0 curiosity 2.5 trust 4.0 ms 223  visit_bubbles at 130,346
+I (2752760) director: pellets 0 | trickle on | ravenous 0 | night idle 10s | veg 0.09 0.09 0.09 | algae cells 16/644 | courting no | arrival -
+I (2752773) director: sand dollars 30 (earned 190) | shop: castle | colonies 64 | 1237 cm trimmed
+I (2752782) director: species: fish 2, crab 1 | 3 of 25 places | courting pair of one species: no
+I (2752791) director: bed 0 fronds (x from 19, pitch 12): 0.09 0.09 0.09 0.09 0.09 0.09 0.09 0.09 0.09 0.09 0.09 0.09 0.09 0.09 0.09
+I (2752802) director: bed 1 fronds (x from 376, pitch 12): 0.09 0.09 0.09 0.09 0.09
+I (2752810) director: bed 2 fronds (x from 278, pitch 12): 0.09 0.09 0.09 0.09 0.09 0.09 0.09 0.09
+I (2752818) director: castle placed: centre x 326 (the keeper's), IN FRONT of the grass (the fish swim through)
+I (2752828) director: nursery bed -1 (a bed >= 0.12) | parked real tank: no (this IS the real tank)
+I (2752837) director: battery 100% on the cable, full, VBAT 4114 mV | brightness 91/255 (level 60%)
