@@ -125,6 +125,17 @@ static goal_t advisor_inspect(const tank_t *t, int fish_idx, bool request) {
     return g;
 }
 static int ms_tap(float px, float py) { return render_milestones_tap(&tank, PG_X(px), PG_Y(py)); }
+/* the milestones page's touch (2026-10-28: its lists scroll), in page coordinates, ~13 ms a poll as the
+   device's: a stroke from one point to another over n polls and the lift; quiet polls; a still press and
+   lift and then the release's tap (as the platforms hand them: a stroke's scroll is forgotten at a press) */
+static uint32_t g_ms_clock = 1000;
+static void ms_stroke(float x0, float y0, float x1, float y1, int n, int hold_ms) {
+    for (int k = 0; k <= n; k++, g_ms_clock += 13) render_milestones_touch(&tank, PG_X(x0 + (x1 - x0) * k / n), PG_Y(y0 + (y1 - y0) * k / n), true, g_ms_clock);
+    for (uint32_t e = g_ms_clock + hold_ms; g_ms_clock < e; g_ms_clock += 13) render_milestones_touch(&tank, PG_X(x1), PG_Y(y1), true, g_ms_clock);   /* held still: no fling */
+    render_milestones_touch(&tank, PG_X(x1), PG_Y(y1), false, g_ms_clock);
+}
+static void ms_idle(int ms) { for (uint32_t e = g_ms_clock + ms; g_ms_clock < e; g_ms_clock += 13) render_milestones_touch(&tank, 0, 0, false, g_ms_clock); }
+static int ms_press_tap(float px, float py) { ms_stroke(px, py, px, py, 2, 0); return ms_tap(px, py); }
 /* the shop: row r's band (with the list at the top, or scrolled to bring the old page's first
    item there: render_shop_show_item), the modal's one button (UNLOCK) or two (MOVE, SELL) */
 #define SHOP_ROW_X     100                                         /* on a row's name (the band runs the page's width) */
@@ -414,39 +425,43 @@ static int selftest_species_pop(void) {
         int before = tank.n_fish; progression_force_arrival(&tank);
         if (tank.n_fish != before) { printf("FAIL: an arrival past the cap\n"); return 1; }
     }
-    /* the milestones page with ten: two pages of rows, the pager and the swipe, a modal brings its row's page */
+    /* the milestones page with a full tank: the rows scroll (2026-10-28; pages behind a chevron and a sideways
+       swipe before) - a drag moves them and its release opens no card, flicks reach the last row, a card
+       brings its row into view and its arrows take the list along */
     {
         if (tank.n_fish != N_FISH_MAX) { printf("FAIL: the tank is %d, not %d\n", tank.n_fish, N_FISH_MAX); return 1; }
-        int px, py, nx, ny, fish;
+        int nx, ny, fish, y0;
         render_milestones_leave(); render_milestones(&tank, fb, TANK_W);
-        if (!render_milestones_pager(&tank, &px, &py) || render_milestones_fish_page() != 0) { printf("FAIL: ten creatures and no pager\n"); return 1; }
-        if (render_milestones_tap(&tank, (float)px, (float)py) != MS_TAP_KEPT || render_milestones_fish_page() != 1) { printf("FAIL: the pager did not turn the page\n"); return 1; }
-        render_milestones(&tank, fb, TANK_W);
-        render_milestones_row(6, &nx, &ny);
+        if (!render_milestones_scrolls(&tank, false)) { printf("FAIL: %d creatures and the rows do not scroll\n", tank.n_fish); return 1; }
+        if (!render_milestones_row(MSP_FISH_ROWS - 1, &nx, &y0) || render_milestones_row(MSP_FISH_ROWS, &nx, &ny)) { printf("FAIL: the view at the top does not hold rows 0..%d whole\n", MSP_FISH_ROWS - 1); return 1; }
+        render_milestones_show_row(&tank, 6);
+        if (!render_milestones_row(6, &nx, &ny)) { printf("FAIL: row 6 not in view when shown\n"); return 1; }
         if (render_milestones_tap(&tank, (float)nx, (float)ny) != MS_TAP_KEPT || !render_milestones_card(&tank, &fish, NULL, NULL, NULL) || fish != 6) {
-            printf("FAIL: page 2's first row is not creature 6's card (%d)\n", fish); return 1; }
+            printf("FAIL: row 6 is not creature 6's card (%d)\n", fish); return 1; }
         render_milestones(&tank, fb, TANK_W);
         int ax, ay; render_milestones_arrow(&tank, true, &ax, &ay);
         for (int i = 0; i < N_FISH_MAX - 6; i++) { render_milestones_tap(&tank, (float)ax, (float)ay); render_milestones(&tank, fb, TANK_W); }   /* 6 -> N_FISH_MAX wraps to 0 */
-        if (!render_milestones_card(&tank, &fish, NULL, NULL, NULL) || fish != 0 || render_milestones_fish_page() != 0) {
-            printf("FAIL: the card's arrows did not bring page 1 back (fish %d, page %d)\n", fish, render_milestones_fish_page()); return 1; }
+        if (!render_milestones_card(&tank, &fish, NULL, NULL, NULL) || fish != 0 || !render_milestones_row(0, NULL, NULL)) {
+            printf("FAIL: the card's arrows did not bring row 0 back into view (fish %d)\n", fish); return 1; }
         render_milestones_tap(&tank, (float)PG_X(MS_OFF_X), (float)PG_Y(MSP_FRY_MODAL_Y + 90));   /* closes the card */
-        render_milestones_row(0, &nx, &ny);
-        if (!render_milestones_swipe(&tank, (float)nx, (float)ny, -80) || render_milestones_fish_page() != 1) { printf("FAIL: a swipe across the rows did not page\n"); return 1; }
-        const int last_pg = (N_FISH_MAX - 1) / MSP_FISH_ROWS;      /* (a full tank: no NEW FRY row) */
-        for (int p = 1; p < last_pg; p++) render_milestones_swipe(&tank, (float)nx, (float)ny, -80);
-        if (render_milestones_fish_page() != last_pg) { printf("FAIL: swipes did not reach the last page (%d of %d)\n", render_milestones_fish_page(), last_pg); return 1; }
-        render_milestones_swipe(&tank, (float)nx, (float)ny, -80);
-        if (render_milestones_fish_page() != last_pg) { printf("FAIL: a swipe paged past the last\n"); return 1; }
-        render_milestones_swipe(&tank, (float)nx, (float)ny, 80);
-        if (render_milestones_fish_page() != last_pg - 1) { printf("FAIL: a swipe back did not page back\n"); return 1; }
-        if (render_milestones_tap(&tank, (float)PG_X(MS_NAME_X), (float)PG_Y(MSP_TANK_Y + 10)) != MS_TAP_KEPT) { printf("FAIL: TANK's tally\n"); return 1; }
-        render_milestones(&tank, fb, TANK_W);                       /* the school of ten in the tally */
+        render_milestones_row(MSP_FISH_ROWS - 1, &nx, &y0);
+        ms_stroke(MS_NAME_X, (float)(y0 - PAGE_Y), MS_NAME_X, (float)(y0 - PAGE_Y) - 120, 20, 150); ms_idle(300);   /* a drag up across the rows */
+        render_milestones_row(MSP_FISH_ROWS - 1, &nx, &ny);
+        if (ny > y0 - 100 || ny < y0 - 120) { printf("FAIL: a 120 px drag moved row %d from %d to %d\n", MSP_FISH_ROWS - 1, y0, ny); return 1; }
+        if (render_milestones_tap(&tank, (float)nx, (float)(y0 - 120)) != MS_TAP_KEPT || render_milestones_card(&tank, NULL, NULL, NULL, NULL)) { printf("FAIL: the drag's release opened a card\n"); return 1; }
+        for (int k = 0; k < 8; k++) { ms_stroke(MS_NAME_X, 200, MS_NAME_X, 80, 6, 0); ms_idle(60); }   /* flicks: to the end */
+        ms_idle(4000);
+        if (!render_milestones_row(N_FISH_MAX - 1, &nx, &ny) || render_milestones_row(0, NULL, NULL)) { printf("FAIL: flung to the end, the last row is not in view\n"); return 1; }
+        if (ms_press_tap((float)(nx - PAGE_X), (float)(ny - PAGE_Y)) != MS_TAP_KEPT || !render_milestones_card(&tank, &fish, NULL, NULL, NULL) || fish != N_FISH_MAX - 1) {
+            printf("FAIL: the last row at the end is not the last creature's card\n"); return 1; }
+        render_milestones_tap(&tank, (float)PG_X(MS_OFF_X), (float)PG_Y(MSP_FRY_MODAL_Y + 90));
+        if (ms_press_tap(MS_NAME_X, MSP_TANK_Y + 10) != MS_TAP_KEPT) { printf("FAIL: TANK's tally\n"); return 1; }
+        render_milestones(&tank, fb, TANK_W);                       /* the school in the tally */
         render_milestones_leave();
         /* a tap on a creature: its own reach (the hammerhead's is a pup's ninety px, a fry's at least a fingertip) */
         for (int i = 0; i < tank.n_fish; i++)
             if (tank_fish_hit_r(&tank.fish[i]) < TANK_HIT_MIN_R) { printf("FAIL: creature %d's reach %.0f\n", i, tank_fish_hit_r(&tank.fish[i])); return 1; }
-        printf("selftest-pop: species: ten on the milestones page - two pages of rows, the pager, the swipe, a card's arrows bring its page\n");
+        printf("selftest-pop: species: a full tank on the milestones page - the rows scroll (a drag, flicks to the last row, its release no tap), a card's arrows bring its row into view\n");
     }
     return 0;
 }
@@ -2575,13 +2590,13 @@ static int snapshot(const char *prefix, int seconds) {
       snprintf(path, sizeof path, "%s_milestones_tank3.ppm", prefix); write_ppm(path, fb);
       tank.n_fish = n_keep; }
     render_milestones_leave();
-    {   /* with a shrimp school (2026-09-30): the TANK row's arrow (ringed: the full
-           school's badge, earned and not seen, waits on page 2), then page 2 */
+    {   /* with a shrimp school (2026-09-30): the TANK row's seventh badge peeking in (its bar's mark: the full
+           school's badge, earned and not seen, lies past the view's end), then the row scrolled to it (2026-10-28) */
         uint32_t unl = tank.sd_unlocks, tms = tank.tank_ms_bits, seen = tank.tank_ms_seen;
         tank.sd_unlocks |= SD_ITEM_SHRIMP; tank.tank_ms_bits |= TMS_FULL_SCHOOL; tank.tank_ms_seen = tank.tank_ms_bits & ~TMS_FULL_SCHOOL;
         render_milestones(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_milestones_shrimp.ppm", prefix); write_ppm(path, fb);
-        render_milestones_tap(&tank, PAGE_X + 426, PAGE_Y + 254 + 20);
+        render_milestones_show_tank_badge(&tank, 6);
         render_milestones(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_milestones_shrimp2.ppm", prefix); write_ppm(path, fb);
         render_milestones_leave();
@@ -2655,10 +2670,10 @@ static int snapshot(const char *prefix, int seconds) {
     snprintf(path, sizeof path, "%s_shop.ppm", prefix); write_ppm(path, fb);
     tank.sd_balance = 95; render_shop(&tank, fb, TANK_W);
     snprintf(path, sizeof path, "%s_shop_rich.ppm", prefix); write_ppm(path, fb);
-    render_shop_tap(&tank, PAGE_X + 100, PAGE_Y + 98 + 56 + 20); render_shop(&tank, fb, TANK_W);      /* the snail's row -> its modal */
+    render_shop_tap(&tank, PAGE_X + SHOP_ROW_X, PAGE_Y + SHOP_ROW_Y(1)); render_shop(&tank, fb, TANK_W);      /* the snail's row -> its modal */
     snprintf(path, sizeof path, "%s_shop_modal.ppm", prefix); write_ppm(path, fb);
     render_shop_leave();
-    render_shop_tap(&tank, PAGE_X + 100, PAGE_Y + 98 + 20); render_shop(&tank, fb, TANK_W);           /* the plant's row -> its modal (the long second line) */
+    render_shop_tap(&tank, PAGE_X + SHOP_ROW_X, PAGE_Y + SHOP_ROW_Y(0)); render_shop(&tank, fb, TANK_W);           /* the plant's row -> its modal (the long second line) */
     snprintf(path, sizeof path, "%s_shop_plant.ppm", prefix); write_ppm(path, fb);
     render_shop_leave();
     render_shop_tap(&tank, PAGE_X + 60, PAGE_Y + 320); render_shop(&tank, fb, TANK_W);                /* HOW TO EARN */
@@ -2925,7 +2940,7 @@ static int snapshot(const char *prefix, int seconds) {
         snprintf(path, sizeof path, "%s_place_cluster.ppm", prefix); write_ppm(path, fb);
         setup_cancel(&tank);
         tank.sd_unlocks |= SD_ITEM_CASTLE; tank_castle_place(&tank);
-        render_shop_leave(); render_shop(&tank, fb, TANK_W); render_shop_tap(&tank, PAGE_X + 100, PAGE_Y + 98 + 2 * 56 + 20);
+        render_shop_leave(); render_shop(&tank, fb, TANK_W); render_shop_tap(&tank, PAGE_X + SHOP_ROW_X, PAGE_Y + SHOP_ROW_Y(2));
         render_shop(&tank, fb, TANK_W); render_shop_tap(&tank, PAGE_X + 48 + (352 - 216) / 2 + 116 + 50, PAGE_Y + 48 + 244 - 12 - 16);   /* SELL, armed */
         render_shop(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_shop_sell.ppm", prefix); write_ppm(path, fb);
@@ -2954,7 +2969,7 @@ static int snapshot(const char *prefix, int seconds) {
         render_milestones_leave(); render_milestones(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_species_milestones.ppm", prefix); write_ppm(path, fb);
         int px, py;
-        if (render_milestones_pager(&tank, &px, &py)) render_milestones_tap(&tank, (float)px, (float)py);
+        render_milestones_show_row(&tank, 11); (void)px; (void)py;    /* scrolled: rows 6..11 */
         render_milestones(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_species_milestones2.ppm", prefix); write_ppm(path, fb);
         { int nx, ny; render_milestones_row(7, &nx, &ny); render_milestones_tap(&tank, (float)nx, (float)ny); }   /* the lobster's card */
@@ -3819,11 +3834,11 @@ static int selftest_shop(void) {
         if (!(tank.sd_unlocks & SD_ITEM_SHRIMP) || tank.school.n != keep_n || tank.school.food != 7 || fabsf(tank.school.cool - 321) > 1) {
             printf("FAIL: the save lost the shrimp (%d of %d, count %d, cooldown %.0f)\n", tank.school.n, keep_n, tank.school.food, tank.school.cool); return 1; }
         /* the full school's badge (2026-09-30): a seventh tank badge, shown only
-           with shrimp in the tank, on the TANK row's second page behind the
-           arrow at its right end (a tap, or a sideways swipe along the row) */
+           with shrimp in the tank - past the sixth on the TANK row, which then
+           scrolls sideways (2026-10-28; a second page behind an arrow before) */
         {
-            const float TY = MS_TANK_Y, ARROW_X = MSP_TPG_X + 14, CELL0 = MS_BADGE_X(0), CELL1 = MS_BADGE_X(1);   /* page coordinates */
-            const float SWIPE_X = PG_X(300), SWIPE_Y = PG_Y(TY), FISH_ROW_Y = PG_Y(MS_ROW(2) + MS_BADGE_DY);        /* a swipe is the frame's */
+            const float TY = MS_TANK_Y, PAST_X = MSP_TB_X1 - 10;      /* page coordinates: past the sixth badge, in the row's view */
+            int bx, by;
             #define MS_HASH(h) do { render_milestones(&tank, fb, TANK_W); h = 2166136261u; \
                 for (int q_ = 0; q_ < TANK_W * TANK_H; q_++) h = (h ^ fb[q_]) * 16777619u; } while (0)
             uint32_t h0, h1, hx;
@@ -3831,35 +3846,48 @@ static int selftest_shop(void) {
                                                                                         out of the tank while the school's is counted) */
             tank.sd_unlocks &= ~SD_ITEM_CLUSTER;
             if (tank.tank_ms_bits & TMS_FULL_SCHOOL) { printf("FAIL: the full-school badge with %d shrimp\n", tank.school.n); return 1; }
-            uint32_t unl = tank.sd_unlocks; tank.sd_unlocks &= ~SD_ITEM_SHRIMP;      /* no shrimp: one page, no arrow */
+            uint32_t unl = tank.sd_unlocks; tank.sd_unlocks &= ~SD_ITEM_SHRIMP;      /* no shrimp: six badges, the row still */
             render_milestones_leave(); MS_HASH(h0);
-            if (ms_tap(ARROW_X, TY) != MS_TAP_NONE || render_milestones_swipe(&tank, SWIPE_X, SWIPE_Y, -60)) { printf("FAIL: the tank row pages without shrimp\n"); return 1; }
-            MS_HASH(hx); if (hx != h0) { printf("FAIL: a tap past the badges changed the page without shrimp\n"); return 1; }
+            if (render_milestones_scrolls(&tank, true) || ms_tap(PAST_X, TY) != MS_TAP_NONE) { printf("FAIL: the tank row scrolls (or has a seventh badge) without shrimp\n"); return 1; }
+            {   /* lists that fit (2026-10-28, the keeper): no bar, no fade - the TANK row's bar band and its view's
+                   edges, the rows' bar column and their view's foot, all the page's ink */
+                uint16_t ink = fb[(PAGE_Y + 2) * TANK_W + PAGE_X + PAGE_W - 6];
+                const int px[5][2] = { { MSP_TB_X0 + 40, MSP_TANK_Y + 42 }, { MSP_TB_X1 - 2, MSP_TANK_Y - 1 }, { MSP_TB_X0 + 1, MSP_TANK_Y - 1 },   /* (above the badges' rings, in the row's view) */
+                                      
+                                       { PAGE_BAR_X + 1, MSP_LIST_Y0 + 100 }, { 20, MSP_LIST_Y1 - 2 } };
+                if (render_milestones_scrolls(&tank, false)) { printf("FAIL: %d creatures and the rows scroll\n", tank.n_fish); return 1; }
+                for (int q = 0; q < 5; q++)
+                    if (fb[(PAGE_Y + px[q][1]) * TANK_W + PAGE_X + px[q][0]] != ink) { printf("FAIL: a bar or a fade on a list that fits (at %d,%d)\n", px[q][0], px[q][1]); return 1; } }
+            ms_stroke(PAST_X - 20, TY, PAST_X - 120, TY, 8, 0); ms_idle(500);
+            MS_HASH(hx); if (hx != h0) { printf("FAIL: a drag along the row moved it without shrimp\n"); return 1; }
             tank.sd_unlocks = unl;
-            MS_HASH(h0);
-            if (ms_tap(ARROW_X, TY) != MS_TAP_KEPT) { printf("FAIL: the tank row's arrow did not turn the page\n"); return 1; }
+            render_milestones_leave(); MS_HASH(h0);
+            if (!render_milestones_scrolls(&tank, true) || render_milestones_tank_badge(6, NULL, NULL)) { printf("FAIL: with shrimp the seventh badge is whole at the start, or the row does not scroll\n"); return 1; }
+            if (ms_tap(PAST_X, TY) != MS_TAP_KEPT) { printf("FAIL: the seventh badge's edge, peeking in, did not open it\n"); return 1; }
+            ms_tap(MS_OFF_X, MS_OFF_Y);                              /* close it: its badge brought into view, and kept */
             MS_HASH(h1);
-            if (h1 == h0) { printf("FAIL: page 2 of the tank row looks like page 1\n"); return 1; }
-            if (ms_tap(CELL1, TY) != MS_TAP_NONE) { printf("FAIL: an empty cell on page 2 opened a modal\n"); return 1; }
-            if (ms_tap(CELL0, TY) != MS_TAP_KEPT) { printf("FAIL: the full-school badge did not open its modal\n"); return 1; }
-            ms_tap(MS_OFF_X, MS_OFF_Y);                              /* close it: page 2 stays */
-            MS_HASH(hx); if (hx != h1) { printf("FAIL: closing the modal dropped the tank row's page\n"); return 1; }
-            if (ms_tap(ARROW_X, TY) != MS_TAP_KEPT) { printf("FAIL: the arrow did not come back\n"); return 1; }
-            MS_HASH(hx); if (hx != h0) { printf("FAIL: the arrow did not come back to page 1\n"); return 1; }
-            if (!render_milestones_swipe(&tank, SWIPE_X, SWIPE_Y, -60)) { printf("FAIL: a swipe along the tank row did not page\n"); return 1; }
-            MS_HASH(hx); if (hx != h1) { printf("FAIL: a left swipe did not show page 2\n"); return 1; }
-            render_milestones_swipe(&tank, SWIPE_X, SWIPE_Y, -60);                       /* no wrap on a swipe */
-            MS_HASH(hx); if (hx != h1) { printf("FAIL: a swipe past the last page moved\n"); return 1; }
-            if (render_milestones_swipe(&tank, SWIPE_X, FISH_ROW_Y, 60)) { printf("FAIL: a swipe on a fish row paged the tank row\n"); return 1; }
-            render_milestones_swipe(&tank, SWIPE_X, SWIPE_Y, 60);
-            MS_HASH(hx); if (hx != h0) { printf("FAIL: a right swipe did not come back to page 1\n"); return 1; }
-            /* the modal's arrows cross the pages: the sixth badge, one right = the seventh, and the row follows */
-            if (ms_tap(MS_BADGE_X(5), TY) != MS_TAP_KEPT) { printf("FAIL: the sixth tank badge did not open\n"); return 1; }
+            if (h1 == h0 || !render_milestones_tank_badge(6, &bx, &by) || render_milestones_tank_badge(0, NULL, NULL)) { printf("FAIL: opening the seventh badge did not scroll it into view\n"); return 1; }
+            if (ms_press_tap((float)(bx - PAGE_X), (float)(by - PAGE_Y)) != MS_TAP_KEPT) { printf("FAIL: the full-school badge did not open its modal\n"); return 1; }
+            ms_tap(MS_OFF_X, MS_OFF_Y);
+            MS_HASH(hx); if (hx != h1) { printf("FAIL: closing the modal moved the tank row\n"); return 1; }
+            render_milestones_leave(); MS_HASH(hx);
+            if (hx != h0) { printf("FAIL: leaving the page kept the tank row's scroll\n"); return 1; }
+            int fx0, fy0, fy1; render_milestones_row(2, &fx0, &fy0);
+            ms_stroke(PAST_X - 20, TY, PAST_X - 120, TY, 8, 0); ms_idle(500);   /* a drag along the row: to its end */
+            if (!render_milestones_tank_badge(6, NULL, NULL)) { printf("FAIL: a drag along the tank row did not bring the seventh badge in\n"); return 1; }
+            render_milestones_row(2, &fx0, &fy1);
+            if (fy1 != fy0) { printf("FAIL: a drag along the tank row moved the creature rows\n"); return 1; }
+            if (ms_tap(PAST_X - 120, TY) != MS_TAP_KEPT || render_milestones_card(&tank, NULL, NULL, NULL, NULL)) { printf("FAIL: the drag's release opened something\n"); return 1; }
+            render_milestones_leave(); MS_HASH(h0);
+            ms_stroke(MS_BADGE_X(2), MS_ROW(1) + MS_BADGE_DY, MS_BADGE_X(2) - 100, MS_ROW(1) + MS_BADGE_DY, 8, 0); ms_idle(500);   /* sideways across a creature row */
+            MS_HASH(hx); if (hx != h0) { printf("FAIL: a sideways drag on a creature row moved something\n"); return 1; }
+            /* the modal's arrows step along the row: the sixth badge, one right = the seventh, and the row follows */
+            render_milestones_tank_badge(5, &bx, &by);
+            if (ms_press_tap((float)(bx - PAGE_X), (float)(by - PAGE_Y)) != MS_TAP_KEPT) { printf("FAIL: the sixth tank badge did not open\n"); return 1; }
             ms_tap(MS_ARROW_R_X, MS_ARROW_Y);
             ms_tap(MS_OFF_X, MS_OFF_Y);
-            MS_HASH(hx); if (hx != h1) { printf("FAIL: the modal's arrow to the seventh badge left the row on page 1\n"); return 1; }
+            if (!render_milestones_tank_badge(6, NULL, NULL)) { printf("FAIL: the modal's arrow to the seventh badge left it out of view\n"); return 1; }
             render_milestones_leave();
-            MS_HASH(hx); if (hx != h0) { printf("FAIL: leaving the page kept the tank row's page\n"); return 1; }
             /* ten shrimp earn it */
             int n_keep = tank.school.n; tank.school.n = SHRIMP_MAX;
             progression_tick(&tank, 1.0f / 60.0f);
@@ -3867,7 +3895,7 @@ static int selftest_shop(void) {
             tank.school.n = n_keep;
             tank.sd_unlocks |= had_cluster;
             #undef MS_HASH
-            printf("selftest-shop: the shrimp: the full-school badge - hidden without shrimp, page 2 of the tank row (arrow, swipe, modal arrows), earned at %d\n", SHRIMP_MAX);
+            printf("selftest-shop: the shrimp: the full-school badge - hidden without shrimp, the seventh on the tank row (it scrolls; a drag, a tap on its edge, the modal's arrows bring it in), earned at %d\n", SHRIMP_MAX);
         }
         /* the reef and the seagrass (2026-10-02): "first reef" left the fish's
            badges - the "reef" was only the grass corner - for the TANK row, shown
@@ -3881,7 +3909,7 @@ static int selftest_shop(void) {
             fish_t *f = &tank.fish[0]; float rx, ry;
             tank.sd_unlocks &= ~(SD_ITEM_CLUSTER | SD_ITEM_SHRIMP); tank.tank_ms_bits &= ~(TMS_FIRST_REEF | TMS_FULL_SCHOOL);
             render_milestones_leave();
-            if (ms_tap(MSP_TPG_X + 14, MS_TANK_Y) != MS_TAP_NONE) { printf("FAIL: the tank row pages with no cluster and no shrimp\n"); return 1; }
+            if (render_milestones_scrolls(&tank, true)) { printf("FAIL: the tank row scrolls with no cluster and no shrimp\n"); return 1; }
             tank_reef_spot(&tank, &rx, &ry);
             if (rx != tank.reef_x || ry != tank.reef_y) { printf("FAIL: no cluster, and the reef spot is not the grass corner's (%.0f,%.0f)\n", rx, ry); return 1; }
             f->ms_bits &= ~(MS_INSPECTED | MS_FIRST_GRASS); f->stress = 0;
@@ -3895,8 +3923,9 @@ static int selftest_shop(void) {
             if (fabsf(rx - tank_decor_x(&tank, 4)) > 0.5f) { printf("FAIL: the reef spot (%.0f) is not the cluster's (%.0f)\n", rx, tank_decor_x(&tank, 4)); return 1; }
             progression_tick(&tank, 1.0f / 60.0f);
             if (tank.tank_ms_bits & TMS_FIRST_REEF) { printf("FAIL: a fish at the old grass corner earned the reef badge\n"); return 1; }
-            if (ms_tap(MSP_TPG_X + 14, MS_TANK_Y) != MS_TAP_KEPT) { printf("FAIL: with the cluster bought the tank row has no second page\n"); return 1; }
-            if (ms_tap(MS_BADGE_X(0), MS_TANK_Y) != MS_TAP_KEPT) { printf("FAIL: the reef badge did not open its modal\n"); return 1; }
+            if (!render_milestones_scrolls(&tank, true)) { printf("FAIL: with the cluster bought the tank row has no seventh badge\n"); return 1; }
+            { int bx, by; render_milestones_show_tank_badge(&tank, 6); render_milestones_tank_badge(6, &bx, &by);
+              if (ms_tap((float)(bx - PAGE_X), (float)(by - PAGE_Y)) != MS_TAP_KEPT) { printf("FAIL: the reef badge did not open its modal\n"); return 1; } }
             render_milestones_leave();
             /* a fish that chooses inspect_reef swims to the cluster on its own and earns it */
             bool earned = false; float best = 1e9f; int took = 0;
@@ -3908,7 +3937,7 @@ static int selftest_shop(void) {
             }
             if (!earned) { printf("FAIL: 90 s of inspect_reef did not bring a fish to the cluster (closest %.0f px)\n", best); return 1; }
             tank.sd_unlocks &= ~SD_ITEM_CLUSTER;                              /* sold: an earned badge stays on the row */
-            if (ms_tap(MSP_TPG_X + 14, MS_TANK_Y) != MS_TAP_KEPT) { printf("FAIL: the earned reef badge left the row with the cluster\n"); return 1; }
+            if (!render_milestones_scrolls(&tank, true)) { printf("FAIL: the earned reef badge left the row with the cluster\n"); return 1; }
             render_milestones_leave();
             /* the seagrass: a rest inside the left bed's canopy earns it; cut to nubs there is no cover to rest in */
             tank_veg_set(&tank, 0, VEG_NUB);
@@ -6038,6 +6067,8 @@ int main(int argc, char **argv) {
                                            printf(v ? "about page up (the jingle plays)\n" : "about page closed\n"); }
         } else if (shop_view && !confirm_view) {
             render_shop_touch((float)mx, (float)my, mpress, now_ms);   /* the list scrolls (2026-10-28); its taps at the release, below */
+        } else if (milestones_view && !confirm_view) {
+            render_milestones_touch(&tank, (float)mx, (float)my, mpress, now_ms);   /* the rows and the TANK row's badges scroll (2026-10-28) */
         } else if (updates_view && !confirm_view) {              /* the UPDATES page: CHECK, FORGET, CLOSE */
             int r = updates_page_touch((float)mx, (float)my, mpress);
             if (r == UPD_TAP_CLOSE) { updates_view = false; settings_view = true; ms_back = true; }   /* back to the settings page */
@@ -6105,9 +6136,6 @@ int main(int argc, char **argv) {
                                                           printf("shop: placement page up for the %s\n", SD_ITEMS[item].name); } }
                     else printf("shop: %s refused (balance %d, price %d)\n", SD_ITEMS[item].name, tank.sd_balance, SD_ITEMS[item].price);
                 }
-            }
-            else if (milestones_view && abs(dx) >= 40 && abs(dx) > 2 * abs(dy) && render_milestones_swipe(&tank, (float)press_x, (float)press_y, (float)dx)) {
-                /* a sideways drag along the TANK row turned its page (2026-09-30), as the device's touch port does */
             }
             else if (milestones_view) {
                 int r = render_milestones_tap(&tank, (float)press_x, (float)press_y);

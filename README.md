@@ -243,8 +243,11 @@ least two fish, and after a sale the next fry waits for 12 more meals.
 **More badges, and the school at a glance.** Each fish can earn *first rest
 in the seagrass*. The tank can earn *a school of ten shrimp*, and the reef
 badge now belongs to the tank: buy the reef cluster and the fish swim over
-to visit it. When the tank's row of badges is full, an arrow (or a swipe
-along the row) shows its next page. Tap the tank's fish count to see every
+to visit it. When the tank's row holds more badges than fit, the next one
+peeks in at its right end: drag the row sideways to see it (since
+2026-10-28; an arrow paged it before). Past six creatures the rows scroll
+up and down the same way, with a thin bar at the right; a teal mark on a
+bar's end says a badge you haven't seen lies past it. Tap the tank's fish count to see every
 fish in its own colors, with an outline for each open place.
 
 ![The milestones page](docs/media/sim-milestones.png)
@@ -440,12 +443,12 @@ grown pair of one species courts and the fry is theirs, and now and then a
 classic pair's fry hatches as something else entirely, a surprise. A newcomer
 needs a free place in the tank (the shop says NO ROOM otherwise), and the
 tank holds up to 25 creatures. The milestones
-page pages its rows past six; the card names the species and the design.
+page's rows scroll past six; the card names the species and the design.
 The whole design is in [docs/species.md](docs/species.md).
 
 ![The ten species, one design each](docs/media/sim-species.png)
 ![At night: the anglerfish's lure, the firefly squid, the eel's spark, the sleepers](docs/media/sim-species-night.png)
-![The shop's species page: each creature shown as itself, 10 sand dollars](docs/media/sim-shop-species.png)
+![The shop's species rows: each creature shown as itself, 10 sand dollars](docs/media/sim-shop-species.png)
 
 ![The shop](docs/media/sim-shop.png)
 ![Unlocking the snail](docs/media/sim-shop-modal.png)
@@ -460,7 +463,7 @@ The whole design is in [docs/species.md](docs/species.md).
 ![The grown coral with its crown of tentacles](docs/media/sim-coral.png)
 ![A violet coral IN FRONT of everything](docs/media/sim-coral-front.png)
 ![Placing the coral: the COLOR row above the water](docs/media/sim-place-coral.png)
-![The shop's second page](docs/media/sim-shop2.png)
+![The shop scrolled to the reef cluster](docs/media/sim-shop2.png)
 ![The shrimp school drifting up to the top of the grass](docs/media/sim-shrimp.png)
 ![The shrimp school's card](docs/media/sim-shrimp-card.png)
 ![The sea urchin on the sand, by the grass](docs/media/sim-urchin.png)

@@ -53,10 +53,10 @@ creature's goal; the species decides how that goal is carried out.
   classic fish. Should a species' creature ever be on it (a director's
   tank), it offers that species' four designs (the body swatches are the
   designs' bodies; a design brings its own markings) instead of LOOK_BODY.
-- **The milestones page** holds six rows a page (`MSP_FISH_ROWS`); with more
-  (up to 25 creatures and the NEW FRY row) a chevron beside the rows - the
-  TANK row's arrow, a pip per page - or a sideways swipe across them turns
-  the page, and a card opened or stepped to brings its row's page. The TANK
+- **The milestones page** shows six rows whole (`MSP_FISH_ROWS`); with more
+  (up to 25 creatures and the NEW FRY row) the rows scroll (2026-10-28,
+  `common/scroll.c`; a chevron and a sideways swipe paged them before), and
+  a card opened or stepped to scrolls its row into view. The TANK
   row's population strip is three rows of nine dots; its tally modal shows
   the school in two staggered rows. A big creature's row portrait is held
   to `MSP_ROW_SP_MAX`.

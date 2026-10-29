@@ -118,8 +118,8 @@ machine.*
   truncating every overnight step to zero (fixed 2026-09-04).
 - Tank milestones: first trimming, first glass cleaning.
 - Tank milestone "a school of ten shrimp" (2026-09-30): the shrimp school reaches SHRIMP_MAX.
-  Its badge shows only once shrimp are bought, on the TANK row's second page (six badges a
-  page; a small arrow at the row's right end, or a sideways swipe, turns it).
+  Its badge shows only once shrimp are bought, past the sixth on the TANK row, which then
+  scrolls sideways (2026-10-28; six badges a page behind an arrow before).
 - Neither chore ever counts toward the tap burst (no accidental startles).
 
 ## Sand dollars and the shop (2026-09-15, `progression.c` SD_*, `render_shop`)

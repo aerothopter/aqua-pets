@@ -471,6 +471,7 @@ void touch_port_poll(tank_t *t) {
         else if (r == SET_TAP_BRIGHT || r == SET_TAP_VOLUME || r == SET_TAP_LIGHT || r == SET_TAP_IDLE || r == SET_TAP_FEED || r == SET_TAP_ROTATE || r == SET_TAP_ABOUT) { s_set_what = r; s_set_val = v; }
     }
     if (s_shop && !s_cf && !su) render_shop_touch(tx, ty, touched, (uint32_t)(now / 1000));   /* the shop's list scrolls (2026-10-28); its taps at the release, below */
+    if (s_ms && !s_cf && !su) render_milestones_touch(t, tx, ty, touched, (uint32_t)(now / 1000));   /* the milestones page's lists too */
     if (s_upd && !s_cf && !su) {                             /* the UPDATES page: CHECK (main restarts), FORGET, CLOSE */
         int r = updates_page_touch(tx, ty, touched);
         if (r == UPD_TAP_CLOSE) { s_upd = false; s_set = true; s_back = true; ESP_LOGI(TAG, "updates page: CLOSE -> settings"); }
@@ -635,9 +636,6 @@ void touch_port_poll(tank_t *t) {
                                                   dismisses it - it is NOT a tank tap
                                                   (no feed, no light-toggle burst) */
             else tank_touch_tap(t, s_px, s_py);
-        }
-        else if (s_ms && !s_back && fabsf(dx) >= 40 && fabsf(dx) > 2 * fabsf(dy)) {   /* sideways along the TANK row: its page (2026-09-30) */
-            if (render_milestones_swipe(t, s_px, s_py, dx)) ESP_LOGI(TAG, "page swipe %.0f px (the tank row or the fish rows)", dx);
         }
         else if (!s_ms && t->tool == TOOL_HAND && s_py - tank_glass_top(s_px) < 60 && dy >= 40) tank_feed(t, s_lx, 3);  /* drag down from the top = feed (not with a tool in hand) */
     }

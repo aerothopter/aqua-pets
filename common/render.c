@@ -1946,10 +1946,6 @@ static const badge_t TANK_BADGES[TANK_BADGE_N] = {
     { TMS_FULL_SCHOOL, &icon_ms_full_school },        /* 2026-09-30: only once the shrimp are bought (tank_badge_shown) */
     { TMS_FIRST_REEF, &icon_ms_first_reef },          /* 2026-10-02: only once the reef cluster is bought */
 };
-/* the tank row's pages (2026-09-30, the seventh badge): six badges a page;
-   with more, a small arrow at the row's right end (or a sideways swipe along
-   the row) flips to the next page, pointing back from the last. */
-static int g_ms_tpage;                  /* the tank row's page (kept while a modal opens and closes; 0 on leaving the page) */
 /* which tank badges show: a bought thing's badge only once the thing is
    bought (the shrimp school's, the reef cluster's) - and, once earned, for
    good, whatever was sold since */
@@ -1970,18 +1966,33 @@ static const badge_t *tank_badge(const tank_t *t, int k) {
         if (tank_badge_shown(t, i) && k-- == 0) return &TANK_BADGES[i];
     return &TANK_BADGES[0];
 }
-static int tank_pages(const tank_t *t) { return (tank_badge_n(t) + MSP_PER_ROW - 1) / MSP_PER_ROW; }
-/* the fish rows' pages (2026-10-05, the species' ten places): MSP_FISH_ROWS
-   rows a page - the fish, then the NEW FRY row while one can still come.
-   With more, a chevron in the tank row's arrow column, beside the rows (or
-   a sideways swipe across them), turns the page: toward the next, back from
-   the last, a pip per page under it. A modal opened on a row (or stepped to
-   one by its arrows) brings that row's page along. */
-static int g_ms_fpage;
+/* the page's two lists (2026-10-28, scroll.h): the rows - the creatures, then
+   the NEW FRY row while one can still come - up and down between the page's
+   top and the TANK row's rule (six fit; they paged six at a time behind a
+   chevron from 2026-10-05), and the TANK row's badges sideways (six fit and a
+   seventh peeks in; six a page behind an arrow from 2026-09-30). A bar beside
+   each says where its view is, with a teal mark at the end past which a
+   badge not seen yet lies. */
+static scroll_t g_ms_fscroll, g_ms_tscroll;   /* the rows (down), the TANK row's badges (across) */
+static void scroll_bar(ctx_t *c, const scroll_t *s, int x, int y, int len, bool across, int view, int content, bool fresh_lo, bool fresh_hi);   /* with the shop, below */
+static void list_fade(ctx_t *c, const scroll_t *s, bool across, int x, int y, int w, int h, uint32_t ink);   /* ... and its edges' fade */
 static int fish_rows(const tank_t *t, int nreq) { return t->n_fish + (nreq > 0); }
-static int fish_pages(const tank_t *t, int nreq) { int r = fish_rows(t, nreq); return r > MSP_FISH_ROWS ? (r + MSP_FISH_ROWS - 1) / MSP_FISH_ROWS : 1; }
+static void ms_extents(const tank_t *t, int nreq) {
+    scroll_extent(&g_ms_fscroll, 2 * MSP_ROW_Y0 + fish_rows(t, nreq) * MSP_ROW_H, MSP_LIST_Y1 - MSP_LIST_Y0);
+    scroll_extent(&g_ms_tscroll, tank_badge_n(t) * MSP_BADGE_DX + 4, MSP_TB_X1 - MSP_TB_X0);
+}
+/* the least scroll that shows lo..hi (the list's own coordinates) whole */
+static void ms_reveal(scroll_t *s, int lo, int hi, int view) {
+    float p = s->pos;
+    if (hi > p + view) p = (float)(hi - view);
+    if (lo < p) p = (float)lo;
+    scroll_to(s, p);
+}
+static int  ms_row_top(int i) { return MSP_ROW_Y0 + i * MSP_ROW_H - scroll_px(&g_ms_fscroll); }   /* row i's top on the page */
+static int  ms_tbadge_x(int k) { return MSP_BADGE_X0 + k * MSP_BADGE_DX - scroll_px(&g_ms_tscroll); }   /* the k-th TANK badge's left */
+static void ms_show_row(int i) { ms_reveal(&g_ms_fscroll, i * MSP_ROW_H, (i + 1) * MSP_ROW_H + 2 * MSP_ROW_Y0, MSP_LIST_Y1 - MSP_LIST_Y0); }
+static void ms_show_tbadge(int k) { ms_reveal(&g_ms_tscroll, k * MSP_BADGE_DX, (k + 1) * MSP_BADGE_DX + 4, MSP_TB_X1 - MSP_TB_X0); }
 #define MSP_ROW_SP_MAX 1.15f   /* a creature of a species in its row: no bigger than this (the big ones are tank-scaled up to ~2) */
-#define MSP_FPG_Y (MSP_ROW_Y0 + (MSP_FISH_ROWS * MSP_ROW_H - MSP_ICON) / 2)   /* the pager's top: the rows' middle */
 static const char *const STAGE_WORDS[4] = { "FRY", "JUVENILE", "ADULT", "ELDER" };
 /* a fish's stage line: "ADULT", or for a creature of a species "ADULT SEAHORSE" */
 static void stage_line(char *out, size_t n, const fish_t *f) {
@@ -2176,12 +2187,11 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
         for (int x = 0; x < TANK_W; x++) fb[y * stride + x] = rgb565(theme_ui_color(MSP_INK), 1);
     fry_req_t req[FRY_REQ_MAX]; bool staged;
     int nreq = progression_next_fry(t, req, &staged);
-    int fpages = fish_pages(t, nreq);
-    if (g_ms_fpage >= fpages) g_ms_fpage = fpages - 1;           /* (a sale took the last page's rows) */
-    const int r0 = g_ms_fpage * MSP_FISH_ROWS;                  /* this page's first row */
-    for (int i = r0; i < t->n_fish && i < r0 + MSP_FISH_ROWS; i++) {
+    ms_extents(t, nreq);                                         /* (a sale took a row: the list springs back to its end) */
+    for (int i = 0; i < t->n_fish; i++) {
         const fish_t *f = &t->fish[i];
-        int top = MSP_ROW_Y0 + (i - r0) * MSP_ROW_H;
+        int top = ms_row_top(i);
+        if (top + MSP_ROW_H <= MSP_LIST_Y0 || top >= MSP_LIST_Y1) continue;   /* out of the view (what spills past its edges is painted over below) */
         float rs = f->species && f->size > MSP_ROW_SP_MAX ? MSP_ROW_SP_MAX : f->size;   /* (a grown hammerhead or eel would leave its row) */
         fish_preview(fb, stride, MSP_FISH_X, top + MSP_ROW_MID, rs, f, f->color, f->fin, f->accent, t->clock, false);
         draw_text(&c, 92, top + 2, 2, 0xffffff, f->name);
@@ -2198,8 +2208,8 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
        still grow - what the next arrival needs, as badges that light up when
        met (the fry-to-be a silhouette at the left, a tick per gate under
        its name, a filling bar under each badge still owed) */
-    if (nreq > 0 && t->n_fish >= r0 && t->n_fish < r0 + MSP_FISH_ROWS) {
-        int top = MSP_ROW_Y0 + (t->n_fish - r0) * MSP_ROW_H;
+    if (nreq > 0 && ms_row_top(t->n_fish) + MSP_ROW_H > MSP_LIST_Y0 && ms_row_top(t->n_fish) < MSP_LIST_Y1) {
+        int top = ms_row_top(t->n_fish);
         uint32_t fry_rgb = staged ? MSP_TEAL : MSP_DIM;
         render_fish_preview(fb, stride, MSP_FISH_X, top + MSP_ROW_MID, 0.55f, fry_rgb, fry_rgb, fry_rgb, t->clock);
         draw_text(&c, 92, top + 2, 2, MSP_TEAL, "NEW FRY");
@@ -2215,6 +2225,21 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
             }
         }
     }
+    /* the rows' view: a row cut by its edges spills past them (the portraits draw on the frame, not
+       through the page's clip), so the bands outside are the page's ink again before the TANK row
+       draws; then the bar, with a mark at an end past which a row holds a badge not seen yet */
+    rect_fill(&c, -PAGE_X, -PAGE_Y, TANK_W, PAGE_Y + MSP_LIST_Y0, MSP_INK);
+    rect_fill(&c, -PAGE_X, MSP_LIST_Y1, TANK_W, MSP_CLOSE_Y - 2 - MSP_LIST_Y1, MSP_INK);
+    list_fade(&c, &g_ms_fscroll, false, -PAGE_X, MSP_LIST_Y0, TANK_W, MSP_LIST_Y1 - MSP_LIST_Y0, MSP_INK);
+    {   bool lo = false, hi = false;
+        for (int i = 0; i < t->n_fish; i++) {
+            bool fresh = false;
+            for (int k = 0; k < 6; k++) fresh |= (t->fish[i].ms_bits & ~t->fish[i].ms_seen & FISH_BADGES[k].bit) != 0;
+            if (fresh && ms_row_top(i) + MSP_ROW_H <= MSP_LIST_Y0) lo = true;
+            if (fresh && ms_row_top(i) >= MSP_LIST_Y1) hi = true;
+        }
+        scroll_bar(&c, &g_ms_fscroll, PAGE_BAR_X, MSP_LIST_Y0 + 4, MSP_LIST_Y1 - MSP_LIST_Y0 - 8, false,
+                   MSP_LIST_Y1 - MSP_LIST_Y0, 2 * MSP_ROW_Y0 + fish_rows(t, nreq) * MSP_ROW_H, lo, hi); }
     /* the tank's row: the sand dollar at the left (the fish rows' portrait
        slot) opens the shop (2026-09-15) */
     for (int x = 24; x < PAGE_W - 24; x++) px_blend(&c, x, MSP_TANK_Y - 4, MSP_DIM, 200);
@@ -2233,40 +2258,20 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
     else                                     /* 25 (2026-10-07): three rows of nine, dots, in the same 74 px before the badges */
         for (int k = 0; k < POP_CAP; k++)
             fish_glyph(&c, 96 + (k % 9) * 8, MSP_TANK_Y + 23 + (k / 9) * 8, 1.4f, k < t->n_fish ? MSP_TEAL : MSP_DIM);
-    int nb = tank_badge_n(t), np = tank_pages(t);
-    if (g_ms_tpage >= np) g_ms_tpage = 0;
-    for (int j = 0; j < MSP_PER_ROW; j++) {
-        int k = g_ms_tpage * MSP_PER_ROW + j;
-        if (k >= nb) break;
-        const badge_t *tb = tank_badge(t, k);
-        badge(&c, MSP_BADGE_X0 + j * MSP_BADGE_DX, MSP_TANK_Y + 4, tb->icon,
-              (t->tank_ms_bits & tb->bit) != 0, (t->tank_ms_seen & tb->bit) == 0);
-    }
-    if (np > 1) {   /* the page arrow: toward the next page, back from the last; the badges' two-tone
-                       ring round it while another page holds a badge not seen yet */
-        bool last = g_ms_tpage == np - 1, fresh = false;
-        for (int k = 0; k < nb; k++)
-            if (k / MSP_PER_ROW != g_ms_tpage && (t->tank_ms_bits & ~t->tank_ms_seen & tank_badge(t, k)->bit)) fresh = true;
-        int ax = MSP_TPG_X + 4, ay = MSP_TANK_Y + 4, aw = 16;
-        ms_chevron(&c, last ? ax + 2 : ax + aw - 2, ay + MSP_ICON / 2, last, 0xffffff);
-        if (fresh) { rect_edge(&c, ax - 3, ay - 3, aw + 6, MSP_ICON + 6, MSP_TEAL);
-                     rect_edge(&c, ax - 4, ay - 4, aw + 8, MSP_ICON + 8, 0x3f6a72); }
-        for (int p = 0; p < np; p++)        /* a pip per page under it, the current one lit */
-            rect_fill(&c, ax + aw / 2 - np * 3 + p * 6 + 1, MSP_TANK_Y + 40, 4, 2, p == g_ms_tpage ? MSP_TEAL : MSP_DIM);
-    }
-    if (fpages > 1) {   /* the fish rows' pager: the tank row's arrow, beside the rows; the two-tone ring
-                           while another page holds a fish badge not seen yet */
-        bool last = g_ms_fpage == fpages - 1, fresh = false;
-        for (int i = 0; i < t->n_fish; i++)
-            for (int k = 0; k < 6; k++)
-                if (i / MSP_FISH_ROWS != g_ms_fpage && (t->fish[i].ms_bits & ~t->fish[i].ms_seen & FISH_BADGES[k].bit)) fresh = true;
-        int ax = MSP_TPG_X + 4, ay = MSP_FPG_Y, aw = 16;
-        ms_chevron(&c, last ? ax + 2 : ax + aw - 2, ay + MSP_ICON / 2, last, 0xffffff);
-        if (fresh) { rect_edge(&c, ax - 3, ay - 3, aw + 6, MSP_ICON + 6, MSP_TEAL);
-                     rect_edge(&c, ax - 4, ay - 4, aw + 8, MSP_ICON + 8, 0x3f6a72); }
-        for (int p = 0; p < fpages; p++)
-            rect_fill(&c, ax + aw / 2 - fpages * 3 + p * 6 + 1, ay + MSP_ICON + 6, 4, 2, p == g_ms_fpage ? MSP_TEAL : MSP_DIM);
-    }
+    int nb = tank_badge_n(t);
+    {   ctx_t row = ctx_clip(&c, MSP_TB_X0, MSP_TANK_Y - 2, MSP_TB_X1 - MSP_TB_X0, 42);   /* the badges, inside their view */
+        bool lo = false, hi = false;
+        for (int k = 0; k < nb; k++) {
+            const badge_t *tb = tank_badge(t, k);
+            int x = ms_tbadge_x(k);
+            bool fresh = (t->tank_ms_bits & ~t->tank_ms_seen & tb->bit) != 0;
+            if (x + MSP_ICON + 4 <= MSP_TB_X0) { lo |= fresh; continue; }
+            if (x - 4 >= MSP_TB_X1) { hi |= fresh; continue; }
+            badge(&row, x, MSP_TANK_Y + 4, tb->icon, (t->tank_ms_bits & tb->bit) != 0, (t->tank_ms_seen & tb->bit) == 0);
+        }
+        list_fade(&c, &g_ms_tscroll, true, MSP_TB_X0, MSP_TANK_Y - 2, MSP_TB_X1 - MSP_TB_X0, 42, MSP_INK);
+        scroll_bar(&c, &g_ms_tscroll, MSP_TB_X0 + 4, MSP_TANK_Y + 41, MSP_TB_X1 - MSP_TB_X0 - 8, true,
+                   MSP_TB_X1 - MSP_TB_X0, nb * MSP_BADGE_DX + 4, lo, hi); }
     /* the way out: a CLOSE button in the prompt's calm dress (a tap anywhere
        else never drops the page - too much to tap for that) */
     button(&c, MSP_CLOSE_X, MSP_CLOSE_Y, MSP_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
@@ -2385,25 +2390,25 @@ int render_milestones_tap(const tank_t *t, float x, float y) {
         }
         ms_close(); return MS_TAP_KEPT;                  /* any other tap: back to the page */
     }
+    if (scroll_took(&g_ms_fscroll) || scroll_took(&g_ms_tscroll)) return MS_TAP_KEPT;   /* the stroke scrolled a list (or stopped it) */
     if (y >= MSP_CLOSE_Y - 4) return x >= MSP_CLOSE_X - MSP_CLOSE_SLOP ? MS_TAP_CLOSE : MS_TAP_NONE;   /* the foot: CLOSE, slop out to the glass edge */
     int row = -1; bool tank_row = false, fry_row = false;
     fry_req_t req[FRY_REQ_MAX]; bool staged;
     int nreq = progression_next_fry(t, req, &staged);
-    if (y >= MSP_ROW_Y0 - 2 && y < MSP_ROW_Y0 + MSP_FISH_ROWS * MSP_ROW_H) {
-        int fpages = fish_pages(t, nreq);
-        if (fpages > 1 && x >= MSP_TPG_X) {          /* the rows' pager: the next page, wrapping */
-            g_ms_fpage = (g_ms_fpage + 1) % fpages; return MS_TAP_KEPT; }
-        if (g_ms_fpage >= fpages) g_ms_fpage = fpages - 1;
-        row = (int)((y - MSP_ROW_Y0) / MSP_ROW_H);
+    ms_extents(t, nreq);
+    if (y >= MSP_LIST_Y0 && y < MSP_LIST_Y1) {       /* the rows, where the list has them */
+        row = (int)floorf((y - MSP_ROW_Y0 + g_ms_fscroll.pos) / MSP_ROW_H);
         if (row < 0) row = 0;
-        row += g_ms_fpage * MSP_FISH_ROWS;
         if (row == t->n_fish && nreq > 0) fry_row = true;   /* the NEW FRY row */
         else if (row >= t->n_fish) return MS_TAP_NONE;      /* an empty row */
-    } else if (y >= MSP_TANK_Y - 6 && y < MSP_CLOSE_Y - 4) tank_row = true;   /* down to the button strip: fingers near the
+    } else if (y >= MSP_LIST_Y1 && y < MSP_CLOSE_Y - 4) tank_row = true;   /* down to the button strip: fingers near the
                                                                               bottom bezel report LOW */
     else return MS_TAP_NONE;
-    if (tank_row && x >= MSP_TPG_X && tank_pages(t) > 1) {   /* the page arrow: the next page, wrapping */
-        g_ms_tpage = (g_ms_tpage + 1) % tank_pages(t); return MS_TAP_KEPT; }
+    if (tank_row && x >= MSP_TB_X0 && x < MSP_TB_X1) {       /* a badge, where the row's scroll has it */
+        int k = (int)floorf((x - MSP_TB_X0 + g_ms_tscroll.pos) / MSP_BADGE_DX);
+        if (k < 0 || k >= tank_badge_n(t)) return MS_TAP_NONE;
+        return ms_open(t, row, true, false, k, req, nreq, staged);
+    }
     int k;                                           /* badge column, or -1 for the name / strip cluster */
     if (x >= MSP_BADGE_X0 - 4 && x < MSP_BADGE_X0 + 6 * MSP_BADGE_DX) {
         k = (int)((x - MSP_BADGE_X0 + 4) / MSP_BADGE_DX);
@@ -2411,10 +2416,7 @@ int render_milestones_tap(const tank_t *t, float x, float y) {
     } else if (x >= 20 && x < MSP_BADGE_X0 - 4) k = -1;
     else return MS_TAP_NONE;
     if (tank_row && x < 88) return MS_TAP_SHOP;      /* the sand dollar: the shop page */
-    if (tank_row && k >= 0) {                        /* this page's badge; an empty cell on the last page is nothing */
-        k += g_ms_tpage * MSP_PER_ROW;
-        if (k >= tank_badge_n(t)) return MS_TAP_NONE;
-    }
+    if (tank_row && k >= 0) return MS_TAP_NONE;      /* (past the badges' view) */
     return ms_open(t, row, tank_row, fry_row, k, req, nreq, staged);
 }
 /* open the detail modal for a row's name / strip (k < 0) or its k-th badge
@@ -2423,7 +2425,8 @@ static int ms_open(const tank_t *t, int row, bool tank_row, bool fry_row, int k,
                    const fry_req_t *req, int nreq, bool staged) {
     g_ms_caption2[0] = 0; g_ms_sub[0] = 0; g_ms_fry = false; g_ms_kind = -1; g_ms_tip = false; g_ms_sell_armed = false; g_ms_sell_asked = false;
     g_ms_row = row; g_ms_k = k; g_ms_tankrow = tank_row; g_ms_fryrow = fry_row;
-    if (!tank_row && row >= 0) g_ms_fpage = row / MSP_FISH_ROWS;   /* the page follows the modal's row */
+    ms_extents(t, nreq);
+    if (!tank_row && row >= 0) ms_show_row(row);   /* the list follows the modal's row */
     if (fry_row) {
         if (k < 0) {                                 /* the name: the tally, and when it comes */
             int met = 0; for (int i = 0; i < nreq; i++) met += req[i].met;
@@ -2451,7 +2454,7 @@ static int ms_open(const tank_t *t, int row, bool tank_row, bool fry_row, int k,
             g_ms_lit = true; g_ms_icon = NULL; g_ms_fish = -1;
         } else {
             uint32_t bit = tank_badge(t, k)->bit; bool on = (t->tank_ms_bits & bit) != 0;
-            g_ms_tpage = k / MSP_PER_ROW;            /* the arrows can cross pages: the row follows */
+            ms_show_tbadge(k);                       /* the arrows step along the row: it follows */
             snprintf(g_ms_title, sizeof g_ms_title, on ? "TANK" : "NOT YET");
             snprintf(g_ms_caption, sizeof g_ms_caption, "%s", TMS_NAMES[bit_index(bit)]);
             g_ms_lit = on; g_ms_icon = tank_badge(t, k)->icon; g_ms_fish = -1;
@@ -2471,28 +2474,18 @@ static int ms_open(const tank_t *t, int row, bool tank_row, bool fry_row, int k,
     }
     return MS_TAP_KEPT;
 }
-/* a sideways swipe along the TANK row: the next page (leftward) or the
-   previous (rightward), no wrap. False = not a page swipe (the platforms then
-   treat the release as they did before). */
-bool render_milestones_swipe(const tank_t *t, float x, float y, float dx) {
-    (void)x; y -= PAGE_Y;
-    if (!g_ms_caption[0] && y >= MSP_ROW_Y0 - 2 && y < MSP_ROW_Y0 + MSP_FISH_ROWS * MSP_ROW_H) {   /* across the fish rows: their page */
-        fry_req_t req[FRY_REQ_MAX]; bool staged;
-        int fp = fish_pages(t, progression_next_fry(t, req, &staged));
-        if (fp < 2) return false;
-        int p = g_ms_fpage + (dx < 0 ? 1 : -1);
-        if (p >= 0 && p < fp) g_ms_fpage = p;
-        return true;
-    }
-    if (g_ms_caption[0] || tank_pages(t) < 2 || y < MSP_TANK_Y - 6 || y >= MSP_CLOSE_Y - 4) return false;
-    int p = g_ms_tpage + (dx < 0 ? 1 : -1);
-    if (p >= 0 && p < tank_pages(t)) g_ms_tpage = p;
-    return true;
+void render_milestones_touch(const tank_t *t, float x, float y, bool down, uint32_t now_ms) {
+    fry_req_t req[FRY_REQ_MAX]; bool staged;
+    ms_extents(t, progression_next_fry(t, req, &staged));
+    x -= PAGE_X; y -= PAGE_Y;
+    bool open = !g_ms_caption[0];                    /* (under a modal the page is out of reach) */
+    scroll_touch(&g_ms_fscroll, y, down, open && y >= MSP_LIST_Y0 && y < MSP_LIST_Y1, now_ms);
+    scroll_touch(&g_ms_tscroll, x, down, open && y >= MSP_LIST_Y1 && y < MSP_CLOSE_Y - 4 && x >= MSP_TB_X0 && x < MSP_TB_X1, now_ms);
 }
-/* the modal down, the page (and the tank row's page) kept */
+/* the modal down, the lists where they were */
 static void ms_close(void) { g_ms_sell_armed = false; g_ms_sell_asked = false; g_ms_kind = -1; g_ms_tip = false; g_ms_caption[0] = 0; g_ms_caption2[0] = 0; g_ms_title[0] = 0; g_ms_sub[0] = 0; g_ms_icon = NULL; g_ms_fish = -1; g_ms_fry = false;
                                      g_ms_row = -1; g_ms_k = -1; g_ms_tankrow = false; g_ms_fryrow = false; }
-void render_milestones_leave(void) { ms_close(); g_ms_tpage = 0; g_ms_fpage = 0; }
+void render_milestones_leave(void) { ms_close(); scroll_reset(&g_ms_fscroll); scroll_reset(&g_ms_tscroll); }
 void render_milestones_show_fish(const tank_t *t, int fish) {
     render_use_theme(t->theme);
     if (fish >= 0 && fish < t->n_fish) ms_open(t, fish, false, false, -1, NULL, 0, false);
@@ -2511,17 +2504,30 @@ bool render_milestones_arrow(const tank_t *t, bool right, int *x, int *y) {
     if (y) *y = PAGE_Y + ms_modal_y(t) + MSP_ARROW_IN + MSP_ARROW_H / 2;
     return true;
 }
-void render_milestones_row(int row, int *name_x, int *y) {
+bool render_milestones_row(int row, int *name_x, int *y) {
+    int top = ms_row_top(row);
     if (name_x) *name_x = PAGE_X + 100;
-    if (y)      *y      = PAGE_Y + MSP_ROW_Y0 + row % MSP_FISH_ROWS * MSP_ROW_H + MSP_ROW_MID;
+    if (y)      *y      = PAGE_Y + top + MSP_ROW_MID;
+    return top >= MSP_LIST_Y0 && top + MSP_ROW_H <= MSP_LIST_Y1;
 }
-int  render_milestones_fish_page(void) { return g_ms_fpage; }
-bool render_milestones_pager(const tank_t *t, int *x, int *y) {
+void render_milestones_show_row(const tank_t *t, int row) {
     fry_req_t req[FRY_REQ_MAX]; bool staged;
-    if (fish_pages(t, progression_next_fry(t, req, &staged)) < 2) return false;
-    if (x) *x = PAGE_X + MSP_TPG_X + 12;
-    if (y) *y = PAGE_Y + MSP_FPG_Y + MSP_ICON / 2;
-    return true;
+    ms_extents(t, progression_next_fry(t, req, &staged)); ms_show_row(row);
+}
+bool render_milestones_tank_badge(int k, int *x, int *y) {
+    int bx = ms_tbadge_x(k);
+    if (x) *x = PAGE_X + bx + MSP_ICON / 2;
+    if (y) *y = PAGE_Y + MSP_TANK_Y + 4 + MSP_ICON / 2;
+    return bx - 4 >= MSP_TB_X0 && bx + MSP_ICON + 4 <= MSP_TB_X1;
+}
+void render_milestones_show_tank_badge(const tank_t *t, int k) {
+    fry_req_t req[FRY_REQ_MAX]; bool staged;
+    ms_extents(t, progression_next_fry(t, req, &staged)); ms_show_tbadge(k);
+}
+bool render_milestones_scrolls(const tank_t *t, bool tank_row) {
+    fry_req_t req[FRY_REQ_MAX]; bool staged;
+    ms_extents(t, progression_next_fry(t, req, &staged));
+    return (tank_row ? g_ms_tscroll.max : g_ms_fscroll.max) > 0;
 }
 
 /* ---- announcement modal (notice.h, 2026-09-15) ----
@@ -2613,21 +2619,50 @@ static const icon_t *shop_icon(int item) {
 /* a species' creature needs one free place (2026-10-07; a pair needed two): with no room its UNLOCK reads NO ROOM, dim */
 static bool shop_no_room(const tank_t *t, int item) { return progression_item_species(item) > 0 && !progression_has_room_one(t); }
 /* the list (2026-10-28): every item's row in one column that scrolls
- * between the header's rule and the foot (scroll.h); four rows a page behind
- * arrows at the header's right before (2026-09-23). */
+ * from the page's top to the foot (scroll.h; under a header with the
+ * balance until the keeper moved it to the foot, the same day); four rows a
+ * page behind arrows at the header's right before (2026-09-23). */
 static scroll_t g_shp_scroll = { .max = SHP_LIST_H - (SHP_LIST_Y1 - SHP_LIST_Y0) };
 static int shop_row_top(int i) { return SHP_ROW_Y0 + i * SHP_ROW_DY - scroll_px(&g_shp_scroll); }
-/* a list's scroll bar (2026-10-28): a dim track the view's height, the thumb as long as the view's share of the list, where it is */
-static void scroll_bar(ctx_t *c, const scroll_t *s, int x, int y0, int y1, int content) {
+/* a list's scroll bar (2026-10-28): a dim 3 px track `len` long from (x, y), down a column or across a
+   row, the thumb as long as the view's share of the list, where it is; a teal mark at an end while
+   something not seen yet (a badge's ring) lies past it - what the pagers' ring said before */
+static void bar_seg(ctx_t *c, bool across, int x, int y, int from, int to, int fat, const src_t *s, int a) {
+    if (across) { for (int j = -fat; j < 3 + fat; j++) span(c, x + from, x + to - 1, y + j, s, a); }
+    else for (int i = from; i < to; i++) span(c, x - fat, x + 2 + fat, y + i, s, a);
+}
+/* a list's edge fade (2026-10-28, the keeper): where the view cuts the list - more of it past that
+   edge - its last LIST_FADE px melt into the page's ink: the foot at the start, both edges along the
+   way, the head at the end. A list that fits shows no fade (and no bar). The view is (x, y, w, h). */
+#define LIST_FADE 14
+static void list_fade(ctx_t *c, const scroll_t *s, bool across, int x, int y, int w, int h, uint32_t ink) {
     if (s->max <= 0) return;
-    int view = y1 - y0, len = view * view / content, at = (int)(s->pos * (view - len) / s->max);
-    if (len < 16) len = 16;
-    if (at < 0) { len += at; at = 0; }                        /* squeezed past an end, as the list gives */
-    if (at + len > view) len = view - at;
-    if (len < 4) len = 4;
+    bool lo = s->pos > 0.5f, hi = s->pos < s->max - 0.5f;
+    src_t k = src_color(theme_ui_color(ink), 1.0f);
+    for (int i = 0; i < LIST_FADE; i++) {
+        int a = 255 * (LIST_FADE - i) / (LIST_FADE + 1);       /* nearly the ink at the edge, nothing LIST_FADE px in */
+        if (!across) {
+            if (lo) span(c, x, x + w - 1, y + i, &k, a);
+            if (hi) span(c, x, x + w - 1, y + h - 1 - i, &k, a);
+        } else for (int j = y; j < y + h; j++) {
+            if (lo) span(c, x + i, x + i, j, &k, a);
+            if (hi) span(c, x + w - 1 - i, x + w - 1 - i, j, &k, a);
+        }
+    }
+}
+static void scroll_bar(ctx_t *c, const scroll_t *s, int x, int y, int len, bool across, int view, int content, bool fresh_lo, bool fresh_hi) {
+    if (s->max <= 0) return;                                  /* (a list that fits: no bar) */
+    int tl = len * view / content, at;
+    if (tl < 16) tl = 16;
+    at = (int)(s->pos * (len - tl) / s->max);
+    if (at < 0) { tl += at; at = 0; }                         /* squeezed past an end, as the list gives */
+    if (at + tl > len) tl = len - at;
+    if (tl < 4) tl = 4;
     src_t track = src_color(theme_ui_color(MSP_DIM), 1.0f), thumb = src_color(theme_ui_color(MSP_TEAL), 1.0f);
-    for (int y = y0; y < y1; y++) span(c, x, x + 2, y, &track, 70);
-    for (int y = y0 + at; y < y0 + at + len && y < y1; y++) span(c, x, x + 2, y, &thumb, scroll_moving(s) ? 255 : 170);
+    bar_seg(c, across, x, y, 0, len, 0, &track, 70);
+    bar_seg(c, across, x, y, at, at + tl < len ? at + tl : len, 0, &thumb, scroll_moving(s) ? 255 : 170);
+    if (fresh_lo) bar_seg(c, across, x, y, 0, 6, 2, &thumb, 255);
+    if (fresh_hi) bar_seg(c, across, x, y, len - 6, len, 2, &thumb, 255);
 }
 static void price_tag(ctx_t *c, int x, int y, int price, uint32_t rgb) {   /* the small coin + the number */
     blit_icon(c, x, y - 1, &icon_shop_sand_dollar_16, 255);
@@ -2638,11 +2673,6 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
     render_use_theme(t->theme);
     ctx_t c = ctx_page(fb, stride);
     rect_fill(&c, -PAGE_X, -PAGE_Y, TANK_W, TANK_H, MSP_INK);
-    blit_icon(&c, SHP_COIN_X, SHP_COIN_Y, &icon_shop_sand_dollar_64, 255);
-    draw_text(&c, SHP_HEAD_X, SHP_COIN_Y + 6, 2, MSP_TEAL, "SAND DOLLARS");
-    char bal[16]; snprintf(bal, sizeof bal, "%d", (int)t->sd_balance);
-    draw_text(&c, SHP_HEAD_X, SHP_COIN_Y + 28, 4, 0xffffff, bal);
-    for (int x = 24; x < PAGE_W - 24; x++) px_blend(&c, x, SHP_ROW_Y0 - 10, MSP_DIM, 200);
     ctx_t page = c;
     c = ctx_clip(&page, -PAGE_X, SHP_LIST_Y0, TANK_W, SHP_LIST_Y1 - SHP_LIST_Y0);   /* the rows, inside the list's view */
     for (int i = 0; i < SD_ITEM_COUNT; i++) {
@@ -2665,7 +2695,14 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
         else           button(&c, SHP_BTN_X, top, SHP_BTN_W, SHP_BTN_H, 0x1c2f36, MSP_DIM, "UNLOCK", 2);
     }
     c = page;
-    scroll_bar(&c, &g_shp_scroll, SHP_BAR_X, SHP_LIST_Y0 + 2, SHP_LIST_Y1 - 2, SHP_LIST_H);
+    list_fade(&c, &g_shp_scroll, false, -PAGE_X, SHP_LIST_Y0, TANK_W, SHP_LIST_Y1 - SHP_LIST_Y0, MSP_INK);
+    scroll_bar(&c, &g_shp_scroll, PAGE_BAR_X, SHP_LIST_Y0 + 2, SHP_LIST_Y1 - SHP_LIST_Y0 - 4, false, SHP_LIST_Y1 - SHP_LIST_Y0, SHP_LIST_H, false, false);
+    {   /* the balance at the foot (2026-10-28): the coin, the number to its right, centred between the buttons */
+        char bal[16]; snprintf(bal, sizeof bal, "%d", (int)t->sd_balance);
+        int w = MSP_ICON + 6 + text_w(bal, 2), x = (SHP_EARN_X + SHP_EARN_W + SHP_CLOSE_X - w) / 2;
+        blit_icon(&c, x, SHP_COIN_Y, &icon_ms_sand_dollar, 255);
+        draw_text(&c, x + MSP_ICON + 6, SHP_COIN_Y + (MSP_ICON - 14) / 2, 2, 0xffffff, bal);
+    }
     button(&c, SHP_EARN_X, MSP_CLOSE_Y, SHP_EARN_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "HOW TO EARN", 2);
     button(&c, SHP_CLOSE_X, MSP_CLOSE_Y, MSP_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
     if (g_shp_modal < 0 && !g_shp_earn) return;

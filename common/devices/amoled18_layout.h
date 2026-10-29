@@ -28,17 +28,15 @@
 #define MSP_BADGE_X0  176
 #define MSP_BADGE_DX  40
 #define MSP_FISH_X    52                /* a row's portrait */
-#define MSP_TPG_X     412               /* the arrow's column: right of the sixth badge's slop, out to the glass */
+#define MSP_TB_X1     436               /* the TANK row's badges scroll out to here (the glass; a seventh peeks in past the sixth) */
 #define MSP_CLOSE_X   324               /* the CLOSE button, bottom right, inside the bezel curve; clear of the brightness row's number */
 #define MSP_CLOSE_Y   312
 #define MSP_CLOSE_SLOP 8                /* CLOSE's tap reaches this far left of it */
 
 /* the shop */
-#define SHP_COIN_X    32
-#define SHP_HEAD_X    112               /* "SAND DOLLARS" and the balance */
 #define SHP_EARN_X    32
 #define SHP_CLOSE_X   MSP_CLOSE_X
-#define SHP_BAR_X     428               /* the list's scroll bar: right of the rows' buttons (they end at 416) */
+#define PAGE_BAR_X    428               /* a page's list's scroll bar (scroll.h): right of the shop's buttons and the badges (they end at 416) */
 
 /* the settings page (2026-10-28: no title; UPDATES and RESET a row of their
  * own under ROTATION, the foot ABOUT and CLOSE) */

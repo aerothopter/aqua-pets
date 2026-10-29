@@ -2,6 +2,98 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-28: the milestones page's lists scroll
+
+**What changed.** The keeper tried the shop on the glass ("a bit stiff
+but okay for now"). The milestones page is second on the scroll helper.
+- **The creature rows** are one vertical list from the page's top to above
+  the TANK row's rule (`MSP_LIST_Y0`/`Y1`). Six rows fit whole as before.
+  More scroll, with the bar at `PAGE_BAR_X` (renamed from `SHP_BAR_X`: one
+  bar column for every page's list).
+  - The portraits draw on the frame, not through the page's clip, so after
+    the rows the bands outside the view are painted with the page's ink
+    again before the TANK row draws.
+  - Gone: the chevron, its pips, `MSP_FPG_Y`, `fish_pages` and `g_ms_fpage`.
+- **The TANK row's badges** scroll sideways in a clipped view from the first
+  badge out to `MSP_TB_X1` (436, the board's; replaces `MSP_TPG_X`). Six fit
+  and a seventh (the shrimp school's, the reef's) peeks in at the right
+  edge. A bar runs under the row.
+  - Gone: the arrow, its pips, `tank_pages`, `g_ms_tpage` and `MSP_PER_ROW`.
+- **The pagers' "unseen" ring** became a teal mark on a bar's end, shown
+  while a row or badge with a badge not seen yet lies wholly past that end.
+  `scroll_bar` now draws down a column or across a row.
+- **Modals:** a modal opened on a row or a badge, or stepped to one by its
+  arrows, scrolls it into view (`ms_show_row` / `ms_show_tbadge`, the least
+  scroll that shows it whole).
+- **The platforms** call `render_milestones_touch(t, x, y, down, now_ms)`
+  every frame the page is up. Its tap path checks `scroll_took` for both
+  lists.
+  - Gone: `render_milestones_swipe` and its release-time branches in
+    sim/main.c and touch_port_ft3168.c.
+- **For the tests:**
+  - `render_milestones_row` returns whether the row is whole in view (it no
+    longer assumes a page).
+  - New: `render_milestones_show_row`, `render_milestones_tank_badge`,
+    `render_milestones_show_tank_badge` and `render_milestones_scrolls`.
+  - Gone: `render_milestones_pager` and `render_milestones_fish_page`.
+  - The sim's `ms_stroke` / `ms_idle` / `ms_press_tap` drive the page's
+    touch at the device's poll rate.
+- **Tests:**
+  - `--selftest-pop` (a full tank of 25): a drag's distance and that its
+    release opens no card; flicks to the last row, whose card opens; a
+    card's arrows bring row 0 back into view.
+  - `--selftest-shop`'s shrimp block, without shrimp: the row doesn't
+    scroll, and a drag or a tap past the sixth badge does nothing.
+  - With shrimp: a tap on the seventh's peeking edge opens it and scrolls
+    it in; a drag along the row brings it in without moving the creature
+    rows; a sideways drag on a creature row moves nothing; the modal's
+    arrow from the sixth to the seventh brings it in.
+  - The reef block asks `render_milestones_scrolls` instead of tapping the
+    arrow.
+- **Pictures:**
+  - README's sim-milestones.png (it was stale: the old SETTINGS and
+    UPGRADES buttons), sim-shop.png, sim-shop2.png and sim-shop-species.png
+    are the new snapshots.
+  - README, docs/species.md and docs/progression.md describe the lists.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | the milestones snapshots looked at (a full tank at the top and scrolled; the shrimp row peeking and scrolled) | yes (5.4.4, throwaway key, no warnings): app 0x201000, `.dram0.bss` 58,728 (+72: the two lists' state) | no | no |
+
+**Then the edges fade (the keeper's ask, the same day).**
+- **`list_fade`** (render.c, beside `scroll_bar`): where a view cuts its
+  list, with more of the list past that edge, the last 14 px
+  (`LIST_FADE`) blend into the page's ink. The foot fades at the start,
+  both edges along the way, and the head at the end. It runs down a column
+  or across a row.
+- **Where:** the shop's list, the milestones rows, and the TANK row's
+  badges (across: the peeking seventh badge fades at the right).
+- **A list that fits shows neither fade nor bar.** That was already so for
+  the bar (`s->max <= 0`). A new check in `--selftest-shop`'s no-shrimp
+  block reads the page's pixels on a small tank: the TANK row's bar band
+  and both its view's edges, the rows' bar column and their view's foot are
+  all the page's ink.
+- README's four pictures were taken again with the fades.
+
+**And the shop lost its header (the keeper's ask, the same day).** The 64 px
+coin, "SAND DOLLARS" and the balance at 4x are gone. The list runs from the
+page's top (`SHP_ROW_Y0` 98 -> 9, so `SHP_LIST_Y0` is 0: about five and a
+half rows in view instead of four). The balance is at the foot: the
+milestones page's 32 px coin (`icon_ms_sand_dollar`) with the number to its
+right at 2x, the pair centred between HOW TO EARN and CLOSE (`SHP_COIN_Y`).
+`SHP_COIN_X`/`SHP_HEAD_X` left the layout header. `icon_shop_sand_dollar_64`
+is now drawn by nothing, but it stays in the generated icons.c until the
+icons are regenerated (gen_icons.py needs Pillow, which this machine lacks).
+The snapshot taps that named row 98 in pixels ask `SHOP_ROW_Y` now. README's
+shop pictures were taken again.
+
+**Open.**
+- Next on the helper: the settings page once it outgrows the screen, a fish
+  card that does, and the updates page's network list (it still pages with
+  arrows, `UPD_ARROW_X`).
+
 ## 2026-10-28: a scroll helper; the shop's list scrolls
 
 **What changed.** The keeper asked for swipes and scrolling in place of

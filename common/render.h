@@ -186,24 +186,29 @@ void render_milestones_show_fish(const tank_t *t, int fish);   /* put a fish's c
  * (false = none up) with the centres of RENAME and SELL; a point on a row's name */
 bool render_milestones_card(const tank_t *t, int *fish, int *rename_x, int *sell_x, int *btn_y);
 bool render_milestones_arrow(const tank_t *t, bool right, int *x, int *y);   /* the modal's left / right arrow (false = no modal up) */
-void render_milestones_row(int row, int *name_x, int *y);   /* (on its page: row % MSP_FISH_ROWS - turn to row / MSP_FISH_ROWS first) */
-/* the fish rows' pages (2026-10-05): more rows than MSP_FISH_ROWS (ten
- * creatures and the NEW FRY row) page, by a chevron beside the rows or a
- * sideways swipe across them. The page now, and the chevron (false = one page). */
-int  render_milestones_fish_page(void);
-bool render_milestones_pager(const tank_t *t, int *x, int *y);
-/* a sideways swipe on the milestones page (release - press dx): along the
- * TANK row, with more badges than one row holds, it turns the row's page
- * (2026-09-30); across the fish rows, with more rows than a page, theirs
- * (2026-10-05). True = it did (or was a page swipe at the row's end);
- * false = not a page swipe. */
-bool render_milestones_swipe(const tank_t *t, float x, float y, float dx);
+/* the page's two lists scroll (2026-10-28, scroll.h): the creature rows up and
+ * down (they paged six at a time behind a chevron, 2026-10-05), the TANK row's
+ * badges sideways (six a page behind an arrow, 2026-09-30). Every frame the
+ * page is up the platform hands it the finger, in the frame's coordinates; a
+ * stroke that scrolls is no tap (render_milestones_tap keeps it). A modal
+ * opened on a row or a badge (or stepped to one by its arrows) scrolls it
+ * into view. */
+void render_milestones_touch(const tank_t *t, float x, float y, bool down, uint32_t now_ms);
+/* for the tests and the director, so neither knows the lists' numbers: a
+ * row's name, and the k-th TANK badge that shows, in the frame (false = not
+ * wholly in view); the list scrolled to bring one into view; whether a list
+ * scrolls at all (false = it all fits) */
+bool render_milestones_row(int row, int *name_x, int *y);
+void render_milestones_show_row(const tank_t *t, int row);
+bool render_milestones_tank_badge(int k, int *x, int *y);
+void render_milestones_show_tank_badge(const tank_t *t, int k);
+bool render_milestones_scrolls(const tank_t *t, bool tank_row);
 void render_milestones_leave(void);
 
-/* The shop (2026-09-15): the sand dollar page. The balance at the top, one
+/* The shop (2026-09-15): the sand dollar page. One
  * row per item (SD_ITEMS: the art, the name, the price, UNLOCK / IN TANK), a
- * HOW TO EARN button bottom left (a modal listing the sources) and CLOSE
- * bottom right. A tap on a row opens the item's modal - the art at 2x, the
+ * HOW TO EARN button bottom left (a modal listing the sources), the balance
+ * between it and CLOSE, bottom right (2026-10-28; at the top before). A tap on a row opens the item's modal - the art at 2x, the
  * words, the price, an UNLOCK button; render_shop_tap returns SHOP_TAP_BUY +
  * item when that button is tapped (the caller calls progression_buy; a short
  * balance was already a dim button), SHOP_TAP_CLOSE for the way out (back
@@ -370,7 +375,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define URCHIN_CARD_H 194
 /* the milestones page (the board's: its rows, MSP_ROW_* and MSP_TANK_Y, the
  * badges' column and pitch, MSP_BADGE_X0 / _DX, the portrait's MSP_FISH_X,
- * the page arrow's MSP_TPG_X and CLOSE's place, MSP_CLOSE_X / _Y / _SLOP) */
+ * the TANK row's view's end MSP_TB_X1 and CLOSE's place, MSP_CLOSE_X / _Y / _SLOP) */
 #define MSP_ICON      32
 #define MSP_CLOSE_W   92
 #define MSP_CLOSE_H   30
@@ -379,8 +384,12 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define MSP_MODAL_Y   100
 #define MSP_MODAL_W   336
 #define MSP_MODAL_H   156
-#define MSP_PER_ROW   6
-#define MSP_FISH_ROWS 6              /* fish rows a page holds (N_FISH_MAX was 6 until the species, 2026-10-05) */
+#define MSP_FISH_ROWS 6              /* creature rows the list's view holds whole (N_FISH_MAX was 6 until the species, 2026-10-05) */
+/* the lists' views (2026-10-28): the creature rows from the page's top to above the TANK row's rule,
+   the TANK row's badges from the first badge's slop out to the glass */
+#define MSP_LIST_Y0   0
+#define MSP_LIST_Y1   (MSP_TANK_Y - 5)
+#define MSP_TB_X0     (MSP_BADGE_X0 - 4)
 #define MSP_ARROW_W  40             /* the arrow buttons, inset at the modal's top corners */
 #define MSP_ARROW_H   32
 #define MSP_ARROW_IN  10
@@ -398,10 +407,12 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define MSP_HOW_SLOP_X 36
 #define MSP_HOW_SLOP_UP 12
 #define MSP_HOW_SLOP_DN 28
-/* the shop (the board's: the header's SHP_COIN_X / SHP_HEAD_X, the foot's
- * SHP_EARN_X / SHP_CLOSE_X, and the list's bar SHP_BAR_X) */
-#define SHP_COIN_Y   10
-#define SHP_ROW_Y0    98
+/* the shop (the board's: the foot's SHP_EARN_X / SHP_CLOSE_X; the list's bar is PAGE_BAR_X). No
+ * header since 2026-10-28 (the keeper): the list runs from the page's top, and the balance is the
+ * milestones page's coin at the foot, its number to the right, the pair centred between HOW TO
+ * EARN and CLOSE (a 64 px coin, "SAND DOLLARS" and the balance at 4x headed the page before) */
+#define SHP_COIN_Y   (MSP_CLOSE_Y + (MSP_CLOSE_H - MSP_ICON) / 2)
+#define SHP_ROW_Y0    9
 #define SHP_ROW_DY    56
 #define SHP_ROW_ICON  32
 #define SHP_BTN_X     300
@@ -418,7 +429,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define SHP_TWO_GAP 16               /* MOVE and SELL side by side in the modal */
 #define SHP_TWO_X0  (SHP_MODAL_X + (SHP_MODAL_W - 2 * MSP_HOW_W - SHP_TWO_GAP) / 2)
 #define SHP_TWO_X1  (SHP_TWO_X0 + MSP_HOW_W + SHP_TWO_GAP)
-/* the list (2026-10-28): its view from under the header's rule to above the foot,
+/* the list (2026-10-28): its view from the page's top to above the foot,
    every item's row in it - SHP_ROW_DY apart, 34 px tall (the button and the price line), 9 px in at each end */
 #define SHP_LIST_Y0  (SHP_ROW_Y0 - 9)
 #define SHP_LIST_Y1  (MSP_CLOSE_Y - 6)
