@@ -147,24 +147,31 @@ other).
 The model picks one of the 8 goals; `target_for_goal` and the locomotion
 step turn it into the animal's own motion.
 
+(The triple tap's startle went on 2026-10-28, the keeper's call: no keeper
+would rap the glass on purpose. Its reactions came back the same day as
+**double-tap tricks** (`tank_poke`, each row's `poke` hook, with `flee` for a
+getaway from where the finger landed): the pufferfish puffs, the octopus and
+the squid ink and jet (both tricks already), the seahorse grips a stem, the
+crab raises its claws and scuttles off, the lobster flips its tail, the
+jellyfish pulses away, the eel sparks. The other five have none.)
+
 - **Seahorse (`LOCO_UPRIGHT`)** - swims upright, slowly (dorsal fin flutter,
   the slowest swimmer: speed ×0.35), climbs and sinks more than it travels.
   REST: wraps its tail around the nearest grass frond and sways with it.
-  Feeding: drifts close, then a quick head snick. Startle: clings and
-  freezes instead of bolting.
+  Feeding: drifts close, then a quick head snick. Two quick taps on it: it
+  grips the nearest stem and holds on for a few seconds.
 - **Octopus (`LOCO_JET`, crawler)** - EXPLORE / REST / INSPECT on the floor
-  and the reef: crawls on its arms. DART_PLAY and a startle: jets
-  mantle-first, arms trailing, in pulses, and a startle leaves an ink cloud.
+  and the reef: crawls on its arms. DART_PLAY: jets mantle-first, arms
+  trailing, in pulses.
   Left to itself by day it squirts a black cloud of its own every 50-120 s
   (two squirts in three; the third idle turn is a trip to the surface), and
   two quick taps on it squirt one on demand.
   REST: a den at the reef cluster, castle or grass foot, and it **takes on
   the colour of what it sits on** (`fish_t.camo`).
 - **Pufferfish (`LOCO_HOVER`)** - slow, boxy, fins sculling: it can stop,
-  turn on the spot and back up (no committed U-turn needed). Startle:
-  **inflates** into a spiny ball for a few seconds, then deflates. Two quick
-  taps on it (2026-10-10, `tank_poke`) puff it up the same way, without a
-  startle's stress or lost trust.
+  turn on the spot and back up (no committed U-turn needed). Two quick taps
+  on it (2026-10-10, `tank_poke`) **inflate** it into a spiny ball for a few
+  seconds, then it deflates; no stress, no lost trust.
 - **Anglerfish (`LOCO_AMBUSH`)** - an ambush hunter: it barely moves, stays
   low, waits with its lure bobbing, and lunges short and fast at food that
   comes near. The lure **glows**, brightest at night. Frogfish-style it can
@@ -172,26 +179,28 @@ step turn it into the animal's own motion.
 - **Electric eel (`LOCO_UNDULATE`)** - a long body that ripples from head to
   tail, swims backward as easily as forward, and lies along the floor to
   rest. It **breathes air**: every 1-2 minutes it rises to the surface for a
-  gulp. Startle: a harmless spark.
+  gulp. Now and then a harmless spark crackles along it; two quick taps on
+  it spark it too.
 - **Hammerhead (`LOCO_CRUISE`)** - never stops (it breathes by swimming): a
   floor of speed, wide smooth turns, the head sweeping side to side. REST
   is a slow patrol lap, not a stop.
 - **Squid (`LOCO_JET`, hoverer)** - hovers in open water with its fins
   rippling, moves forward or backward, and jets in pulses to dart or flee
-  (ink on a startle, and a black cloud of its own every 50-120 idle seconds
-  by day; two quick taps on it squirt one too). Social: squid hold station
+  (a black cloud of its own every 50-120 idle seconds by day; two quick taps
+  on it squirt one too). Social: squid hold station
   near each other.
 
 - **Crab (`LOCO_SIDEWALK`)** - a floor walker that moves **sideways**, legs
   stepping in a ripple; it climbs the reef cluster, castle and rocks, and
   picks at food on the floor with its claws (two-handed). It never swims up:
   a goal in open water becomes the nearest point on the floor or a rock below
-  it. REST: tucked under the reef / castle edge. Startle: claws up, then a
-  fast sideways scuttle away.
+  it. REST: tucked under the reef / castle edge. Two quick taps on it: claws
+  up, then a fast sideways scuttle away from the finger.
 - **Lobster (`LOCO_WALK`)** - walks the floor head first on its legs, long
-  antennae sweeping; REST in a den under rock. Startle: the **tail-flip** -
-  a few fast backward strokes of its tail that shoot it backward (burst ×2.2),
-  then it walks again. Like the crab it stays on the floor and rocks.
+  antennae sweeping; REST in a den under rock. Two quick taps on it: the
+  **tail-flip** - it faces the finger and a few fast backward strokes of its
+  tail shoot it away (burst ×2.2), then it walks again. Like the crab it
+  stays on the floor and rocks.
 - **Jellyfish (`LOCO_HOVER`, pulsing)** - an upright bell that never turns
   on its side: `fish_t.jet` is its pulse phase, and one phase drives both
   the thrust (the speed swells and fades with each contraction, ~0.6 Hz
@@ -199,8 +208,9 @@ step turn it into the animal's own motion.
   It drifts slowly in the open water (speed ×0.40, a gentle bob, climbs as
   readily as it travels) and keeps out of the floor band and the surface.
   REST: it hangs still in mid-water near the middle, the pulse slowed to
-  ~0.2 Hz. A startle quickens the pulse (~1.3 Hz) and nothing else: no ink,
-  no spark, no puff, no idle flourish (it never visits the surface).
+  ~0.2 Hz; a flight, or two quick taps on it, quickens it (~1.3 Hz) and it
+  pulses away. No ink, no spark, no puff, no idle flourish (it never visits
+  the surface).
 
 ## The gentle tank
 

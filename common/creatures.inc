@@ -273,7 +273,7 @@ static void sk_setup(sk_t *k, ctx_t *c, const fish_t *f, float clock, bool aslee
 }
 static inline void sk_lean(sk_t *k, float p) { k->cp = cosf(p); k->sp = sinf(p); }
 
-/* ink (octopus, squid): a dark cloud left where the startle was, swelling
+/* ink (octopus, squid): a dark cloud left where the squirt was, swelling
    and thinning over the seconds f->ink counts down. Where it was is kept
    here, a slot each (render_tank's fish index); a preview's cloud trails
    behind it. */
@@ -306,7 +306,7 @@ static void draw_ink(const sk_t *k) {
         ox = f->x + dir * 14 * k->s; oy = f->y; ink0 = 4.5f;   /* a preview: behind the mantle, a squirt (INK_SQUIRT_S) part spent */
     }
     float u = clamp01(1 - f->ink / (ink0 > 2.5f ? ink0 : 2.5f));
-    /* a spontaneous squirt (tank.c INK_SQUIRT_S, 4.5 s) is a fuller cloud than the startle's 2.5 s puff */
+    /* a squirt lasts INK_SQUIRT_S (4.5 s; a startle's 2.5 s puff until 2026-10-28) */
     float big = clamp01((ink0 - 2.5f) / 2.0f);
     /* the cloud grows from a puff to a billow; it stays dense through the first part of its life
        and only then thins (before 2026-10-10 it was most opaque at 8 px and faded as it grew: a smudge) */
@@ -671,7 +671,7 @@ static void draw_angler(sk_t *k) {
 /* ---- electric eel: a long round body in segments, a wave travelling
    down it (f->jet's phase, and more of it with speed), a blunt head, the
    belly in f->accent and the long anal fin rippling under it, no tail fin.
-   A startle's f->spark crackles along it, undimmed. ---- */
+   Its f->spark (a flourish of its own, or a poke) crackles along it, undimmed. ---- */
 #define EEL_N 14
 static void draw_eel(sk_t *k) {
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
@@ -939,8 +939,9 @@ static void draw_squid(sk_t *k) {
    quarter - a wide carapace, eyes on stalks, two claws held up at its
    shoulders, four walking legs a side stepping in a ripple. It walks sideways,
    so it does not turn to face its way: the yaw only slides its face a
-   little toward the side it shows. f->puff is its threat display: the claws
-   go up and out. No pitch - it walks the floor. ---- */
+   little toward the side it shows. f->puff is its threat display (a poke's
+   since 2026-10-28; a startle's before): the claws go up and out. No
+   pitch - it walks the floor. ---- */
 static void draw_crab(sk_t *k) {
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     float q = 1.6f * k->yh;                        /* the face, slid toward the side it shows */
@@ -1006,7 +1007,8 @@ static void draw_crab(sk_t *k) {
 /* ---- lobster: side-on - the carapace, the six-segment tail and its fan,
    two big claws forward (the spiny lobster has none: long spiny antennae
    instead), the long antennae sweeping, the walking legs stepping. A
-   tail-flip (sp_mode SPM_FLIP, f->jet > 0.5) curls the tail under it. ---- */
+   tail-flip (sp_mode SPM_FLIP, f->jet > 0.5; a poke's since 2026-10-28, a
+   startle's before) curls the tail under it. ---- */
 static void draw_lobster(sk_t *k) {
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     float curl = f->sp_mode == SPM_FLIP && f->jet > 0.5f ? clamp01((f->jet - 0.5f) * 8) : 0;

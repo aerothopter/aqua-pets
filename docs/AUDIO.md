@@ -101,8 +101,8 @@ Tiers are build order. Tier 1 alone is a shippable feature.
 | id | when | notes |
 |---|---|---|
 | `tap` | any tap on the glass that is not a feed | tiny, dry, ~60 ms |
-| `feed` | surface tap / pellets drop (`tank_feed`) | a plink or splash; once per drop, not per pellet |
-| `light_on`, `light_off` | the light flipping: MANUAL (default) = the double-tap; AUTO = a pick-up / touch after the idle time, and going idle | on rises, off falls |
+| `feed` | the FEED tool's tap / pellets drop (`tank_feed`) | a plink or splash; once per drop, not per pellet |
+| `light_on`, `light_off` | the light flipping: AUTO = a pick-up / touch after the idle time, and going idle (NEVER, the default, keeps it on; MANUAL's double-tap until 2026-10-28) | on rises, off falls |
 | `wipe` | algae squeegee stroke engaged | soft, loopable while the stroke moves? v1: one cue per stroke |
 | `snip` | a frond cut (`veg_cut` returns > 0) | one per cut, rate-limited 150 ms |
 | `card_open`, `card_close` | stats card up / dismissed | quiet |
@@ -114,7 +114,7 @@ Tiers are build order. Tier 1 alone is a shippable feature.
 | id | when | notes |
 |---|---|---|
 | `eat` | a fish takes a pellet | 2-4 variants, max one per 250 ms, pitch by stage (fry high, elder low) |
-| `spook` | 3-tap aggression fires, fish flee | once per spook episode, not per tap |
+| `spook` | (nothing since 2026-10-28: the 3-tap startle went; the sound stays in the bank) | - |
 | `investigate` | a long hold draws a fish over (trust earned) | gentle, once per hold |
 | `bubbles` | a fish reaches the column for play (`GOAL_VISIT_BUBBLES` arrival) | DEFERRED by Strato 2026-09-15 after the first listen: fish visit the column too often for a cue to mean anything. The event still fires; the id stays |
 | `beg` | a hungry fish begging at the glass | DEFERRED by Strato 2026-09-15; if it comes back: very quiet, cooldown 30 s per fish, never at night |

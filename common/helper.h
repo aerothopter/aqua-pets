@@ -23,7 +23,7 @@ enum { HAB_GLASS, HAB_FLOOR, HAB_WATER };   /* where its rules keep it: the drif
 /* the shrimp school (2026-09-29, the shop's sixth item, SD_ITEM_SHRIMP): cherry
  * shrimp that swim as a loose school with a pull toward the grass, swarm the
  * pellets that sink below the grass's top (falling or on the floor), drift up
- * to the canopy now and then, and scatter when the keeper taps near them.
+ * to the canopy now and then.
  * Bought as SHRIMP_START grown adults; every SHRIMP_PER_JOIN pellets the school
  * eats brings one more, up to SHRIMP_MAX, never two within SHRIMP_COOLDOWN_S
  * (the count stops at SHRIMP_PER_JOIN while it waits - no burst). Over
@@ -44,7 +44,6 @@ typedef struct {
     float  yaw;                      /* -1..1 as the fish's: the turn foreshortens it */
     float  behind;                   /* s its way has been behind it (a committed turn, as the fish) */
     float  ph;                       /* animation phase: legs, the peck, the bob */
-    float  dart;                     /* s left of a tail-flick escape */
     int8_t facing;
     uint8_t pecking;                 /* at a floor pellet this frame */
 } shrimp_t;
@@ -87,8 +86,6 @@ typedef struct {
     uint8_t  food;
     float    cool;
     int32_t  eaten;                /* pellets the school has eaten, lifetime (its card; saved) */
-    uint8_t  taps;                 /* quick taps on the school in a row (the third scares them; not saved) */
-    float    tap_t;                /* seconds since the last one */
     shrimp_t q[SHRIMP_MAX];
     float    tx, ty, tt;
 } school_t;
@@ -135,7 +132,6 @@ typedef struct {
     void     (*tick)(tank_t *t, float dt);         /* awake: its rules */
     void     (*sleep)(tank_t *t, float seconds);   /* asleep: the whole span at once, before the night is lived */
     void     (*sleep_slice)(tank_t *t, float seconds);   /* asleep: a slice at a time, after the slice's grass and film grow */
-    void     (*startle)(tank_t *t, float x, float y, float radius);   /* a startle at (x, y) */
     bool     (*hit)(const tank_t *t, float x, float y);   /* a tap on it opens its card; NULL = a tap goes through to the water */
     int      (*tap)(tank_t *t, float x, float y);  /* a tap on it: 1 = its card up or down, 0 = nothing, -1 = the card down; NULL = 1 */
     bool     (*body)(const tank_t *t, int i, float *x, float *y);   /* its i-th body's centre (the school's shrimp, one by one); false past the last */
@@ -155,7 +151,6 @@ void  helper_leave(tank_t *t, int k);          /* sold: it leaves the tank, back
 void  helper_tick_all(tank_t *t, float dt);
 void  helper_sleep_all(tank_t *t, float seconds);
 void  helper_sleep_slice_all(tank_t *t, float seconds);
-void  helper_startle_all(tank_t *t, float x, float y, float radius);
 
 /* ---- the snail ----
  * It has two poses (Strato's sprites, 2026-09-15): UPRIGHT, walking the tank
@@ -192,17 +187,12 @@ bool  tank_urchin_chewing(const tank_t *t);   /* at a frond's foot, eating (rend
 /* ---- the shrimp ----
  * The bought school (SHRIMP_START in the grass), or n of them (a load, the
  * sim's key); refusing = the glass is too fouled for them to eat. A tap on the
- * school (2026-09-29, Strato: "one tap should bring up a card ... it should be
- * a triple tap which scares them (same as for fish)"). Hit: within a fingertip
- * of any shrimp (the platforms test the fish and the snail first). Tap: counts
- * quick taps on the school - its own count, so a double tap there never
- * toggles the light - and returns the count: 1 = toggle its card, 2 = nothing,
- * 3+ = the startle, exactly the water's triple tap (the fish spooked, the
- * shrimp scatter): the platform drops the card. */
+ * school brings up its card and the next puts it away (2026-09-29; its third
+ * quick tap scared them, and scattered them, until 2026-10-28). Hit: within a
+ * fingertip of any shrimp (the platforms test the fish and the snail first). */
 void  tank_shrimp_place(tank_t *t, int n);
 bool  tank_shrimp_refusing(const tank_t *t);
 bool  tank_shrimp_hit(const tank_t *t, float x, float y);
-int   tank_shrimp_tap(tank_t *t, float x, float y);
 
 /* ---- the drifters ---- */
 void  tank_frogman_place(tank_t *t);         /* the frogman bought (or loaded): mid-tank, heading right (item 8) */

@@ -20,7 +20,6 @@
 #define DEVICE_BEDS          { { TANK_W * 0.84f, 4 }, { TANK_W * 0.62f, 2 } }
 #define DEVICE_REEF_BED_LESS 0
 
-#define FEED_ZONE_Y 26.0f
 #define DECOR_MARGIN    30                 /* the snail's margin: inside the panel's rounded bezel */
 #define PLANT_X_DEFAULT (208.0f + PLANT_HALF_W)   /* the open floor between the reef bed and bed 2 */
 

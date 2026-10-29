@@ -234,11 +234,11 @@ int selftest_themes(const char *prefix) {
             CHECK(tap(&t,PAGE_X+SETP_NEXT_X,PAGE_Y+SET_ROW1_Y+10,&v)==SET_TAP_BRIGHT && v==70,"brightness up a step");
             CHECK(tap(&t,PAGE_X+SETP_PREV_X,PAGE_Y+SET_ROW1_Y+10,&v)==SET_TAP_BRIGHT && v==60,"brightness down a step");
             CHECK(tap(&t,PAGE_X+SETP_SEG_X(2),PAGE_Y+SET_ROW2_Y+10,&v)==SET_TAP_VOLUME && v==2,"volume segment");
-            CHECK(tap(&t,PAGE_X+SETP_NEXT_X,PAGE_Y+SET_ROW3_Y+10,&v)==SET_TAP_LIGHT && v==1,"lights out: a step to AUTO");
-            CHECK(tap(&t,PAGE_X+SETP_PREV_X,PAGE_Y+SET_ROW3_Y+10,&v)==SET_TAP_LIGHT && v==0,"lights out: back to the double-tap");
+            CHECK(tap(&t,PAGE_X+SETP_PREV_X,PAGE_Y+SET_ROW3_Y+10,&v)==SET_TAP_LIGHT && v==1,"lights out: a step back to AUTO");
+            CHECK(tap(&t,PAGE_X+SETP_NEXT_X,PAGE_Y+SET_ROW3_Y+10,&v)==SET_TAP_LIGHT && v==0,"lights out: on to NEVER");
             CHECK(tap(&t,PAGE_X+SETP_SEG_X(1),PAGE_Y+SET_ROW4_Y+10,&v)==SET_TAP_FEED && !v,"auto feeding off");
             CHECK(tap(&t,PAGE_X+SETP_SEG_X(0),PAGE_Y+SET_ROW4_Y+10,&v)==SET_TAP_FEED && v,"auto feeding restored");
-            tank_light_choice_set(&t,0);
+            tank_light_choice_set(&t,LIGHT_IDLE_N);
             CHECK(tap(&t,PAGE_X+SET_ABT_X+SET_ABT_W/2,PAGE_Y+SET_ABT_Y+MSP_CLOSE_H/2,&v)==SET_TAP_ABOUT && v==1,"the ABOUT button opens the about page");
             t.clock=7; render_settings(&t,fb,TANK_W,60,1); CHECK(safe_page(),"about page safe"); shot(prefix,"about",id);
             CHECK(tap(&t,x+w/2,y+40,&v)==SET_TAP_NONE,"a tap on the about page's words does nothing");

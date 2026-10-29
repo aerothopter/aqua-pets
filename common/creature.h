@@ -28,7 +28,7 @@ typedef enum {
     LOCO_AMBUSH,     /* anglerfish: still and low, short fast lunges */
     LOCO_UNDULATE,   /* electric eel: a travelling wave, swims backward, breathes air */
     LOCO_CRUISE,     /* hammerhead: never stops, wide turns, the head sweeps */
-    LOCO_SIDEWALK,   /* crab: walks the floor SIDEWAYS on its legs, climbs rock, scuttles off when startled */
+    LOCO_SIDEWALK,   /* crab: walks the floor SIDEWAYS on its legs, climbs rock */
     LOCO_WALK        /* lobster: walks the floor head first, a backward tail-flip to escape */
 } loco_t;
 typedef struct { const char *name; uint32_t color, fin, accent; } sp_variant_t;
@@ -73,7 +73,7 @@ typedef struct {
     float curiosity, lazy, turn_rate;
     loco_t loco;
     float speed_k;                /* cruise speed x (the goal's speed) */
-    float burst_k;                /* dart / startle speed x */
+    float burst_k;                /* dart / flight speed x */
     float vert_k;                 /* climb preference: the classic fish's 0.72 flattens climbs; > 1 favours them */
     float min_speed;              /* never slower (the hammerhead's ram breathing); 0 = can stop */
     float hit_r;                  /* tap radius at size 1, px */
@@ -90,11 +90,10 @@ typedef struct {
     float walk_step;              /* a walker's stride, px a beat of its legs (0 = the legs don't beat) */
     float walk_idle;              /* ... and their beat standing, a second */
     float mutate_p;               /* a fry of two of its kind hatching as another species instead */
-    /* the hooks: NULL = it has none / the species' way (the classic fish's row brings its own flee, dance and swim) */
-    void  (*poke)(struct fish *f);                                                    /* tank_poke: its trick */
+    /* the hooks: NULL = it has none / the species' way (the classic fish's row brings its own dance and swim) */
+    void  (*poke)(struct tank *t, int idx, struct fish *f, float x, float y);         /* tank_poke: its trick (the finger at x, y) */
     void  (*state)(struct tank *t, int idx, struct fish *f, float dt);                /* every frame: its own state */
-    void  (*startle)(struct tank *t, int idx, struct fish *f, float x, float y);      /* a startle reaches it */
-    void  (*flee)(const struct tank *t, const struct fish *f, float *away, float *w, float *v);   /* how it gets away */
+    void  (*flee)(const struct tank *t, const struct fish *f, float *away, float *w, float *v);   /* a poke's getaway: how it goes (fish_t.flee_t) */
     void  (*court)(const struct tank *t, const struct fish *f, bool b, float cx, float cy, float rx, target_t *tg);   /* its part of the dance */
     void  (*target)(struct tank *t, int idx, struct fish *f, goal_id_t goal, bool glance, target_t *tg, const sp_aim_t *aim);   /* a goal, its way */
     bool  (*walking)(const struct tank *t, const struct fish *f);                     /* on the floor this frame */

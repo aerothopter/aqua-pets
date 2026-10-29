@@ -894,16 +894,14 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
     } else {                                                        /* SETUP_PG_CARE */
         panel(fb, stride);
         text_c(fb, stride, CX, SETUP_Y + 22, 3, C_TEXT, "CARING FOR THEM");
-        static const char *const ls[] = {
-            "TAP THE SURFACE TO FEED",
-            "HOLD A FINGER AND THEY VISIT",
+        static const char *const ls[] = {          /* (2026-10-28: feeding, wiping and trimming are the menu's tools) */
             "TAP A FISH TO CHECK ON IT",
-            "DRAG THE GLASS TO WIPE ALGAE",
-            "SWIPE ACROSS GRASS TO TRIM",
-            "TWO TAPS FLIP THE LIGHT",
+            "HOLD A FINGER AND THEY VISIT",
+            "THE MENU HOLDS YOUR TOOLS:",
+            "FEED, SPONGE AND SCISSORS",
             "THEY CHOOSE. YOU CARE.",
         };
-        lines_c(fb, stride, SETUP_Y + 66, 24, C_CAPT, ls, 7);
+        lines_c(fb, stride, SETUP_Y + 66, 24, C_CAPT, ls, 5);
         nav(fb, stride, false, "BEGIN", true);
         dots(fb, stride, SETUP_Y + SETUP_H - 8);
     }

@@ -6,7 +6,6 @@
 static uint32_t s_ms[N_FISH_MAX], s_tms;
 static stage_t  s_stage[N_FISH_MAX];
 static int      s_n_fish = -1;               /* -1 = never synced */
-static bool     s_tip;                       /* the tank's light_tip_seen, last frame */
 static notice_t s_q[NOTICE_QUEUE];
 static int      s_qn;
 static notice_t s_cur;
@@ -26,7 +25,7 @@ static void push(int kind, int fish, uint32_t bit) {
 
 void notice_sync(const tank_t *t) {
     for (int i = 0; i < N_FISH_MAX; i++) { s_ms[i] = t->fish[i].ms_bits; s_stage[i] = t->fish[i].stage; }
-    s_tms = t->tank_ms_bits; s_n_fish = t->n_fish; s_tip = t->light_tip_seen;
+    s_tms = t->tank_ms_bits; s_n_fish = t->n_fish;
     s_qn = 0; s_up = false; s_gap = 0; s_cue = -1;
 }
 
@@ -52,8 +51,6 @@ void notice_tick(const tank_t *t, float dt, bool blocked) {
     for (uint32_t b = 1; b && fresh; b <<= 1)
         if (fresh & b) { push(NOTICE_TANK_MILESTONE, -1, b); fresh &= ~b; }
     s_tms = t->tank_ms_bits;
-    if (t->light_tip_seen && !s_tip) push(NOTICE_LIGHTS_OUT, -1, 0);   /* the first double-tap that turned the light off */
-    s_tip = t->light_tip_seen;
 
     if (s_up) {
         if (blocked) {                       /* something opened over it (2026-09-29: the birth flow over
@@ -76,14 +73,14 @@ void notice_tick(const tank_t *t, float dt, bool blocked) {
     s_cur = s_q[0]; s_cur.age = 0;
     memmove(&s_q[0], &s_q[1], sizeof(notice_t) * (size_t)(s_qn - 1)); s_qn--;
     s_up = true;
-    s_cue = again || s_cur.kind == NOTICE_LIGHTS_OUT ? -1 : s_cur.kind == NOTICE_STAGE ? SND_STAGE_UP : s_cur.kind == NOTICE_LOW_BATTERY ? SND_LOW_BATTERY : SND_MILESTONE;
+    s_cue = again ? -1 : s_cur.kind == NOTICE_STAGE ? SND_STAGE_UP : s_cur.kind == NOTICE_LOW_BATTERY ? SND_LOW_BATTERY : SND_MILESTONE;
 }
 
 const notice_t *notice_current(void) { return s_up ? &s_cur : NULL; }
 bool notice_dismiss(void) {
     if (!s_up) return false;
     s_up = false; s_gap = NOTICE_GAP_S;
-    return s_cur.kind != NOTICE_LIGHTS_OUT;   /* its tap goes on to the tank: the double-tap it asks for */
+    return true;
 }
 void notice_low_battery(void) {
     for (int i = 0; i < s_qn; i++) if (s_q[i].kind == NOTICE_LOW_BATTERY) return;

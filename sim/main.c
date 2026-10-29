@@ -21,12 +21,10 @@
  *                          4 ($) the shop page, D +50 sand dollars,
  *                          5 a pair of the next species (free; the shop sells them),
  *                          T (the watch build) wear it the other way round;
- *                          click fish = stats; tap the water surface = feed;
- *                          drag down from the top = feed; hold >= 3 s = finger
- *                          on glass (trusting fish visit); swipe sideways
- *                          through a canopy = trim that bed; drag = wipe algae;
- *                          3 quick taps = startle; 2 taps = the light, in
- *                          settings' MANUAL mode, the default)
+ *                          click fish = stats; hold >= 3 s = finger on glass
+ *                          (trusting fish visit); feeding, wiping and trimming are the
+ *                          menu's tools since 2026-10-28: FEED's click drops
+ *                          food, the SPONGE's drag wipes, the SCISSORS' cuts)
  *   ./fishsim --fresh      ignore the save (new tank: random pair)
  *   ./fishsim --fast N     tended time runs N x faster (stages, drift)
  *   ./fishsim --battery N  the pretend battery starts at N% (default 72)
@@ -200,7 +198,7 @@ static int selftest(void) {
             for (int fi = 0; fi < tank.n_fish; fi++) tank.fish[fi].hunger = 7.5f;
             tank_feed(&tank, 200, 3);
         }
-        if (i == 1200) tank_touch_tap(&tank, 300, tank_glass_top(300) + 10);   /* surface tap = feed (the surface is the glass over x) */
+        if (i == 1200) { tank_set_tool(&tank, TOOL_FEED); tank_touch_tap(&tank, 300, tank_glass_top(300) + 10); tank_set_tool(&tank, TOOL_HAND); }   /* the FEED tool's tap (a surface tap with bare hands until 2026-10-28) */
         for (int fi = 0; fi < tank.n_fish; fi++) {
             const fish_t *f = &tank.fish[fi];
             if (!(f->x >= tank_glass_x0(f->y) && f->x <= tank_glass_x1(f->y) && f->y >= tank_glass_top(f->x) && f->y <= TANK_BOT) ||   /* in the glass: the frame in the rectangle */
@@ -281,7 +279,7 @@ static int selftest_spawn(void) {
     if (!persist_port_load(s_spawn_sav, sizeof s_spawn_sav, &s_spawn_sav_n)) { printf("FAIL: the setup leg left no save for the spawning legs\n"); return 1; }
     /* A: in the dark, nobody touching it */
     int n0 = spawn_prep(40);
-    tank.light_auto = false; tank.light_manual_off = true;   /* the keeper turned the light off */
+    tank.light_override = true; tank.light_on = false;       /* the light off and kept off (MANUAL's double-tap until 2026-10-28) */
     float t_spawn = -1, t_in = -1, t_born = -1; int pa = -1, pb = -1;
     for (int i = 0; i < 60 * 120 && t_born < 0; i++) {
         tank_tick(&tank, DT, advisor_rules); progression_tick(&tank, DT);
@@ -530,7 +528,7 @@ static int selftest_pop(void) {
        2026-09-24 - it used to wait for the next light-on). The keeper here
        tends for 30 s and leaves it alone for 30 s, lights-out opted in, so
        the birth may land lit or dark */
-    tank.light_auto = true;                       /* this keeper opted into lights-out (the default is MANUAL) */
+    tank.light_auto = true;                       /* this keeper opted into lights-out (the default is NEVER) */
     for (int i = 0; i < 60 * 60 * 20 && arrivals == 0; i++) {
         tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
         /* an attentive keeper: feeds often, rests a finger by a fish */
@@ -1020,7 +1018,7 @@ static int selftest_sleep(void) {
         {
             if (tank.night) { printf("FAIL: the wake did not light the tank\n"); return 1; }
             for (int i = 0; i < 30 * 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-            if (tank.night) { printf("FAIL: MANUAL (the default) went dark on its own\n"); return 1; }
+            if (tank.night) { printf("FAIL: NEVER (the default) went dark on its own\n"); return 1; }
             tank.light_auto = true; tank_handled(&tank);                /* the keeper opts in */
             for (int i = 0; i < 14 * 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
             if (tank.night) { printf("FAIL: lights out after 14 s still (idle %.1f)\n", tank.idle_s); return 1; }
@@ -1040,9 +1038,10 @@ static int selftest_sleep(void) {
             tank.hold_light = false; tank.light_auto = false;
         }
         /* the settings page (2026-09-15; one LIGHTS OUT row since 0.3.2):
-           DOUBLE-TAP (MANUAL) keeps the light on however still; a step to
-           the right is AUTO, the idle rule, after 5 SEC .. 30 MIN; the row's
-           left half steps back. Then AUTO FEED and ROTATION (SCREEN on the watch) */
+           AUTO, the idle rule, after 5 SEC .. 30 MIN, then NEVER (the
+           default since 2026-10-28; DOUBLE-TAP, MANUAL, came first before),
+           which keeps the light on however still; the row's left half steps
+           back. Then AUTO FEED and ROTATION (SCREEN on the watch) */
         {
             static uint16_t sfb[TANK_W * TANK_H];
             int v = 0, r;
@@ -1050,10 +1049,10 @@ static int selftest_sleep(void) {
             #define SET_TAP_AT(X, Y) (SET_TOUCH(X, Y, true), SET_TOUCH(X, Y, false))
             const int light_y = SET_ROW3_Y + 10;                             /* on the LIGHTS OUT segments */
             if (tank.light_idle_s != LIGHT_IDLE_S || tank.light_auto) { printf("FAIL: light settings not at the default (%d s, auto %d)\n", tank.light_idle_s, tank.light_auto); return 1; }
-            r = SET_TAP_AT(SETP_PREV_X, light_y);                             /* LIGHTS OUT: already at the first choice, the double-tap */
-            if (r != SET_TAP_NONE || tank.light_auto || tank_light_choice(&tank) != 0) { printf("FAIL: back from the first LIGHTS OUT choice -> %d, auto %d\n", r, tank.light_auto); return 1; }
+            r = SET_TAP_AT(SETP_NEXT_X, light_y);                             /* LIGHTS OUT: already at the last choice, NEVER */
+            if (r != SET_TAP_NONE || tank.light_auto || tank_light_choice(&tank) != LIGHT_IDLE_N) { printf("FAIL: past the last LIGHTS OUT choice -> %d, auto %d\n", r, tank.light_auto); return 1; }
             for (int i = 0; i < 30 * 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-            if (tank.night) { printf("FAIL: lights went out in MANUAL\n"); return 1; }
+            if (tank.night) { printf("FAIL: lights went out with NEVER\n"); return 1; }
             render_settings(&tank, sfb, TANK_W, 60, 2);
             /* BRIGHTNESS (2026-10-10 evening): ten steps between two arrows, like LIGHTS OUT; the page was
                drawn at 60, so the right arrow says 70, the left 50; the ends hold */
@@ -1069,60 +1068,35 @@ static int selftest_sleep(void) {
               if (r != SET_TAP_BRIGHT || v != 30) { printf("FAIL: BRIGHTNESS from a saved 15 -> %d/%d\n", r, v); return 1; }
               render_settings(&tank, sfb, TANK_W, 60, 2);
               printf("selftest-sleep: BRIGHTNESS: 10..100 by tens between two arrows, the ends hold, an odd saved value rounds\n"); }
-            /* in MANUAL a double-tap on the glass flips the light, and the flip rides in the save */
-            notice_sync(&tank);
-            tank_touch_tap(&tank, 200, 200); tank_touch_tap(&tank, 200, 200);
-            for (int i = 0; i < 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-            if (!tank.night || !tank.light_manual_off) { printf("FAIL: a double-tap in MANUAL did not turn the light off\n"); return 1; }
-            /* the first time, a notice says what happened (2026-10-03): once, no chime, and its tap reaches the tank */
-            if (!tank.light_tip_seen) { printf("FAIL: the first lights-out did not mark its notice\n"); return 1; }
-            for (int i = 0; i < 180 && !notice_current(); i++) notice_tick(&tank, 1.0f / 60.0f, false);
-            if (!notice_current() || notice_current()->kind != NOTICE_LIGHTS_OUT || notice_take_cue() >= 0) { printf("FAIL: no quiet lights-out notice after the first double-tap\n"); return 1; }
-            if (notice_dismiss()) { printf("FAIL: the lights-out notice swallowed its tap\n"); return 1; }
-            progression_save(&tank); { int keep = tank.light_idle_s; tank_init(&tank, 8); progression_boot(&tank); tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-              if (!tank.light_manual_off || !tank.night || tank.light_auto || tank.light_idle_s != keep) { printf("FAIL: the manual light-off did not survive the save\n"); return 1; }
-              if (!tank.light_tip_seen) { printf("FAIL: the lights-out notice's mark did not survive the save\n"); return 1; }
-              notice_sync(&tank); }
-            tank_touch_tap(&tank, 200, 200); tank_touch_tap(&tank, 200, 200);
-            for (int i = 0; i < 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-            if (tank.night) { printf("FAIL: a second double-tap did not turn the light back on\n"); return 1; }
-            tank_touch_tap(&tank, 200, 200); tank_touch_tap(&tank, 200, 200);   /* off again: no second notice */
-            for (int i = 0; i < 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-            for (int i = 0; i < 180; i++) notice_tick(&tank, 1.0f / 60.0f, false);
-            if (!tank.night || notice_current() || notice_pending()) { printf("FAIL: the lights-out notice came up a second time\n"); return 1; }
-            tank_touch_tap(&tank, 200, 200); tank_touch_tap(&tank, 200, 200);   /* and on, for what follows */
-            for (int i = 0; i < 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-            if (tank.night) { printf("FAIL: the light did not come back on\n"); return 1; }
-            for (int i = 0; i < 3; i++) tank_touch_tap(&tank, 200, 200);         /* three taps = a startle, not a toggle */
-            for (int i = 0; i < 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-            if (tank.night) { printf("FAIL: a triple tap toggled the light\n"); return 1; }
-            r = SET_TAP_AT(SETP_NEXT_X, light_y);                             /* one step on: AUTO, after the shortest time */
-            if (r != SET_TAP_LIGHT || v != 1 || !tank.light_auto || tank.light_manual_off || tank.light_idle_s != 5) { printf("FAIL: LIGHTS OUT's first step -> %d/%d, %d s\n", r, v, tank.light_idle_s); return 1; }
-            tank_touch_tap(&tank, 200, 200); tank_touch_tap(&tank, 200, 200);   /* in AUTO a double-tap is nothing */
-            for (int i = 0; i < 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-            if (tank.night || tank.light_manual_off) { printf("FAIL: a double-tap in AUTO touched the light\n"); return 1; }
-            r = SET_TAP_AT(SETP_NEXT_X, light_y);                             /* 5 -> 15 */
-            if (r != SET_TAP_IDLE || v != 15 || tank.light_idle_s != 15) { printf("FAIL: the next choice -> %d, %d s\n", r, tank.light_idle_s); return 1; }
-            { static const int want[] = { 30, 60, 180, 300, 600, 1800 };   /* Strato's list, to its end */
-              for (int k = 0; k < 6; k++) { r = SET_TAP_AT(SETP_SEG_X(2), light_y);   /* (anywhere on the row's right half) */
-                  if (r != SET_TAP_IDLE || tank.light_idle_s != want[k]) { printf("FAIL: LIGHTS OUT choice %d -> %d, %d s (want %d)\n", k + 3, r, tank.light_idle_s, want[k]); return 1; } } }
-            r = SET_TAP_AT(SETP_NEXT_X, light_y);                             /* the end of the list holds */
-            if (r != SET_TAP_NONE || tank.light_idle_s != 1800) { printf("FAIL: past the last LIGHTS OUT choice -> %d, %d s\n", r, tank.light_idle_s); return 1; }
+            /* taps on the glass never touch the light (2026-10-28: in MANUAL two quick taps flipped it, and the
+               first time a notice said so; three startled the fish) */
+            for (int n = 2; n <= 3; n++) {
+                for (int i = 0; i < n; i++) tank_touch_tap(&tank, 200, 200);
+                for (int i = 0; i < 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+                if (tank.night) { printf("FAIL: %d quick taps on the glass turned the light off\n", n); return 1; }
+            }
+            r = SET_TAP_AT(SETP_PREV_X, light_y);                             /* one step back: AUTO, after the longest time */
+            if (r != SET_TAP_LIGHT || v != 1 || !tank.light_auto || tank.light_idle_s != 1800) { printf("FAIL: LIGHTS OUT's step back from NEVER -> %d/%d, %d s\n", r, v, tank.light_idle_s); return 1; }
+            { static const int want[] = { 600, 300, 180, 60, 30, 15, 5 };   /* Strato's list, to its start */
+              for (int k = 0; k < 7; k++) { r = SET_TAP_AT(SETP_PREV_X, light_y);
+                  if (r != SET_TAP_IDLE || tank.light_idle_s != want[k]) { printf("FAIL: LIGHTS OUT step %d back -> %d, %d s (want %d)\n", k + 2, r, tank.light_idle_s, want[k]); return 1; } } }
+            r = SET_TAP_AT(SETP_PREV_X, light_y);                             /* the start of the list holds */
+            if (r != SET_TAP_NONE || tank.light_idle_s != 5) { printf("FAIL: before the first LIGHTS OUT choice -> %d, %d s\n", r, tank.light_idle_s); return 1; }
             render_settings(&tank, sfb, TANK_W, 60, 2);
-            for (int k = 0; k < 5; k++) r = SET_TAP_AT(SETP_PREV_X, light_y);  /* back to 30 SEC */
-            if (r != SET_TAP_IDLE || tank.light_idle_s != 30) { printf("FAIL: back five choices -> %d, %d s\n", r, tank.light_idle_s); return 1; }
+            r = SET_TAP_AT(SETP_SEG_X(2), light_y); r = SET_TAP_AT(SETP_NEXT_X, light_y);   /* on to 30 SEC (the row's right half, anywhere) */
+            if (r != SET_TAP_IDLE || tank.light_idle_s != 30) { printf("FAIL: on two choices -> %d, %d s\n", r, tank.light_idle_s); return 1; }
             tank_handled(&tank);
             for (int i = 0; i < 28 * 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
             if (tank.night) { printf("FAIL: dark at 28 s with 30 s set\n"); return 1; }
             for (int i = 0; i < 3 * 60; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
             if (!tank.night) { printf("FAIL: lit at 31 s with 30 s set\n"); return 1; }
             tank.light_idle_s = 20;                                            /* a save from the wheel's days: honoured, shown as the nearest choice */
-            if (tank_light_choice(&tank) != 2) { printf("FAIL: 20 s reads as choice %d (want 15 SEC)\n", tank_light_choice(&tank)); return 1; }
+            if (tank_light_choice(&tank) != 1) { printf("FAIL: 20 s reads as choice %d (want 15 SEC)\n", tank_light_choice(&tank)); return 1; }
             r = SET_TAP_AT(SETP_NEXT_X, light_y);
             if (r != SET_TAP_IDLE || tank.light_idle_s != 30) { printf("FAIL: a step from a wheel-era 20 s -> %d s\n", tank.light_idle_s); return 1; }
-            for (int k = 0; k < 3; k++) r = SET_TAP_AT(SETP_PREV_X, light_y);  /* 15, 5, and back to the double-tap */
-            if (r != SET_TAP_LIGHT || v != 0 || tank.light_auto) { printf("FAIL: back to the double-tap -> %d/%d\n", r, v); return 1; }
-            tank_light_choice_set(&tank, 3);                                   /* 30 SEC, for the save below */
+            for (int k = 0; k < 6; k++) r = SET_TAP_AT(SETP_NEXT_X, light_y);  /* 1 MIN .. 30 MIN, and on to NEVER */
+            if (r != SET_TAP_LIGHT || v != 0 || tank.light_auto) { printf("FAIL: on to NEVER -> %d/%d\n", r, v); return 1; }
+            tank_light_choice_set(&tank, 2);                                   /* 30 SEC, for the save below */
             /* AUTO FEED (0.3.2): ON by default, OFF and back */
             {
                 const int feed_y = SET_ROW4_Y + 10;
@@ -1180,7 +1154,7 @@ static int selftest_sleep(void) {
             if (tank.light_idle_s != 30 || !tank.light_auto) { printf("FAIL: light settings did not survive the save (%d s)\n", tank.light_idle_s); return 1; }
             if (!tank.autofeed_off) { printf("FAIL: AUTO FEED OFF did not survive the save\n"); return 1; }
             tank.light_idle_s = LIGHT_IDLE_S; tank.light_auto = false; tank.autofeed_off = false;
-            printf("selftest-sleep: settings: LIGHTS OUT one row (the double-tap, saved / 5 SEC .. 30 MIN, both ends hold, a wheel-era 20 s), 30 s honoured, AUTO FEED, saved\n");
+            printf("selftest-sleep: settings: LIGHTS OUT one row (5 SEC .. 30 MIN and NEVER, both ends hold, a wheel-era 20 s; taps never touch the light), 30 s honoured, AUTO FEED, saved\n");
             #undef SET_TAP_AT
             #undef SET_TOUCH
         }
@@ -1244,7 +1218,7 @@ static int saves_same(const char *what, const tank_t *a, const tank_t *b) {
     }
     if (b->tank_ms_bits != a->tank_ms_bits || b->tank_ms_seen != a->tank_ms_seen || b->player_feedings != a->player_feedings
         || b->hold_approaches != a->hold_approaches || b->feed_spot_x != a->feed_spot_x) SV_FAIL("the tank's badges, meals or holds");
-    if (b->light_idle_s != a->light_idle_s || b->light_auto != a->light_auto || b->light_tip_seen != a->light_tip_seen || b->theme != a->theme
+    if (b->light_idle_s != a->light_idle_s || b->light_auto != a->light_auto || b->theme != a->theme
         || b->autofeed_off != a->autofeed_off || b->orient_lock != a->orient_lock || b->orient_inv != a->orient_inv || b->screen_turned != a->screen_turned)
         SV_FAIL("the settings: lights %d s auto %d, theme %d, feed off %d, way up %d/%d/%d", b->light_idle_s, b->light_auto, b->theme, b->autofeed_off, b->orient_lock, b->orient_inv, b->screen_turned);
     if (b->sd_balance != a->sd_balance || b->sd_earned != a->sd_earned || b->sd_unlocks != a->sd_unlocks
@@ -1282,7 +1256,7 @@ static void saves_rich(tank_t *t) {
         t->sd_paid_fish[i] = (uint32_t)(i & 7);
     }
     t->tank_ms_bits = 0x1a7; t->tank_ms_seen = 0x107; t->player_feedings = 42; t->hold_approaches = 5; t->feed_spot_x = TANK_W * 0.4f;
-    t->light_idle_s = 30; t->light_auto = true; t->light_tip_seen = true; t->theme = THEME_COUNT - 1; t->autofeed_off = true;   /* the last theme there is */
+    t->light_idle_s = 30; t->light_auto = true; t->theme = THEME_COUNT - 1; t->autofeed_off = true;   /* the last theme there is */
     tank_orient_lock(t, true);
     t->sd_balance = 321; t->sd_earned = 987; t->sd_colonies_paid = 3; t->sd_inches_paid = 4;
     t->trims = 17; t->cells_cleaned = 250; t->algae_colonies = 31; t->trim_px = 1234.5f;
@@ -1687,44 +1661,37 @@ static int selftest_tend(void) {
         float g_before = tank.veg_growth[1];
         tank_touch_tap(&tank, (x0 + x1) * 0.5f, (ty + TANK_BOT) * 0.5f);
         if (tank.veg_growth[1] != g_before) { printf("FAIL: a tap trimmed the canopy\n"); return 1; }
-        tank.tap_count = 0; tank.tap_burst_t = 99;   /* don't leak into later gestures */
     }
-    /* an algae scrub that starts mid-glass and sweeps across the whole floor
-     * must NOT cut anything (the accidental mow-the-garden bug): a slash only
-     * arms the bed the stroke STARTED on */
+    /* bare hands (2026-10-28, the keeper: touching the tank only reaches the
+     * creatures): sweeps glass to glass along the floor and up the fouled
+     * glass wipe nothing and cut nothing, and a tap at the surface drops no
+     * food - the menu's SPONGE, SCISSORS and FEED do those (a stroke guessed
+     * a wipe or a slash and a surface tap fed before; the two tests here
+     * proved a scrub begun mid-glass never cut) */
     {
+        for (int i = 0; i < ALGAE_CELLS; i++) tank.algae[i] = 200;
+        uint8_t film[ALGAE_CELLS]; memcpy(film, tank.algae, sizeof film);
         float g0[VEG_BEDS]; memcpy(g0, tank.veg_growth, sizeof g0);
-        const float sy = TANK_BOT - 30.0f;               /* one full-width stroke, glass to glass */
-        for (float sx = tank_glass_x0(sy) + 2; sx < tank_glass_x1(sy) - 2; sx += 6)
-            tank_touch_drag(&tank, sx, sy);
-        tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-        tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+        int trims0 = (int)tank.trims, food0 = 0, food1 = 0;
+        for (float sy = TANK_BOT - 8.0f; sy >= 40; sy -= 60) {
+            for (float sx = tank_glass_x0(sy) + 2; sx < tank_glass_x1(sy) - 2; sx += 6) tank_touch_drag(&tank, sx, sy);
+            tank_tick(&tank, 1.0f / 60.0f, advisor_rules); tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+        }
+        for (int i = 0; i < MAX_FOOD; i++) food0 += tank.food[i].alive;
+        tank_touch_tap(&tank, 220, tank_glass_top(220) + 6);
+        for (int i = 0; i < MAX_FOOD; i++) food1 += tank.food[i].alive;
+        for (int i = 0; i < ALGAE_CELLS; i++)
+            if (tank.algae[i] < film[i]) { printf("FAIL: bare hands wiped the glass (cell %d)\n", i); return 1; }
         for (int b = 0; b < VEG_BEDS; b++)
-            if (tank.veg_growth[b] < g0[b]) {
-                printf("FAIL: a mid-glass scrub cut bed %d\n", b); return 1;
-            }
+            if (tank.veg_growth[b] < g0[b] - 1e-4f) { printf("FAIL: bare hands cut bed %d\n", b); return 1; }
+        if ((int)tank.trims != trims0 || food1 != food0) { printf("FAIL: bare hands trimmed (%d -> %d) or fed (%d -> %d pellets)\n", trims0, (int)tank.trims, food0, food1); return 1; }
+        printf("selftest-tend: bare hands - sweeps along the floor and up the fouled glass wiped and cut nothing, a surface tap fed nothing\n");
+        memset(tank.algae, 0, sizeof tank.algae);
     }
-    /* trimming (2026-09-04, per frond): a sideways stroke that starts on a
-     * bed cuts exactly the fronds it crosses, at the height it crosses them.
-     * A cleaning scrub that starts over a bed but not beside a frond (bed 1:
-     * frond 0 at the ceiling, the rest short; the finger lands mid-glass in
-     * the short fronds' column, above their tips) and zigzags down to the
-     * floor must cut NOTHING (2026-09-04: the old bed-box arming sheared the
-     * garden whenever one frond was tall) */
-    {
-        tank_veg_set(&tank, 1, 0.3f); tank.veg_h[1][0] = 1.0f; tank_veg_sync(&tank);
-        float before[VEG_FRONDS_MAX]; memcpy(before, tank.veg_h[1], sizeof before);
-        float fx2; tank_veg_frond(&tank, 1, 2, &fx2);
-        for (float y = 150; y <= TANK_BOT - 10; y += 6)
-            tank_touch_drag(&tank, fx2 + ((int)(y / 6) & 1 ? 14 : -14), y);
-        tank_tick(&tank, 1.0f / 60.0f, advisor_rules); tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-        int n; tank_veg_bed(&tank, 1, NULL, NULL, NULL, &n);
-        for (int i = 0; i < n; i++)
-            if (tank.veg_h[1][i] < before[i] - 0.001f) { printf("FAIL: scrub from mid-glass cut frond %d (%.2f -> %.2f)\n", i, before[i], tank.veg_h[1][i]); return 1; }
-        printf("selftest-tend: a scrub begun mid-glass over the bed cut nothing\n");
-        tank_veg_set(&tank, 1, 1.0f);
-    }
-    /* First the precision: a short flick across fronds 1 and 2 of bed 1 at
+    /* the SCISSORS' precision (bare hands' until 2026-10-28; the rules are
+     * the cut's, so they hold for the scissors) */
+    tank_set_tool(&tank, TOOL_SCISSORS);
+    /* the precision: a short flick across fronds 1 and 2 of bed 1 at
      * mid-height takes those two to that height and touches nothing else */
     {
         float fx1, fx2; tank_veg_frond(&tank, 1, 1, &fx1); tank_veg_frond(&tank, 1, 2, &fx2);
@@ -1757,7 +1724,7 @@ static int selftest_tend(void) {
         printf("selftest-tend: sweep stopping 6 px short of bed 1's outer frond (spine %.0f, glass %d): %.2f\n", fl, TANK_FX1, tank.veg_h[1][n - 1]);
         if (tank.veg_h[1][n - 1] > VEG_NUB + 1e-3f) { printf("FAIL: the outer frond stood after a sweep that stopped just short of it\n"); return 1; }
         /* ...and a stroke that BEGINS between that frond and the glass, 14 px
-         * out, heading in, arms and takes it (it used to arm nothing) */
+         * out, heading in, takes it */
         tank_veg_set(&tank, 1, 1.0f);
         for (float sx = fl + 14; sx >= x0; sx -= 4) tank_touch_drag(&tank, sx, TANK_BOT - 8.0f);
         tank_tick(&tank, 1.0f / 60.0f, advisor_rules); tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
@@ -1791,6 +1758,7 @@ static int selftest_tend(void) {
         if (tank.veg_h[1][n - 1] < 1.0f) { printf("FAIL: a stroke begun on a frond ran on into the wall\n"); return 1; }
         tank_veg_set(&tank, 1, 1.0f);
     }
+    tank_set_tool(&tank, TOOL_HAND);
     /* the TOOLBOX (2026-10-01): the SPONGE - the floor sweep that mows a bed
      * only wipes the glass; the SCISSORS - a stroke begun in open water, on
      * no frond, cuts every frond it crosses at its height and wipes nothing;
@@ -1817,19 +1785,16 @@ static int selftest_tend(void) {
         for (int i = 0; i < ALGAE_CELLS; i++)
             if (tank.algae[i] < film[i]) { printf("FAIL: the scissors wiped the glass\n"); return 1; }
         printf("selftest-tend: the SCISSORS, begun in open water, cut all %d fronds to %.2f and wiped nothing\n", n, want);
-        /* a tool in hand owns the glass (2026-10-04): a tap feeds nothing, two taps leave the light, a hold draws no fish */
+        /* a tool in hand owns the glass (2026-10-04): a tap feeds nothing, a hold draws no fish */
         { int food0 = 0, food1 = 0; for (int i = 0; i < MAX_FOOD; i++) food0 += tank.food[i].alive;
-          bool light0 = tank.light_manual_off;
-          tank_touch_tap(&tank, 220, tank_glass_top(220) + 6);                       /* the surface: would feed */
-          tank_touch_tap(&tank, 200, 200); tank_touch_tap(&tank, 200, 200);         /* would toggle the light */
+          tank_touch_tap(&tank, 220, tank_glass_top(220) + 6);                       /* the surface */
           tank_touch_hold(&tank, 200, 200);
           bool held = tank.hold_active;
           for (int i = 0; i < MAX_FOOD; i++) food1 += tank.food[i].alive;       /* before the ticks: the tank drops food of its own */
           for (int i = 0; i < 90; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-          if (food1 > food0 || tank.light_manual_off != light0 || held || tank.tap_count) {
-              printf("FAIL: with the scissors in hand a tap still reached the tank (food %d -> %d, light %d -> %d, hold %d, taps %d)\n",
-                     food0, food1, light0, tank.light_manual_off, held, tank.tap_count); return 1; }
-          printf("selftest-tend: a tool in hand - a surface tap, a double tap and a hold did nothing\n"); }
+          if (food1 > food0 || held) {
+              printf("FAIL: with the scissors in hand a tap or a hold still reached the tank (food %d -> %d, hold %d)\n", food0, food1, held); return 1; }
+          printf("selftest-tend: a tool in hand - a surface tap and a hold did nothing\n"); }
         for (int i = 0; i < (int)(TOOL_IDLE_S * 60) + 120; i++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
         if (tank.tool != TOOL_HAND) { printf("FAIL: the scissors stayed in hand after %.0f s untouched\n", TOOL_IDLE_S); return 1; }
         {   /* the tools' tiles on the main menu (the toolbox under the card until 2026-10-21) */
@@ -1837,11 +1802,36 @@ static int selftest_tend(void) {
             render_menu_tile_rect(3, &sx, &sy, &sw, &sh); render_menu_tile_rect(4, &cx, &cy, &cw, &ch);
             if (render_menu_tap(&tank, sx + sw / 2.0f, sy + sh / 2.0f) != MENU_TAP_SPONGE || render_menu_tap(&tank, cx + cw / 2.0f, cy + ch / 2.0f) != MENU_TAP_SCISSORS) {
                 printf("FAIL: the menu's tool tiles\n"); return 1; } }
+        {   /* FEED (2026-10-28): the menu's sixth tile; a tap anywhere drops a portion at the surface over it;
+               its strokes wipe and cut nothing */
+            int fx, fy, fw, fh; render_menu_tile_rect(5, &fx, &fy, &fw, &fh);
+            int r = render_menu_tap(&tank, fx + fw / 2.0f, fy + fh / 2.0f);
+            if (r != MENU_TAP_FEED || render_menu_tool(r) != TOOL_FEED || render_menu_tool(MENU_TAP_SPONGE) != TOOL_SPONGE || render_menu_tool(MENU_TAP_TANK) != -1) {
+                printf("FAIL: the menu's FEED tile (%d)\n", r); return 1; }
+            tank_set_tool(&tank, TOOL_FEED);
+            for (int i = 0; i < MAX_FOOD; i++) tank.food[i].alive = false;
+            tank_touch_tap(&tank, 260, 250);                                          /* mid-water */
+            int n = 0;
+            for (int i = 0; i < MAX_FOOD; i++) if (tank.food[i].alive) {
+                n++;
+                if (fabsf(tank.food[i].x - 260) > 15 || tank.food[i].y > tank_glass_top(tank.food[i].x) + 20) {
+                    printf("FAIL: FEED's pellet at %.0f,%.0f, not at the surface over the tap\n", tank.food[i].x, tank.food[i].y); return 1; } }
+            if (n != 3) { printf("FAIL: FEED's tap dropped %d pellets\n", n); return 1; }
+            for (int i = 0; i < ALGAE_CELLS; i++) tank.algae[i] = 200;
+            tank_veg_set(&tank, 1, 1.0f);
+            for (float sx = x0 + 2; sx <= x1; sx += 4) tank_touch_drag(&tank, sx, TANK_BOT - 8.0f);
+            tank_tick(&tank, 1.0f / 60.0f, advisor_rules); tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
+            int film = 0; for (int i = 0; i < ALGAE_CELLS; i++) film += tank.algae[i] < 200;
+            if (film || tank.veg_growth[1] < 0.999f) { printf("FAIL: FEED's stroke wiped %d cells or cut bed 1 (%.2f)\n", film, tank.veg_growth[1]); return 1; }
+            tank_set_tool(&tank, TOOL_HAND);
+            printf("selftest-tend: FEED - the menu's sixth tile; a tap mid-water dropped a portion at the surface over it; its stroke wiped and cut nothing\n");
+        }
         for (int i = 0; i < ALGAE_CELLS; i++) tank.algae[i] = 0;
         tank_veg_set(&tank, 1, 1.0f);
     }
-    /* ...then the mow: one sweep along the floor takes every frond of a bed
-     * to nubs, never bare */
+    /* ...then the mow: one sweep of the scissors along the floor takes every
+     * frond of a bed to nubs, never bare */
+    tank_set_tool(&tank, TOOL_SCISSORS);
     for (int b = 0; b < VEG_BEDS; b++) {
         float x0, x1, ty;
         tank_veg_bed(&tank, b, &x0, &x1, &ty, NULL);
@@ -1852,7 +1842,7 @@ static int selftest_tend(void) {
             printf("FAIL: bed %d not mowed to nubs (%.2f)\n", b, tank.veg_growth[b]); return 1;
         }
     }
-    if (tank.startled) { printf("FAIL: trimming spooked the tank\n"); return 1; }
+    tank_set_tool(&tank, TOOL_HAND);
     /* the canopy comfort band, all three regimes */
     fish_t *cf = &tank.fish[0];
     for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, 1.0f);      /* jungle */
@@ -1904,12 +1894,16 @@ static int selftest_tend(void) {
     if (s_comfy > 1.5f) { printf("FAIL: comfortable canopy should let stress decay\n"); return 1; }
     if (s_two < 1.5f) { printf("FAIL: two beds past 85%% should smother\n"); return 1; }
     if (s_one >= s_open) { printf("FAIL: one tall bed should calm, not stress\n"); return 1; }
-    /* cleaning: squeegee strokes across every row of the glass */
+    /* cleaning: the sponge's strokes across every row of a fouled glass (2026-10-28: the film to wipe is
+       put here - bare hands' trimming tests above wiped the night's film, and so the first colony, before) */
+    for (int i = 0; i < ALGAE_CELLS; i++) tank.algae[i] = 120;
+    tank_set_tool(&tank, TOOL_SPONGE);
     for (int y = 8; y < ALGAE_ROWS * ALGAE_CELL; y += ALGAE_CELL) {   /* (the film grid: the frame in the rectangle, down to the bowl's floor) */
         for (int x = 0; x <= TANK_W; x += 8) tank_touch_drag(&tank, (float)x, (float)y);
         tank_tick(&tank, 1.0f / 60.0f, advisor_rules);   /* consume: stroke ends */
         progression_tick(&tank, 1.0f / 60.0f);
     }
+    tank_set_tool(&tank, TOOL_HAND);
     film = 0;
     for (int i = 0; i < ALGAE_CELLS; i++) film += tank.algae[i] > 0;
     if (film) { printf("FAIL: %d algae cells survived the wipe\n", film); return 1; }
@@ -2099,7 +2093,6 @@ static void on_tank_event(int ev, int fish, void *ud) {
     case TEV_WIPE:        snd(SND_WIPE, AUDIO_PITCH_ONE); break;
     case TEV_SNIP:        snd(SND_SNIP, AUDIO_PITCH_ONE); break;
     case TEV_EAT:         snd(SND_EAT, stage_pitch(fish)); break;
-    case TEV_SPOOK:       snd(SND_SPOOK, AUDIO_PITCH_ONE); break;
     case TEV_INVESTIGATE: snd(SND_INVESTIGATE, stage_pitch(fish)); break;
     case TEV_BUBBLES:     snd(SND_BUBBLES, AUDIO_PITCH_ONE); break;
     case TEV_WELCOME:     snd(SND_WELCOME, AUDIO_PITCH_ONE); break;
@@ -2573,6 +2566,9 @@ static int snapshot(const char *prefix, int seconds) {
     snprintf(path, sizeof path, "%s_menu.ppm", prefix); write_ppm(path, fb);
     render_tank(&tank, fb, TANK_W); render_tool_chip(&tank, -1, fb, TANK_W);
     snprintf(path, sizeof path, "%s_tool_chip.ppm", prefix); write_ppm(path, fb);
+    tank_set_tool(&tank, TOOL_FEED);                     /* FEED's chip (2026-10-28): its can is wider than the tools' art */
+    render_tank(&tank, fb, TANK_W); render_tool_chip(&tank, -1, fb, TANK_W);
+    snprintf(path, sizeof path, "%s_tool_chip_feed.ppm", prefix); write_ppm(path, fb);
     tank_set_tool(&tank, TOOL_HAND);
     /* the milestones page: everything seen but one fish badge and one tank
        badge (they wear the "new" ring), and a tapped badge's caption */
@@ -2604,10 +2600,10 @@ static int snapshot(const char *prefix, int seconds) {
     }
     render_settings(&tank, fb, TANK_W, 60, 2);                     /* the defaults: the double-tap, AUTO FEED on, the picture free to turn */
     snprintf(path, sizeof path, "%s_settings.ppm", prefix); write_ppm(path, fb);
-    tank_light_choice_set(&tank, 5); tank.autofeed_off = true; tank_orient_lock(&tank, true);
+    tank_light_choice_set(&tank, 4); tank.autofeed_off = true; tank_orient_lock(&tank, true);
     render_settings(&tank, fb, TANK_W, 60, 2);                     /* AUTO after 3 MIN, AUTO FEED off, the way up locked */
     snprintf(path, sizeof path, "%s_settings_auto.ppm", prefix); write_ppm(path, fb);
-    tank_light_choice_set(&tank, 0); tank.autofeed_off = false; tank_orient_lock(&tank, false);
+    tank_light_choice_set(&tank, LIGHT_IDLE_N); tank.autofeed_off = false; tank_orient_lock(&tank, false);
     {   /* the UPDATES page and update mode's pages (2026-09-30), over the pretend radio */
         setenv("AQUA_PETS_WIFI", "/tmp/aqua-pets-snapshot-wifi.txt", 1); net_port_creds_forget();
         render_updates_page(fb, TANK_W);
@@ -2744,11 +2740,6 @@ static int snapshot(const char *prefix, int seconds) {
     snprintf(path, sizeof path, "%s_notice_stage.ppm", prefix); write_ppm(path, fb);
     render_tank(&tank, fb, TANK_W); render_notice(&tank, fb, TANK_W, 3, -1, 0, 0.6f); render_battery(fb, TANK_W, 0.08f, BAT_ON_BATTERY, 0);
     snprintf(path, sizeof path, "%s_notice_battery.ppm", prefix); write_ppm(path, fb);
-    { bool mo = tank.light_manual_off, la = tank.light_auto, ni = tank.night;      /* lights out: over the dark tank */
-      tank.light_auto = false; tank.light_manual_off = true; tank.night = true;
-      render_tank(&tank, fb, TANK_W); render_notice(&tank, fb, TANK_W, NOTICE_LIGHTS_OUT, -1, 0, 0.6f);
-      snprintf(path, sizeof path, "%s_notice_lights.ppm", prefix); write_ppm(path, fb);
-      tank.light_manual_off = mo; tank.light_auto = la; tank.night = ni; }
     /* the battery (2026-09-24): the pill with the menu (2026-10-28) in each state (clock
        0.65 = the charging sweep mid-fill), then the page on battery, charging,
        full - its numbers from a staged history */
@@ -3157,8 +3148,9 @@ static int selftest_shop(void) {
     tank.fish[1].trust = 6.0f; SHOP_TICK(2); tank.fish[1].trust = 10.0f; SHOP_TICK(2); SHOP_WANT("full trust again");
     printf("selftest-shop: stages %d/%d/%d, a birth %d, full trust %d - each once, %d after the reload\n",
            SD_STAGE_JUV, SD_STAGE_ADULT, SD_STAGE_ELDER, SD_BIRTH, SD_TRUST, tank.sd_balance);
-    /* colonies: three 2 x 2 patches, one stroke through each */
+    /* colonies: three 2 x 2 patches, one stroke of the sponge through each */
     {
+        tank_set_tool(&tank, TOOL_SPONGE);
         memset(tank.algae, 0, sizeof tank.algae);
         int c0[3] = { 3, 12, 21 };
         for (int k = 0; k < 3; k++) for (int dy = 0; dy < 2; dy++) for (int dx = 0; dx < 2; dx++) tank.algae[(5 + dy) * ALGAE_COLS + c0[k] + dx] = 120;
@@ -3182,6 +3174,7 @@ static int selftest_shop(void) {
         SHOP_TICK(2); want += SD_CHORE; SHOP_WANT("100 colonies");
         if (tank.sd_colonies_paid != 1) { printf("FAIL: colonies paid count %d\n", tank.sd_colonies_paid); return 1; }
         printf("selftest-shop: 3 patches = 3 colonies, a half patch none, the 100th paid %d\n", SD_CHORE);
+        tank_set_tool(&tank, TOOL_HAND);
     }
     /* the grass: a full bed mowed to nubs is (1 - nub) x the frond height, per frond */
     {
@@ -3189,8 +3182,9 @@ static int selftest_shop(void) {
         int n; float x0, x1; tank_veg_bed(&tank, 1, &x0, &x1, NULL, &n);
         tank.trim_px = (SD_TRIM_CM - 100) * PX_PER_CM; tank.sd_inches_paid = 0;
         float px0 = tank.trim_px;
+        tank_set_tool(&tank, TOOL_SCISSORS);
         for (float sx = x0 + 2; sx <= x1; sx += 4) tank_touch_drag(&tank, sx, TANK_BOT - 8.0f);
-        SHOP_TICK(2);
+        SHOP_TICK(2); tank_set_tool(&tank, TOOL_HAND);
         float cut = tank.trim_px - px0, expect = n * (1.0f - VEG_NUB) * (VEG_SEGS_FULL - 1) * VEG_PAY_PX;   /* paid at the 1.8's pitch on every board */
         printf("selftest-shop: mowing bed 1 (%d fronds) cut %.0f px = %.0f cm (expected ~%.0f px); the %dth cm paid %d\n", n, cut, cut / PX_PER_CM, expect, SD_TRIM_CM, SD_CHORE);
         if (fabsf(cut - expect) > expect * 0.1f) { printf("FAIL: the cut is off (%.0f vs %.0f)\n", cut, expect); return 1; }
@@ -3210,8 +3204,9 @@ static int selftest_shop(void) {
         if (fabsf(tank.veg_growth[3] - VEG_START) > 0.01f) { printf("FAIL: the plant did not start at VEG_START (%.2f)\n", tank.veg_growth[3]); return 1; }
         int n; float x0, x1; tank_veg_bed(&tank, 3, &x0, &x1, NULL, &n);
         float trim0 = tank.trim_px;
+        tank_set_tool(&tank, TOOL_SCISSORS);
         for (float sx = x0 + 2; sx <= x1; sx += 4) tank_touch_drag(&tank, sx, TANK_BOT - 8.0f);
-        SHOP_TICK(2);
+        SHOP_TICK(2); tank_set_tool(&tank, TOOL_HAND);
         if (fabsf(tank.veg_growth[3] - VEG_NUB) > 1e-3f || tank.trim_px <= trim0) { printf("FAIL: the slash did not mow the plant (%.2f)\n", tank.veg_growth[3]); return 1; }
         /* the comfort band counts it: with every grass bed bare, the plant alone is cover */
         for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, VEG_NUB);
@@ -3777,32 +3772,11 @@ static int selftest_shop(void) {
         SHRIMP_TICK(60 * 10);
         if (tank.school.food != before || tank.food[k].nibbled > 0) { printf("FAIL: they ate on a fouled glass (count %d, nibbled %.1f)\n", tank.school.food, tank.food[k].nibbled); return 1; }
         memset(tank.algae, 0, ALGAE_CELLS);
-        /* taps (2026-09-29): one on the school is its card, not a scare; the
-           third quick tap on it scares them - the water's triple tap, fish and
-           all - and so does a triple tap on the water nearby */
-        const shrimp_t *qa = &tank.school.q[0];
-        if (!tank_shrimp_hit(&tank, qa->x + 5, qa->y - 5) || tank_shrimp_hit(&tank, 10, 10)) { printf("FAIL: the school's hit test\n"); return 1; }
-        int darting = 0;
-        tank.school.tap_t = 99; tank.startled = false;
-        if (tank_shrimp_tap(&tank, qa->x, qa->y) != 1) { printf("FAIL: a first tap on the school is not 1\n"); return 1; }
-        for (int i = 0; i < tank.school.n; i++) darting += tank.school.q[i].dart > 0;
-        if (darting || tank.startled || tank.tap_count) { printf("FAIL: one tap on the school scared them (or counted toward the light)\n"); return 1; }
-        SHRIMP_TICK(6);
-        if (tank_shrimp_tap(&tank, qa->x, qa->y) != 2) { printf("FAIL: a second quick tap is not 2\n"); return 1; }
-        SHRIMP_TICK(6);
-        if (tank_shrimp_tap(&tank, qa->x, qa->y) != 3 || !tank.startled) { printf("FAIL: the third quick tap did not startle\n"); return 1; }
-        for (int i = 0; i < tank.school.n; i++) darting += tank.school.q[i].dart > 0;
-        if (darting < 2) { printf("FAIL: the triple tap on the school scattered %d\n", darting); return 1; }
-        SHRIMP_TICK(60 * 8);                                          /* settle; the startle wears off */
-        tank.startled = false; tank.school.tap_t = 99; tank.tap_count = 0; tank.tap_burst_t = 99;
-        sx = 0; float sy = 0; for (int i = 0; i < tank.school.n; i++) { sx += tank.school.q[i].x; sy += tank.school.q[i].y; } sx /= tank.school.n; sy /= tank.school.n;
-        tank_touch_tap(&tank, sx, sy - 40);
-        int w1 = 0; for (int i = 0; i < tank.school.n; i++) w1 += tank.school.q[i].dart > 0;
-        if (w1) { printf("FAIL: one tap on the water scattered them\n"); return 1; }
-        tank_touch_tap(&tank, sx, sy - 40); tank_touch_tap(&tank, sx, sy - 40);
-        int w3 = 0; for (int i = 0; i < tank.school.n; i++) w3 += tank.school.q[i].dart > 0;
-        if (w3 < 2) { printf("FAIL: a triple tap on the water by them scattered %d\n", w3); return 1; }
-        tank.startled = false; tank.tap_count = 0; tank.tap_burst_t = 99;
+        /* a tap on the school (2026-09-29): its card up, and down again - no tap hook, no scare (its third
+           quick tap scattered them, the water's triple tap too, until 2026-10-28) */
+        { const shrimp_t *qa = &tank.school.q[0];
+          if (!tank_shrimp_hit(&tank, qa->x + 5, qa->y - 5) || tank_shrimp_hit(&tank, 10, 10)) { printf("FAIL: the school's hit test\n"); return 1; }
+          if (HELPER[HK_SHRIMP].tap) { printf("FAIL: the shrimp have a tap of their own\n"); return 1; } }
         /* the card: a pip per pellet toward the next shrimp */
         tank.school.food = 7; tank.school.cool = 0;
         render_tank(&tank, fb, TANK_W); render_stats_card(&tank, RENDER_CARD_SHRIMP, fb, TANK_W);
@@ -3964,8 +3938,8 @@ static int selftest_shop(void) {
 #undef SHRIMP_TICK
 #undef PUT_PELLET
         printf("selftest-shop: the shrimp: sixth item at %d, no SELL; a pellet rests %.0f s on the floor; pecked clean in %.1f s; "
-               "ten bring one (%d -> %d), the cooldown holds the count at ten; a fouled glass puts them off; one tap = the card, the third quick tap scatters %d; saved (%d)\n",
-               SD_PRICE_SHRIMP, FOOD_FLOOR_S, t_first / 60.0f, SHRIMP_START, SHRIMP_START + 2, darting, keep_n);
+               "ten bring one (%d -> %d), the cooldown holds the count at ten; a fouled glass puts them off; a tap = the card, never a scare; saved (%d)\n",
+               SD_PRICE_SHRIMP, FOOD_FLOOR_S, t_first / 60.0f, SHRIMP_START, SHRIMP_START + 2, keep_n);
         if (mid_top >= 0) printf("selftest-shop: the shrimp: grass top y %.0f - one above it left alone; one below it taken mid-fall at y %.0f (the floor is %d)\n", mid_top, mid_y, (int)FOOD_FLOOR_Y);
         else printf("selftest-shop: the shrimp: (the mid-fall leg skipped: the grass too short or too tall here)\n");
     }
@@ -4077,7 +4051,7 @@ static int selftest_shop(void) {
           int th0 = tank.theme; tank.theme = (uint8_t)th; render_use_theme(th);
           static uint16_t scene[TANK_W * TANK_H]; render_set_scene_cache(scene); render_set_dirty_mask(dirty_buf);   /* the board's path: the piece baked, the grass masked by it */
           for (int i = 0; i < tank.n_fish; i++) { tank.fish[i].x = TANK_W - 40; tank.fish[i].y = 40; tank.fish[i].speed = 0; }
-          tank.startled = false; for (int i = 0; i < MAX_FOOD; i++) tank.food[i].alive = false;
+          for (int i = 0; i < MAX_FOOD; i++) tank.food[i].alive = false;
           tank_decor_set(&tank, SD_ITEM_WRECK_IDX, bcx, DECOR_Z_FRONT);
           memcpy(keep, tank.veg_h[0], sizeof keep); memset(tank.veg_h[0], 0, sizeof tank.veg_h[0]); tank_veg_sync(&tank);
           for (int f = 0; f < 3; f++) render_tank(&tank, bare_fb, TANK_W);
@@ -4641,7 +4615,7 @@ static int species_sheet(const char *prefix) {
         for (int i = 0; i < sets[k].n; i++) sheet_put(i, &sets[k].f[i]);
         snprintf(path, sizeof path, "%s_states_%d.ppm", prefix, k + 1); sheet_render(fb, path); files++;
     }
-    /* ink: an octopus and a squid startled where they were, then away - the cloud stays */
+    /* ink: an octopus and a squid that squirted where they were, then away - the cloud stays */
     {
         sheet_tank();
         sheet_fish_t a = { .sp = SP_OCTOPUS, .v = 0, .st = STAGE_ADULT, .x = 150, .y = 200, .heading = PI, .yaw = 1, .yaw_tail = 1, .speed = 60, .ink = 3.0f, .jet = 0.5f, .mode = SPM_JET },
@@ -4733,8 +4707,8 @@ static int species_px_check(void) {
  * the armed card and the rename page as PPMs - the same three pictures per
  * board, to be looked at side by side before anything is flashed. */
 #define CARD_FAIL(...) do { printf("FAIL: " __VA_ARGS__); printf("\n"); return 1; } while (0)
-/* the main menu (2026-10-21, the BOOT key's page): each tile where the layout says, the empty cell
- * nothing, off the grid closes it; the grid inside the area every board shows whole; the tool in hand
+/* the main menu (2026-10-21, the BOOT key's page): each tile where the layout says (the sixth FEED since
+ * 2026-10-28, an empty cell before), off the grid closes it; the grid inside the area every board shows whole; the tool in hand
  * lit; the card's tap box only the card (no MORE, no toolbox under it) */
 static int selftest_menu(void) {
     static uint16_t fb[TANK_W * TANK_H];
@@ -4743,8 +4717,8 @@ static int selftest_menu(void) {
     tank_init(&tank, 91);
     progression_boot(&tank);
     progression_setup_done(&tank);
-    static const int WANT[MENU_TILES] = { MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS, MENU_TAP_NONE };
-    static const char *const NAME[MENU_TILES] = { "TANK", "UPGRADES", "SETTINGS", "SPONGE", "SCISSORS", "the empty cell" };
+    static const int WANT[MENU_TILES] = { MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS, MENU_TAP_FEED };
+    static const char *const NAME[MENU_TILES] = { "TANK", "UPGRADES", "SETTINGS", "SPONGE", "SCISSORS", "FEED" };
     for (int i = 0; i < MENU_TILES; i++) {
         int x, y, w, h; render_menu_tile_rect(i, &x, &y, &w, &h);
         int px = x - PAGE_X, py = y - PAGE_Y;
@@ -4796,7 +4770,7 @@ static int selftest_menu(void) {
     if (ms_tap(MSP_CLOSE_X - 100, MS_FOOT_Y) != MS_TAP_NONE || ms_tap(MSP_CLOSE_X - 200, MS_FOOT_Y) != MS_TAP_NONE) CARD_FAIL("the milestones foot still opens a page left of CLOSE");
     if (ms_tap(MSP_CLOSE_X + MSP_CLOSE_W / 2, MS_FOOT_Y) != MS_TAP_CLOSE) CARD_FAIL("the milestones page's CLOSE moved");
     render_milestones_leave();
-    printf("selftest-menu: six tiles where the layout says (inside the common area), the empty cell nothing, off the grid closes; "
+    printf("selftest-menu: six tiles where the layout says (inside the common area; the sixth FEED), off the grid closes; "
            "the tool in hand lit; the card's tap box is the card; the milestones foot is CLOSE alone\n");
     return 0;
 }
@@ -5057,7 +5031,6 @@ static int sp_run(float seconds, sp_trav_t *tr, int a, int b) {
     return 0;
 }
 /* the triple tap at (x, y) (below the feeding strip) */
-static void sp_spook(float x, float y) { for (int k = 0; k < 3; k++) tank_touch_tap(&tank, x, y); }
 static bool sp_on_ground(const fish_t *f, float tol) { return fabsf(f->y - (tank_ground_y(&tank, f->x) - tank_walk_off(f))) <= tol; }
 
 static int selftest_species(void) {
@@ -5120,18 +5093,13 @@ static int selftest_species(void) {
     for (int i = 0; i < 60 / SP_DT; i++) if (sp_tick()) return 1;
     float sq_gap = tank_dist(tank.fish[2].x, tank.fish[2].y, tank.fish[3].x, tank.fish[3].y);
     if (sq_gap > 60) SP_FAIL("the squid pair holds %.0f px apart following each other", sq_gap);
-    /* ... and a startle inks and jets */
-    g_sp_goal = GOAL_COUNT;
-    { fish_t *f = &tank.fish[2]; float x0 = f->x, y0 = f->y; sp_spook(f->x + 10, f->y);
-      for (int i = 0; i < 1.0f / SP_DT; i++) if (sp_tick()) return 1;
-      if (f->ink <= 0 || tank_dist(f->x, f->y, x0, y0) < 25) SP_FAIL("a spooked squid: ink %.1f, moved %.0f px", f->ink, tank_dist(f->x, f->y, x0, y0)); }
-    printf("species: squid      dart: %d jet pulses in 30 s (cv %.2f); schooled %.0f px apart; a startle inks and jets\n", jet_pulses[1], jet_cv[1], sq_gap);
+    printf("species: squid      dart: %d jet pulses in 30 s (cv %.2f); schooled %.0f px apart\n", jet_pulses[1], jet_cv[1], sq_gap);
 
     /* the pufferfish: a ball at once, held, let out slowly */
     sp_tank(504, SP_PUFFER);
     for (int i = 0; i < 20 / SP_DT; i++) if (sp_tick()) return 1;
-    { fish_t *f = &tank.fish[2]; float y = fmaxf(f->y, tank_glass_top(f->x) + FEED_ZONE_Y + 10);
-      sp_spook(f->x, y);
+    { fish_t *f = &tank.fish[2];
+      tank_poke(&tank, 2, f->x, f->y);           /* its double tap (a startle's puff, the same, until 2026-10-28) */
       for (int i = 0; i < 0.6f / SP_DT; i++) if (sp_tick()) return 1;
       float p1 = f->puff, xa = f->x, ya = f->y;
       for (int i = 0; i < 3 / SP_DT; i++) if (sp_tick()) return 1;
@@ -5145,21 +5113,30 @@ static int selftest_species(void) {
 
     /* the double tap (2026-10-10): the touch ports call tank_poke on two quick taps on the same
        creature - the puffer puffs, the squid and the octopus ink and jet, with no stress and no
-       trust lost; a classic fish has no trick (false), and the light is not touched */
+       trust lost; a classic fish has no trick (false) */
     { sp_tank(331, SP_PUFFER); tank_add_species_pair(&tank, SP_SQUID); tank_add_species_pair(&tank, SP_OCTOPUS);
-      bool light = tank.light_manual_off; float st = tank.fish[2].stress, tr = tank.fish[2].trust;
-      if (tank_poke(&tank, 0)) SP_FAIL("a classic fish has a double-tap trick");
-      if (!tank_poke(&tank, 2) || !tank_poke(&tank, 4) || !tank_poke(&tank, 6)) SP_FAIL("the puffer, squid or octopus has no double-tap trick");
+      float st = tank.fish[2].stress, tr = tank.fish[2].trust;
+      if (tank_poke(&tank, 0, tank.fish[0].x, tank.fish[0].y)) SP_FAIL("a classic fish has a double-tap trick");
+      if (!tank_poke(&tank, 2, tank.fish[2].x, tank.fish[2].y) || !tank_poke(&tank, 4, tank.fish[4].x, tank.fish[4].y) || !tank_poke(&tank, 6, tank.fish[6].x, tank.fish[6].y)) SP_FAIL("the puffer, squid or octopus has no double-tap trick");
       for (int i = 0; i < (int)(0.6f / SP_DT); i++) if (sp_tick()) return 1;
       if (tank.fish[2].puff < 0.5f) SP_FAIL("the double-tapped puffer: puff %.2f at 0.6 s", tank.fish[2].puff);
       if (tank.fish[4].ink < 3 || tank.fish[6].ink < 3) SP_FAIL("the double-tapped squid / octopus: ink %.1f / %.1f", tank.fish[4].ink, tank.fish[6].ink);
       if (tank.fish[2].stress > st + 0.01f || tank.fish[2].trust < tr - 0.01f) SP_FAIL("a double tap stressed the puffer (%.1f -> %.1f) or cost trust", st, tank.fish[2].stress);
-      if (tank.light_manual_off != light) SP_FAIL("a double tap on a creature toggled the light");
       printf("species: a double tap - the puffer puffs (%.2f), the squid and the octopus ink (%.1f s)\n", tank.fish[2].puff, tank.fish[4].ink); }
+    /* ... the seahorse's (2026-10-28, a startle's before): it grips the nearest stem, holds on a while, lets go */
+    { sp_tank(332, SP_SEAHORSE); g_sp_goal = GOAL_COUNT;
+      for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, 0.8f);
+      fish_t *f = &tank.fish[2]; float fx; int segs = tank_veg_frond(&tank, 0, 2, &fx);
+      f->x = fx + 20; f->y = TANK_BOT - 16 - segs * VEG_SEG_PX * 0.5f; f->anchor = -1; f->sp_mode = SPM_NONE;
+      if (!tank_poke(&tank, 2, f->x + 10, f->y) || f->anchor < 0 || f->sp_mode != SPM_CLING) SP_FAIL("the poked seahorse found no stem (anchor %d, mode %d)", f->anchor, f->sp_mode);
+      for (int i = 0; i < 4 / SP_DT; i++) if (sp_tick()) return 1;
+      bool held = f->sp_mode == SPM_CLING && f->speed < 1;
+      for (int i = 0; i < 4 / SP_DT; i++) if (sp_tick()) return 1;
+      if (!held || f->sp_mode != SPM_NONE) SP_FAIL("the poked seahorse: held at 4 s %d, let go by 8 s %d", held, f->sp_mode == SPM_NONE);
+      printf("species: a double tap - the seahorse grips a stem and holds on, then lets go\n"); }
 
     /* the jellyfish (2026-10-09): a slow drifter in the open water, never on the
-     * floor, pulsing ~0.6 Hz as it explores and ~0.2 Hz at rest in mid-water;
-     * a startle quickens the pulse and nothing else - no ink, no spark, no puff */
+     * floor, pulsing ~0.6 Hz as it explores and ~0.2 Hz at rest in mid-water */
     sp_tank(540, SP_JELLYFISH);
     { int ground = 0, n = 0, wraps = 0; float jv = 0, fv = 0, ysum = 0;
       g_sp_goal = GOAL_EXPLORE; g_sp_only = SP_JELLYFISH;
@@ -5186,17 +5163,19 @@ static int selftest_species(void) {
       if (rest_wraps < 7 || rest_wraps > 15 || rmean > 4 || ymean < TANK_BOT * 0.35f || ymean > TANK_BOT * 0.75f)
           SP_FAIL("the jellyfish at rest: %d pulses in 60 s, %.1f px/s, mean depth %.0f of %d", rest_wraps, rmean, ymean, TANK_BOT);
       g_sp_goal = GOAL_COUNT;
-      { fish_t *f = &tank.fish[2]; int fw = 0; bool clean = true;
-        sp_spook(f->x + 12, fmaxf(f->y, tank_glass_top(f->x) + FEED_ZONE_Y + 10));
+      { fish_t *f = &tank.fish[2]; int fw = 0; bool clean = true;   /* a double tap (a startle's, until 2026-10-28): a hurried pulse away */
+        float x0 = f->x, y0 = f->y;
+        if (!tank_poke(&tank, 2, f->x + 12, f->y)) SP_FAIL("the jellyfish has no double-tap trick");
         for (int i = 0; i < 4 / SP_DT; i++) {
             float pj = f->jet;
             if (sp_tick()) return 1;
             if (f->jet < pj) fw++;
             clean &= f->ink == 0 && f->spark == 0 && f->puff == 0;
         }
-        if (fw < 3 || !clean) SP_FAIL("a spooked jellyfish: %d pulses in 4 s, ink %.1f spark %.1f puff %.1f", fw, f->ink, f->spark, f->puff);
-        printf("species: jellyfish  exploring %.1f px/s (fish %.1f), %d pulses a minute, on the floor %.0f%%; at rest %d pulses, %.1f px/s at depth %.0f; spooked: %d pulses in 4 s, no ink or spark\n",
-               jmean, fmean, wraps, groundp, rest_wraps, rmean, ymean, fw); } }
+        float moved = tank_dist(f->x, f->y, x0, y0);
+        if (fw < 3 || !clean || moved < 20) SP_FAIL("a poked jellyfish: %d pulses in 4 s, moved %.0f px, ink %.1f spark %.1f puff %.1f", fw, moved, f->ink, f->spark, f->puff);
+        printf("species: jellyfish  exploring %.1f px/s (fish %.1f), %d pulses a minute, on the floor %.0f%%; at rest %d pulses, %.1f px/s at depth %.0f; poked: %d pulses in 4 s, %.0f px away, no ink or spark\n",
+               jmean, fmean, wraps, groundp, rest_wraps, rmean, ymean, fw, moved); } }
 
     /* the anglerfish: low, still, short walks */
     sp_tank(505, SP_ANGLER);
@@ -5236,10 +5215,10 @@ static int selftest_species(void) {
       }
       if (!surfaced || !reset || top_min > 25) SP_FAIL("the eels: %d gulps in 200 s (first at %.0f s), head %.0f px under the glass at best, air reset %d", surfaced, first, top_min, reset);
       printf("species: eel        %d gulps of air in 200 s (the first at %.0f s, the head %.0f px from the glass), the timer reset\n", surfaced, first, top_min); }
-    { fish_t *f = &tank.fish[2]; f->sp_mode = SPM_NONE; f->air_s = 100;
-      sp_spook(f->x, fmaxf(f->y, tank_glass_top(f->x) + FEED_ZONE_Y + 10));
+    { fish_t *f = &tank.fish[2]; f->sp_mode = SPM_NONE; f->air_s = 100; f->spark = 0;   /* a double tap (a startle's, until 2026-10-28): a spark */
+      if (!tank_poke(&tank, 2, f->x, f->y)) SP_FAIL("the eel has no double-tap trick");
       if (sp_tick()) return 1;
-      if (f->spark <= 0) SP_FAIL("a spooked eel made no spark"); }
+      if (f->spark <= 0) SP_FAIL("a poked eel made no spark"); }
 
     /* the hammerhead: never below its floor of speed, mid-water; the small keep clear */
     sp_tank(507, SP_SHARK);
@@ -5264,7 +5243,7 @@ static int selftest_species(void) {
       printf("species: shark      never under %.1f px/s (floor %.0f), mean depth %.0f; small ones within 30 px %.1f%% of the time (closest %.0f)\n",
              smin, SPECIES[SP_SHARK].min_speed, ymean, nearp, dmin); }
 
-    /* the crab: the ground, sideways, stop-and-go; claws up and a scuttle on a startle */
+    /* the crab: the ground, sideways, stop-and-go; a double tap (a startle, until 2026-10-28): claws up and a scuttle; the lobster's tail-flip */
     for (int s = SP_CRAB; s <= SP_LOBSTER; s++) {
         sp_tank(508 + s, s);
         tank.sd_unlocks |= SD_ITEM_CLUSTER; tank_cluster_place(&tank);   /* a rock to climb */
@@ -5283,19 +5262,19 @@ static int selftest_species(void) {
         if (s == SP_CRAB) {
             if (stops < 30) SP_FAIL("the crab stopped only %d times in 3 min", stops);
             fish_t *f = &tank.fish[2];
-            f->x = TANK_FX0 + TANK_FW * 0.55f; f->y = tank_ground_y(&tank, f->x) - tank_walk_off(f); f->speed = 0;   /* room to run */
+            f->x = TANK_FX0 + TANK_FW * 0.55f; f->y = tank_ground_y(&tank, f->x) - tank_walk_off(f); f->speed = 0; f->sp_mode = SPM_NONE;   /* room to run */
             float x0 = f->x;
-            sp_spook(f->x + 15, f->y - 10);
+            if (!tank_poke(&tank, 2, f->x + 15, f->y - 10)) SP_FAIL("the crab has no double-tap trick");
             for (int i = 0; i < 0.5f / SP_DT; i++) if (sp_tick()) return 1;
             float claws = f->puff, x05 = f->x;
             for (int i = 0; i < 2.5f / SP_DT; i++) if (sp_tick()) return 1;
-            if (claws < 0.9f || fabsf(x05 - x0) > 5 || x0 - f->x < 50) SP_FAIL("the crab's startle: claws %.2f, %.0f px in the display, %.0f px away after", claws, x05 - x0, x0 - f->x);
-            printf("species: crab       on the ground %.0f%%, %.0f px along / %.0f up-down, %d stops in 3 min; claws %.2f, then %.0f px away\n", onp, hx, vy, stops, claws, x0 - f->x);
+            if (claws < 0.9f || fabsf(x05 - x0) > 5 || x0 - f->x < 50) SP_FAIL("the crab's double tap: claws %.2f, %.0f px in the display, %.0f px away after", claws, x05 - x0, x0 - f->x);
+            printf("species: crab       on the ground %.0f%%, %.0f px along / %.0f up-down, %d stops in 3 min; poked: claws %.2f, then %.0f px away\n", onp, hx, vy, stops, claws, x0 - f->x);
         } else {
             fish_t *f = &tank.fish[2];
             f->x = TANK_FX0 + TANK_FW * 0.3f; f->y = tank_ground_y(&tank, f->x) - tank_walk_off(f); f->speed = 0;   /* room behind it */
             float x0 = f->x, y0 = f->y, xmin = x0, ymin = y0;
-            sp_spook(f->x - 20, f->y - 10);                         /* it faces the tap, and flips away from it */
+            if (!tank_poke(&tank, 2, f->x - 20, f->y - 10)) SP_FAIL("the lobster has no double-tap trick");   /* it faces the finger, and flips away from it */
             int face = f->facing; bool curled = false;
             for (int i = 0; i < 1.2f / SP_DT; i++) {
                 if (sp_tick()) return 1;
@@ -5305,7 +5284,7 @@ static int selftest_species(void) {
             float back = (xmin - x0) * face;
             for (int i = 0; i < 4 / SP_DT; i++) if (sp_tick()) return 1;
             if (face != -1 || back > -40 || !curled || !sp_on_ground(f, 2)) SP_FAIL("the lobster's flip: facing %d, %.0f px along its facing, curled %d, back on the ground %d", face, back, curled, sp_on_ground(f, 2));
-            printf("species: lobster    on the ground %.0f%%, %.0f px along / %.0f up-down; the tail-flip: %.0f px backward (rose %.0f px), then the floor again\n", onp, hx, vy, -back, y0 - ymin);
+            printf("species: lobster    on the ground %.0f%%, %.0f px along / %.0f up-down; poked, the tail-flip: %.0f px backward (rose %.0f px), then the floor again\n", onp, hx, vy, -back, y0 - ymin);
         }
     }
 
@@ -5326,11 +5305,9 @@ static int selftest_species(void) {
     tank_add_species_pair(&tank, SP_JELLYFISH);
     if (tank.n_fish != 12) SP_FAIL("twelve places, %d creatures", tank.n_fish);
     for (int i = 0; i < 60 / SP_DT; i++) if (sp_tick()) return 1;
-    sp_spook(TANK_W * 0.5f, TANK_BOT * 0.6f);
-    for (int i = 0; i < 5 / SP_DT; i++) if (sp_tick()) return 1;
     tank_tick_sleep(&tank, 6 * 3600);
     for (int i = 0; i < 60 / SP_DT; i++) if (sp_tick()) return 1;
-    printf("species: twelve creatures, a startle, a 6 h sleep and the wake: all inside the glass. selftest-species ok\n");
+    printf("species: twelve creatures, a 6 h sleep and the wake: all inside the glass. selftest-species ok\n");
     return 0;
 }
 
@@ -5395,8 +5372,8 @@ static void golden_helpers(const char *prefix, const char *tag, uint16_t *fb) {
     tank.snail.front = true;  GH_FRAME("snail_front");
     tank.urchin.bed = 0; tank.urchin.frond = 2; tank.urchin.chew = 3; GH_FRAME("urchin_chew");
     tank.sub.stop = 4; tank.sub.peri = 1; tank.sub.look = 2.5f; tank.sub.v = 0; GH_FRAME("sub_stop");
-    for (int i = 0; i < tank.school.n; i++) { tank.school.q[i].dart = i % 2 ? 0.3f : 0; tank.school.q[i].pecking = i % 3 == 0; }
-    GH_FRAME("shrimp_dart");
+    for (int i = 0; i < tank.school.n; i++) tank.school.q[i].pecking = i % 3 == 0;   /* (half of them darting too, until 2026-10-28) */
+    GH_FRAME("shrimp_peck");
     static const int CARD[3] = { RENDER_CARD_SNAIL, RENDER_CARD_URCHIN, RENDER_CARD_SHRIMP };
     for (int i = 0; i < 3; i++) {
         render_tank(&tank, fb, TANK_W); render_stats_card(&tank, CARD[i], fb, TANK_W);
@@ -5462,7 +5439,7 @@ static int golden_decor(const char *prefix) {
  * both facings, by day and by night (the last of each row resting, asleep at night),
  * then the species sheet's states, the turns and the pages' previews; in every theme,
  * the scene cache on and off. Then a tank of all thirteen kinds running on the rules -
- * pellets, a startle, the pokes, a courtship, the light out - with a hash of
+ * pellets, the pokes, a courtship, the light out - with a hash of
  * every creature's state line (what the model hears) as it goes, a night asleep and
  * the save. One hash a line, as --golden-decor: two builds that print the same lines
  * move, draw and encode the creatures the same. */
@@ -5565,8 +5542,7 @@ static int golden_creatures(const char *prefix) {
     const float dt = 1.0f / 30;
     for (int s = 0; s < 30 * 180; s++) {
         if (s == 30 * 20) { tank_feed(&tank, TANK_W * 0.35f, 3); tank_feed(&tank, TANK_W * 0.7f, 3); }
-        if (s == 30 * 45) for (int i = 0; i < 3; i++) tank_touch_tap(&tank, TANK_W * 0.5f, TANK_H * 0.55f);
-        if (s == 30 * 95) for (int i = 0; i < tank.n_fish; i++) tank_poke(&tank, i);
+        if (s == 30 * 95) for (int i = 0; i < tank.n_fish; i++) tank_poke(&tank, i, tank.fish[i].x + 12, tank.fish[i].y);
         if (s == 30 * 110) {                               /* a courtship: the first pair of a kind */
             for (int a = 0; a < tank.n_fish && !tank.courting; a++)
                 for (int b = a + 1; b < tank.n_fish; b++)
@@ -5710,7 +5686,7 @@ static int selftest_decor(void) {
 /* --selftest-helpers (2026-10-22): every row of HELPER[] (common/helper.h) in
  * this board's world - bought, it arrives inside the glass and goes about its
  * rules there through half an hour of the tank (film and tall grass to work,
- * pellets, a startle) and a night asleep; a second purchase is
+ * pellets) and a night asleep; a second purchase is
  * refused; a tap on one with a card brings the card up (and it draws) and the
  * next tap puts it away; the save and the load keep what it keeps; sold, it
  * leaves (its card too) and a rebuy starts fresh. A new row is
@@ -5741,13 +5717,12 @@ static int selftest_helpers(void) {
         if (hl_outside(k, &x, &y)) HL_FAIL("arrives at %.0f,%.0f, off the glass", x, y);
         helper_rec_t fresh; memset(&fresh, 0, sizeof fresh); if (h->save) h->save(&tank, &fresh);   /* what a purchase starts from */
         int card_id = -1;
-        /* half an hour of the tank: film on the glass, the grass grown tall, pellets, a startle */
+        /* half an hour of the tank: film on the glass, the grass grown tall, pellets */
         tank_grow_algae(&tank, 40);
         for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, 0.85f);
         const float dt = 1.0f / 30;
         for (int s = 0; s < 30 * 60 * 30; s++) {
             if (s % (30 * 90) == 0) tank_feed(&tank, TANK_W * (0.3f + 0.4f * (s % 7) / 6.0f), 3);
-            if (s == 30 * 900) for (int i = 0; i < 3; i++) tank_touch_tap(&tank, TANK_W * 0.5f, TANK_H * 0.55f);
             tank_tick(&tank, dt, advisor_rules);
             if (s % 30 == 0 && hl_outside(k, &x, &y)) HL_FAIL("at %.0f s it is at %.0f,%.0f, off the glass", s * dt, x, y);
         }
@@ -5813,8 +5788,8 @@ static int selftest_helpers(void) {
 /* --selftest-creatures (2026-10-23): every row of SPECIES[] (common/creature.h),
  * the classic fish's too, in this board's world - the row is whole; a pair
  * arrives as its kind, in a design it has; it draws in every theme; it stays
- * inside the glass through twenty minutes of the tank (pellets, a startle)
- * and a night asleep; a startle and a poke do what its row's hooks say
+ * inside the glass through twenty minutes of the tank (pellets) and a night
+ * asleep; a poke does what its row's hook says
  * (one with a hook changes it, one without leaves it be); the save keeps its
  * kind and design; and its fry are its kind (a classic fish's may hatch as
  * another, by its row's mutate_p). A new species is checked here with no new
@@ -5830,7 +5805,7 @@ static int selftest_creatures(void) {
     static tank_t back;
     setenv("AQUA_PETS_SAVE", "/tmp/aqua-pets-selftest-creatures.sav", 1);   /* never touch the real save */
     render_set_scene_cache(scene); render_set_vignette_cache(vig_buf); render_set_card_cache(card_buf); render_set_dirty_mask(dirty_buf);
-    int hooked = 0, poked = 0, fry = 0, mutants = 0;
+    int poked = 0, fry = 0, mutants = 0;
     for (int k = 0; k < SP_COUNT; k++) {
         const species_def_t *s = &SPECIES[k];
         float x, y;
@@ -5853,33 +5828,24 @@ static int selftest_creatures(void) {
             if (!memcmp(fb, none, sizeof fb)) CR_FAIL("draws nothing in theme %d", th);
         }
         tank.theme = 0;
-        /* a startle and a poke, staged at a grass frond (a seahorse's cling needs a stem in reach) */
+        /* a poke, staged at a grass frond */
         {
             float fx; int segs = tank_veg_frond(&tank, 0, 2, &fx);
             fish_t *f = &tank.fish[a];
             f->x = fx; f->y = TANK_BOT - 16 - segs * VEG_SEG_PX * 0.5f;
-            fish_t was, now; memcpy(&was, f, sizeof was);
-            for (int i = 0; i < 3; i++) tank_touch_tap(&tank, f->x + 30, f->y);   /* the triple tap beside it: the startle */
-            if (!tank.startled) CR_FAIL("a triple tap beside it is no startle");
-            memcpy(&now, f, sizeof now); now.stress = was.stress; now.trust = was.trust;   /* (every creature near a startle frets) */
-            bool changed = memcmp(&was, &now, sizeof was) != 0;
-            if (s->startle && !changed) CR_FAIL("its row has a startle, but a startle changes nothing");
-            if (!s->startle && changed) CR_FAIL("its row has no startle, but a startle changed it");
-            hooked += s->startle != NULL;
-            memcpy(f, &was, sizeof was); tank.startled = false; tank.tap_count = 0;
-            bool did = tank_poke(&tank, a);
-            changed = memcmp(&was, f, sizeof was) != 0;
+            fish_t was; memcpy(&was, f, sizeof was);
+            bool did = tank_poke(&tank, a, f->x + 20, f->y);
+            bool changed = memcmp(&was, f, sizeof was) != 0;
             if (!!s->poke != did) CR_FAIL("its row %s a poke, but tank_poke says %d", s->poke ? "has" : "has no", did);
             if (s->poke && !changed) CR_FAIL("a poke changes nothing");
             if (!s->poke && changed) CR_FAIL("it has no poke, but a poke changed it");
             poked += did;
             memcpy(f, &was, sizeof was);
         }
-        /* twenty minutes of the tank: pellets, a startle; every second, inside the glass */
+        /* twenty minutes of the tank: pellets; every second, inside the glass */
         const float dt = 1.0f / 30;
         for (int st = 0; st < 30 * 60 * 20; st++) {
             if (st % (30 * 90) == 0) tank_feed(&tank, TANK_W * (0.3f + 0.4f * (st % 7) / 6.0f), 3);
-            if (st == 30 * 400) for (int i = 0; i < 3; i++) tank_touch_tap(&tank, tank.fish[a].x, tank.fish[a].y);
             tank_tick(&tank, dt, advisor_rules);
             if (st % 30 == 0)
                 for (int i = a; i < a + 2; i++)
@@ -5908,8 +5874,8 @@ static int selftest_creatures(void) {
         }
     }
     remove(getenv("AQUA_PETS_SAVE"));
-    printf("selftest-creatures: %d kinds (%d with a startle, %d with a poke), %d fry (%d hatched as another kind): the row, the pair, every theme, inside the glass through twenty minutes and a night, the save; selftest-creatures ok\n",
-           SP_COUNT, hooked, poked, fry, mutants);
+    printf("selftest-creatures: %d kinds (%d with a poke), %d fry (%d hatched as another kind): the row, the pair, every theme, inside the glass through twenty minutes and a night, the save; selftest-creatures ok\n",
+           SP_COUNT, poked, fry, mutants);
     return 0;
 }
 
@@ -6009,7 +5975,6 @@ int main(int argc, char **argv) {
     bool idown = false, odown = false;   /* I: the reef cluster (looks cycle); O: its growth */
     bool wdown = false;                  /* W: the shrimp school (grant; again +1; past the last takes it away) */
     bool ydown = false;                  /* Y: the urchin (grant; again takes it away) */
-    bool held_page = false;              /* this press opened a piece's page by holding on it */
     uint32_t press_ms = 0; int press_x = 0, press_y = 0;
     float press_fx[N_FISH_MAX] = {0}, press_fy[N_FISH_MAX] = {0};
     while (1) {
@@ -6081,12 +6046,8 @@ int main(int argc, char **argv) {
         }
         bool modal = confirm_view || setup_up || settings_view || shop_view || battery_view || updates_view || menu_view;
         if (mpress && !modal) tank_touch_drag(&tank, (float)mx, (float)my);   /* stroke -> wipe/slash */
-        if (mpress && !modal && !held_page && tank.tool == TOOL_HAND && now_ms - press_ms > 700 && abs(mx - press_x) < 24 && abs(my - press_y) < 24) {   /* tap-and-hold on a piece: its page (2026-09-24); not with a tool in hand */
-            int it = tank_decor_hit(&tank, (float)press_x, (float)press_y);
-            if (it >= 0) { setup_begin_place(&tank, it); held_page = true; selected_fish = -1; printf("held on the %s: placement page up (MOVE / DEPTH / SELL)\n", SD_ITEMS[it].name); }
-        }
-        if (!mpress) held_page = false;
-        if (mpress && !modal && !held_page && now_ms - press_ms > 300 && abs(my - press_y) < 30) tank_touch_hold(&tank, (float)mx, (float)my);
+        /* (a still press 700 ms on a piece opened its placement page until 2026-10-28: the shop's MOVE does) */
+        if (mpress && !modal && now_ms - press_ms > 300 && abs(my - press_y) < 30) tank_touch_hold(&tank, (float)mx, (float)my);
         if (!mpress && mdown) {
             int dx = mx - press_x, dy = my - press_y;
             if (confirm_view) {                    /* the prompt owns the glass: press AND release on one button */
@@ -6108,10 +6069,10 @@ int main(int argc, char **argv) {
                 if (r == MENU_TAP_TANK || r == MENU_TAP_UPGRADES || r == MENU_TAP_SETTINGS) {
                     menu_view = false; milestones_view = r == MENU_TAP_TANK; shop_view = r == MENU_TAP_UPGRADES; settings_view = r == MENU_TAP_SETTINGS;
                     printf("menu: %s\n", r == MENU_TAP_TANK ? "TANK (the milestones page)" : r == MENU_TAP_UPGRADES ? "UPGRADES (the shop)" : "SETTINGS");
-                } else if (r == MENU_TAP_SPONGE || r == MENU_TAP_SCISSORS) {
-                    int tl = r == MENU_TAP_SPONGE ? TOOL_SPONGE : TOOL_SCISSORS;
+                } else if (render_menu_tool(r) >= 0) {   /* the SPONGE, the SCISSORS, FEED (2026-10-28) */
+                    int tl = render_menu_tool(r);
                     tank_set_tool(&tank, tank.tool == tl ? TOOL_HAND : tl); menu_view = false;
-                    printf("menu: %s\n", tank.tool == TOOL_SPONGE ? "the SPONGE - strokes only wipe" : tank.tool == TOOL_SCISSORS ? "the SCISSORS - strokes only cut" : "back to bare hands");
+                    printf("menu: %s\n", tank.tool == TOOL_SPONGE ? "the SPONGE - strokes only wipe" : tank.tool == TOOL_SCISSORS ? "the SCISSORS - strokes only cut" : tank.tool == TOOL_FEED ? "FEED - a click drops food" : "back to bare hands");
                 } else if (r == MENU_TAP_BATTERY) {      /* the pill, which the menu always shows here (the sim has its pretend cell) */
                     menu_view = false; battery_view = true; battery_view_ms = now_ms;
                     printf("battery page: %d%%, %s\n", sim_bat_gauge(), sim_bat_state == BAT_CHARGING ? "charging" : sim_bat_state == BAT_FULL ? "full" : "on battery");
@@ -6171,6 +6132,7 @@ int main(int argc, char **argv) {
                 if (tank.tool != TOOL_HAND) {   /* a tool in hand owns the glass (2026-10-04): only its chip's DONE answers a click */
                     selected_fish = -1;
                     if (render_tool_chip_hit(&tank, (float)press_x, (float)press_y)) { tank_set_tool(&tank, TOOL_HAND); printf("toolbox: DONE - back to bare hands\n"); }
+                    else if (tank.tool == TOOL_FEED) { tank_touch_tap(&tank, (float)press_x, (float)press_y); printf("FEED: a portion at x %d\n", press_x); }   /* (2026-10-28) */
                     else printf("toolbox: click ignored - a tool is in hand (DONE first)\n");
                 }
                 else if (sim_pill_up() && RENDER_BAT_HIT(press_x, press_y)) {   /* the battery pill, while it shows: its page (2026-09-24) */
@@ -6186,14 +6148,14 @@ int main(int argc, char **argv) {
                     static int poke_fish = -1; static uint32_t poke_ms;
                     bool again = best == poke_fish && now_ms - poke_ms < 500;
                     poke_fish = best; poke_ms = now_ms;
-                    if (again && tank_poke(&tank, best)) { selected_fish = -1; poke_fish = -1; printf("%s double-tapped: its trick\n", tank.fish[best].name); }
+                    if (again && tank_poke(&tank, best, (float)press_x, (float)press_y)) { selected_fish = -1; poke_fish = -1; printf("%s double-tapped: its trick\n", tank.fish[best].name); }
                     else selected_fish = (best == selected_fish) ? -1 : best;
                 }
                 else if ((hk = render_helper_tap(&tank, (float)press_x, (float)press_y, &selected_fish)) >= 0)   /* a helper: its card */
                     printf("%s tapped: card %s\n", HELPER[hk].name, selected_fish >= 0 ? "up" : "down");
                 else if (selected_fish >= 0) selected_fish = -1;   /* card up: empty-glass tap dismisses, nothing else */
                 else tank_touch_tap(&tank, (float)press_x, (float)press_y);
-            } else if (tank.tool == TOOL_HAND && press_y - tank_glass_top(press_x) < 60 && dy >= 40) tank_feed(&tank, (float)mx, 3);
+            }
         }
         mdown = mpress;
         if (DEVICE_WORN) { static bool tdown; if (k[SDL_SCANCODE_T] && !tdown) {

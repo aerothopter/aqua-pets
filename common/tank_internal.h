@@ -35,7 +35,6 @@ float veg_cap_mean(const tank_t *t, int b);
 /* where the courting pair circles: low inside the nursery bed */
 void  court_site(const tank_t *t, float *cx, float *cy, float *rx);
 
-#define STARTLE_RADIUS  140.0f  /* fish this close to an aggressive tap bolt */
 #define HOLD_RADIUS     1000.0f /* a resting finger is seen from anywhere on the
                                  * glass (2026-09-04, was 160: a fish only came
                                  * when you held next to it, which hid the
@@ -51,8 +50,7 @@ void  court_site(const tank_t *t, float *cx, float *cy, float *rx);
 #define CURIOSITY_SPEND_RADIUS 60.0f
 #define VEG_SLOW            0.60f     /* cruise speed factor inside a canopy */
 
-/* creature.c, called by the tank: a creature's frame, and a startle reaching it */
+/* creature.c, called by the tank: a creature's frame */
 void  update_fish(tank_t *t, int idx, float dt);
-void  sp_startle_hit(tank_t *t, int idx, float x, float y);
 
 #endif

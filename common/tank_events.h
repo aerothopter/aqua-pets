@@ -17,7 +17,6 @@ enum {
     TEV_WIPE,         /* a stroke became a wipe (once per stroke) */
     TEV_SNIP,         /* a segment of a slash cut at least one frond */
     TEV_EAT,          /* fish took a pellet (fish = who) */
-    TEV_SPOOK,        /* the 3-tap flee engaged (once per episode) */
     TEV_INVESTIGATE,  /* a hold-approach was credited (fish = who) */
     TEV_BUBBLES,      /* a fish reached the bubble column to play (fish = who) */
     TEV_WELCOME,      /* the first-run setup opened (a fresh install / a reset) */

@@ -268,7 +268,8 @@ typedef struct fish {
      *    shark's tail beat, the angler's fin walk; the LOBSTER's only during a
      *    tail-flip (sp_mode SPM_FLIP): each stroke runs 0..1, the abdomen
      *    curled under while > 0.5, 0 when it walks.
-     *  - puff: the pufferfish's inflation; the CRAB's claws-up threat (0..1). */
+     *  - puff: the pufferfish's inflation; the CRAB's claws-up threat (0..1).
+     *    (The flip and the claws were a startle's; a poke's since 2026-10-28.) */
     uint8_t species;        /* species_t */
     uint8_t variant;        /* 0..SP_VARIANTS-1 */
     float  puff;            /* pufferfish: 0 flat .. 1 a spiny ball; crab: its claws raised 0..1 */
@@ -278,7 +279,7 @@ typedef struct fish {
     uint32_t camo_rgb;      /* ... that colour */
     float  air_s;           /* eel: seconds until it needs a gulp of air; <= 0 = on the trip up for it
                              * (the seconds of the trip so far, negative), reset to 60..120 back down */
-    float  spark;           /* eel: seconds of a startle's spark left */
+    float  spark;           /* eel: seconds of its spark left (a flourish of its own, or a poke) */
     float  lure;            /* anglerfish: lure glow 0..1 */
     int8_t anchor;          /* seahorse: the frond its tail holds (bed * 16 + frond), -1 = none; anchored,
                              * the tail grips the stem at (x + facing * 5 * size, y + 10 * size) */
@@ -287,9 +288,12 @@ typedef struct fish {
     float flourish_wait, surface_s; /* transient: idle event countdown; positive rise/float, negative return */
     uint16_t flourish_cycle;       /* staggered events; never persisted */
     float  sp_x;            /* the anglerfish's home spot along the floor (-1 = not yet) */
+    float  flee_x, flee_y;  /* a poke's getaway (2026-10-28): where the finger landed ... */
+    float  flee_t;          /* ... and the seconds it keeps getting away from it (its row's flee); not saved */
 } fish_t;
 /* fish_t.sp_mode (not saved) */
-enum { SPM_NONE, SPM_JET, SPM_CLING, SPM_RISE, SPM_GULP, SPM_SINK, SPM_CLAWS, SPM_SCUTTLE, SPM_FLIP, SPM_LUNGE };
+enum { SPM_NONE, SPM_JET, SPM_CLING, SPM_RISE, SPM_GULP, SPM_SINK, SPM_CLAWS, SPM_SCUTTLE, SPM_FLIP, SPM_LUNGE };   /* (CLING, CLAWS,
+                                                                            SCUTTLE, FLIP: a startle's, a poke's since 2026-10-28) */
 
 /* a pellet: it sinks ~43 s from the surface to the floor, then RESTS there
  * FOOD_FLOOR_S before it dissolves (2026-09-29, for the shrimp school - every
@@ -317,12 +321,9 @@ typedef struct tank {
                                     * the fish sleep, a pick-up or a touch wakes it). */
     int      light_idle_s;         /* the keeper's idle time (settings page): seconds still
                                     * before lights-out; LIGHT_IDLE_S by default, saved */
-    bool     light_auto;           /* settings LIGHTS OUT = AUTO: the idle rule turns the light
-                                    * off by itself. Off by default (Strato, 2026-09-15): the
-                                    * keeper's double-tap runs the light unless they opt in */
-    bool     light_manual_off;     /* MANUAL: the keeper's last double-tap left it off (saved) */
-    bool     light_tip_seen;       /* a double-tap has turned the light off once: its notice (notice.h
-                                    * NOTICE_LIGHTS_OUT) came up then, and never again (saved) */
+    bool     light_auto;           /* settings LIGHTS OUT = a time: the idle rule turns the light
+                                    * off by itself. Off by default = NEVER, the light stays on
+                                    * (2026-10-28; MANUAL, the keeper's double-tap, before) */
     uint8_t  theme;                /* theme_id_t: presentation only; persisted in an append-only tail */
     bool     screen_turned;        /* a worn tank (DEVICE_WORN): settings SCREEN = TURNED (saved) */
     bool     orient_lock;          /* settings ROTATION = locked (0.3.2, saved): the picture keeps the way up it
@@ -336,19 +337,14 @@ typedef struct tank {
                                     * Not saved (a saved override once froze a tank in
                                     * permanent day and starved a milestone). */
     bool     light_on;
-    /* touch / tap interaction (docs/progression.md). Reflex-layer only: the
-     * advisor never sees taps directly, only their effect on stress. */
+    /* touch (docs/progression.md). Reflex-layer only: the advisor never sees
+     * a finger, only what the hold does to trust. (Taps on the water flipped
+     * the light and startled the fish until 2026-10-28.) */
     bool     hold_active;          /* finger held on the glass this frame */
     float    hold_x, hold_y;
     float    hold_time;            /* seconds the current hold has lasted */
     bool     hold_approached;      /* this hold already counted (hold_approaches); the
                                     * per-fish milestone is NOT gated on it */
-    int      tap_count;            /* taps in the current burst */
-    float    tap_burst_t;          /* seconds since last tap */
-    float    tap_x, tap_y;
-    bool     startled;             /* aggressive-tap flee mode engaged */
-    float    startle_x, startle_y;
-    float    startle_cooldown;     /* seconds of calm needed to disengage */
     /* glass wipe (algae cleaning) + canopy slash (vegetation trim): platform
      * re-asserts drag_active every frame a finger is on the glass; tank.c
      * consumes it like hold_active */
@@ -363,10 +359,11 @@ typedef struct tank {
     bool     slash_cut;            /* ... and has cut at least one frond (trims++ once) */
     float    slash_x0, slash_y0;   /* stroke start (the pre-engage travel is cut retroactively) */
     float    slash_h, slash_v;     /* travel this stroke: horizontal / vertical */
-    /* the toolbox under the stats card (2026-10-01): TOOL_HAND = a stroke
-     * guesses (the wipe / slash rules above); TOOL_SPONGE = it only wipes,
-     * TOOL_SCISSORS = it only cuts. Not saved; it goes back in the box after
-     * TOOL_IDLE_S without a stroke. A tool in hand owns the glass (2026-10-04,
+    /* the tool in hand (2026-10-01; the main menu's tiles since 2026-10-21):
+     * TOOL_HAND = bare hands, which since 2026-10-28 only reach the creatures
+     * (a stroke guessed a wipe or a slash before); TOOL_SPONGE = a stroke
+     * wipes, TOOL_SCISSORS = it cuts, TOOL_FEED = a tap drops food. Not
+     * saved; it goes back in the box after TOOL_IDLE_S without a touch. A tool in hand owns the glass (2026-10-04,
      * Strato: "it should prevent all other taps and interactions until the
      * done button is pressed"): tank_touch_tap and tank_touch_hold do nothing,
      * and the touch ports answer only the chip's DONE - no card, no feed, no
@@ -540,20 +537,21 @@ void  tank_tick_sleep(tank_t *t, float seconds);
  * is handling) - and a setup page or prompt holds the light (hold_light).
  * tank_toggle_light / tank_light_auto are the director's and the sim's
  * manual override (b-roll, tests); never saved. */
-/* Settings' LIGHTS OUT = MANUAL (light_auto) turns the idle rule
- * off and gives the keeper the old double-tap instead: two quick taps on the
- * glass, then a pause, flip light_manual_off. AUTO clears it. */
+/* Settings' LIGHTS OUT = NEVER (light_auto false, the default) turns the
+ * idle rule off: the light stays on (2026-10-28; MANUAL and its double-tap
+ * on the glass before). */
 #define LIGHT_IDLE_S     15        /* the default, seconds (tank_t.light_idle_s) */
 #define LIGHT_IDLE_MIN_S 5
 #define LIGHT_IDLE_MAX_S 1800      /* the settings page's longest choice, 30 min (0.3.2: its choices are
                                       LIGHT_IDLE_CHOICES; until then a wheel of 5..999 s) */
-/* the settings page's LIGHTS OUT choices (0.3.2): the double-tap (MANUAL,
- * the default), or AUTO after one of these many seconds still. A save from
- * the wheel's days holds any 5..999: it is honoured as it is and shown as
- * the nearest choice until the keeper steps the row. */
+/* the settings page's LIGHTS OUT choices (0.3.2): AUTO after one of these
+ * many seconds still, or NEVER (the default; 2026-10-28, the double-tap's
+ * MANUAL before). A save from the wheel's days holds any 5..999: it is
+ * honoured as it is and shown as the nearest choice until the keeper steps
+ * the row. */
 #define LIGHT_IDLE_N 8
 extern const int LIGHT_IDLE_CHOICES[LIGHT_IDLE_N];
-int   tank_light_choice(const tank_t *t);            /* 0 = MANUAL, 1..LIGHT_IDLE_N = AUTO after LIGHT_IDLE_CHOICES[n - 1] */
+int   tank_light_choice(const tank_t *t);            /* 0..LIGHT_IDLE_N - 1 = AUTO after LIGHT_IDLE_CHOICES[n], LIGHT_IDLE_N = NEVER */
 void  tank_light_choice_set(tank_t *t, int choice);  /* (clamped; the light comes on either way) */
 void  tank_handled(tank_t *t);
 void  tank_toggle_light(tank_t *t);
@@ -585,38 +583,37 @@ void  tank_orient_lock(tank_t *t, bool lock);
  *    After ~3 s of contact, high-trust fish drift over to investigate (the
  *    delay keeps taps from twitching the school); low-trust or
  *    strongly hungry fish keep to their own business.
- *  tank_touch_tap:  call once per tap. A tap on the water surface (y below
- *    FEED_ZONE_Y) is a FEED gesture: pellets drop there, nothing else happens.
- *    Elsewhere: 2 quick taps then a pause flip the light - only with settings'
- *    LIGHTS OUT on MANUAL (light_auto); 3+ quick taps =
- *    aggressive -> nearby fish flee the spot and stay spooked while taps
- *    continue (cooldown resets on each tap); after the cooldown, single taps
- *    are harmless again and it takes 3 quick taps to re-trigger. Spooking
- *    costs trust; calm holds earn it.
+ *  tank_touch_tap:  call once per tap on the water. With the FEED tool in
+ *    hand it drops a portion at the surface over it (2026-10-28; a tap at
+ *    the surface with bare hands before); otherwise only the knock's cue.
+ *    (Until 2026-10-28 two quick taps flipped the light and three startled
+ *    the fish: the keeper took both out.) Calm holds earn trust.
  *  tank_feed: the keeper drops n pellets at x (surface). Player feeding is what
- *    progression counts; the tank's own trickle feed is not.
- *  FEED_ZONE_Y is the board's (the devices/ headers: the bowl's rim is deeper). */
+ *    progression counts; the tank's own trickle feed is not. */
 void  tank_touch_hold(tank_t *t, float x, float y);
 void  tank_touch_tap(tank_t *t, float x, float y);
 /* tank_touch_drag: call EVERY FRAME while a finger is down at x,y (moving or
- * not; tank.c tracks travel). Once a stroke has moved far enough it becomes a
- * WIPE: algae cells along the path are squeegeed clean. A mostly-HORIZONTAL
- * stroke that STARTS on a vegetation bed is a SLASH: every frond it crosses
- * is cut to the height where the stroke crosses it (a lower pass cuts again;
- * nothing ever cuts below nubs) - a short sideways flick takes one or two
- * fronds, a sweep along the floor mows the bed. The finger is a pad: the
- * stroke reaches a few px past where it lands and where it lifts, so the
- * outer frond of a bed by the glass falls to a sweep that stops just short
- * of its spine (2026-09-14). Deliberately more travel than a tap, so aiming
- * at a fish can never shear the garden. */
+ * not; tank.c tracks travel). With bare hands a stroke touches nothing
+ * (2026-10-28: it guessed a wipe or a slash before). With the SPONGE, once a
+ * stroke has moved far enough it WIPES: algae cells along the path are
+ * squeegeed clean. With the SCISSORS a stroke more sideways than not CUTS:
+ * every frond it crosses is cut to the height where the stroke crosses it (a
+ * lower pass cuts again; nothing ever cuts below nubs) - a short sideways
+ * flick takes one or two fronds, a sweep along the floor mows the bed. The
+ * finger is a pad: the stroke reaches a few px past where it lands and where
+ * it lifts, so the outer frond of a bed by the glass falls to a sweep that
+ * stops just short of its spine (2026-09-14), and one begun on no frond
+ * beside a wall frond runs on into the wall. */
 void  tank_touch_drag(tank_t *t, float x, float y);
-/* the toolbox (2026-10-01; folks found it too hard to scrub algae without
- * shearing the grass): a keeper who wants a precise hand picks a tool from
- * the box under the stats card. SPONGE: a stroke wipes and never cuts.
- * SCISSORS: a stroke cuts and never wipes, and it need not begin on a frond -
- * any mostly-sideways stroke cuts every frond it crosses, at the height it
- * crosses it. A tap still selects, feeds, flips the light. */
-enum { TOOL_HAND = 0, TOOL_SPONGE, TOOL_SCISSORS };
+/* the tools (2026-10-01; folks found it too hard to scrub algae without
+ * shearing the grass; the main menu's bottom row since 2026-10-21): SPONGE,
+ * a stroke wipes and never cuts; SCISSORS, any mostly-sideways stroke cuts
+ * every frond it crosses, at the height it crosses it, and never wipes; FEED
+ * (2026-10-28), a tap drops a portion of food at the surface over it. Bare
+ * hands do none of it since 2026-10-28 (the keeper: touching the tank only
+ * reaches the creatures): a tap selects, a hold draws the trusting over. A
+ * tool in hand owns the glass: only its chip's DONE puts it back. */
+enum { TOOL_HAND = 0, TOOL_SPONGE, TOOL_SCISSORS, TOOL_FEED };
 #define TOOL_IDLE_S 120.0f
 void  tank_set_tool(tank_t *t, int tool);
 void  tank_feed(tank_t *t, float x, int n);
@@ -681,7 +678,7 @@ int   tank_species_n(const tank_t *t, int species);
  * hit_r at its size, never under a fingertip's TANK_HIT_MIN_R */
 #define TANK_HIT_MIN_R 32.0f
 float tank_fish_hit_r(const fish_t *f);
-bool  tank_poke(tank_t *t, int idx);        /* a double tap on creature idx: its trick (puff, ink); false = it has none */
+bool  tank_poke(tank_t *t, int idx, float x, float y);   /* a double tap on creature idx at (x, y): its trick; false = it has none */
 void  tank_wreck_place(tank_t *t);           /* the shipwreck bought: its default spot (item 7) */
 float tank_species_size(const fish_t *f);   /* its base size: from its personality, so a load gets the same */
 /* the species' motion, for the renderer and the tests (see THE CONVENTION in

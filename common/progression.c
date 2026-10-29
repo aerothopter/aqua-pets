@@ -231,7 +231,7 @@ const sd_item_t SD_ITEMS[SD_ITEM_COUNT] = {
        species order; the words say what makes them them, and that two of a kind breed */
     { SD_ITEM_SP_SEAHORSE, "SEAHORSE",    "A YOUNG ONE. IT HOLDS THE", "GRASS BY ITS TAIL. 2 BREED",  SD_PRICE_SP_SEAHORSE },
     { SD_ITEM_SP_OCTOPUS,  "OCTOPUS",     "A YOUNG ONE. IT HIDES AND", "TAKES ITS DEN'S COLOR",       SD_PRICE_SP_OCTOPUS },
-    { SD_ITEM_SP_PUFFER,   "PUFFERFISH",  "A YOUNG ONE. STARTLED,",    "IT PUFFS UP. TWO BREED",      SD_PRICE_SP_PUFFER },
+    { SD_ITEM_SP_PUFFER,   "PUFFERFISH",  "A YOUNG ONE. TAP IT TWICE", "AND IT PUFFS UP. TWO BREED",      SD_PRICE_SP_PUFFER },
     { SD_ITEM_SP_ANGLER,   "ANGLERFISH",  "A YOUNG ONE. ITS LURE",     "GLOWS AT NIGHT. TWO BREED",   SD_PRICE_SP_ANGLER },
     { SD_ITEM_SP_EEL,      "ELECTRIC EEL", "A YOUNG ONE. IT RISES FOR", "AIR AND SPARKS. TWO BREED",  SD_PRICE_SP_EEL },
     { SD_ITEM_SP_SHARK,    "HAMMERHEAD",  "A PUP THAT NEVER STOPS",    "SWIMMING. TWO BREED",         SD_PRICE_SP_SHARK },
@@ -547,13 +547,13 @@ static void arrival_conditions(const tank_t *t, int *met, int *total) {
 }
 
 /* how each gate is moved - the words behind the HOW? button */
-static const char *const TIP_TRUST[]  = { "REST A FINGER ON THE GLASS", "AND KEEP IT STILL. EVERY", "FISH EARNS TRUST WHILE IT", "RESTS THERE. 3 QUICK TAPS", "SCARE THEM AND COST TRUST.", NULL };
-static const char *const TIP_FEED[]   = { "TAP THE WATER AT THE TOP", "OF THE TANK TO DROP FOOD.", "A FEEDING COUNTS AS A MEAL", "ONCE A FISH EATS FROM IT.", NULL };
+static const char *const TIP_TRUST[]  = { "REST A FINGER ON THE GLASS", "AND KEEP IT STILL. EVERY", "FISH EARNS TRUST WHILE IT", "RESTS THERE.", NULL };   /* (3 quick taps scared them until 2026-10-28) */
+static const char *const TIP_FEED[]   = { "PICK FEED IN THE MENU AND", "TAP THE WATER TO DROP FOOD.", "A FEEDING COUNTS AS A MEAL", "ONCE A FISH EATS FROM IT.", NULL };   /* (2026-10-28: the FEED tool) */
 static const char *const TIP_HOLD[]   = { "REST A FINGER ON THE GLASS", "FOR A FEW SECONDS. A FISH", "THAT TRUSTS YOU SWIMS OVER", "AND STAYS. FEED FIRST: A", "HUNGRY FISH WON'T COME.", NULL };
 static const char *const TIP_GROW[]   = { "FISH GROW WITH TIME,", "SLOWER WHEN THE TANK IS", "IN SLEEP MODE.", NULL };
 static const char *const TIP_CHANGE[] = { "FISH PERSONALITIES WILL", "NATURALLY DRIFT AS THEY", "INTERACT WITH THE WORLD.", NULL };   /* Strato: intentionally vague */
 static const char *const TIP_GRASS[]  = { "GRASS REGROWS ON ITS OWN,", "FASTEST WHILE THE TANK", "SLEEPS.", NULL };
-static const char *const TIP_GLASS[]  = { "DRAG A FINGER ACROSS THE", "GLASS TO WIPE IT CLEAN.", "UNLOCKABLE CRITTERS CAN", "HELP KEEP IT CLEAN.", NULL };   /* Strato's words */
+static const char *const TIP_GLASS[]  = { "PICK THE SPONGE IN THE MENU", "AND DRAG IT ACROSS THE GLASS", "TO WIPE IT CLEAN.", "UNLOCKABLE CRITTERS CAN", "HELP KEEP IT CLEAN.", NULL };   /* Strato's words, the SPONGE's since 2026-10-28 */
 const char *const *progression_fry_tip(int kind) {
     switch (kind) {
     case FRY_REQ_TRUST:  return TIP_TRUST;
@@ -730,9 +730,8 @@ static bool load_save(tank_t *t, int64_t *saved_unix) {
     s_setup_pending = sv.setup_pending != 0;
     s_newborn = sv.newborn_p1 && sv.newborn_p1 <= t->n_fish ? sv.newborn_p1 - 1 : -1;
     t->light_idle_s = sv.light_idle_s ? sv.light_idle_s : LIGHT_IDLE_S;
-    t->light_auto = sv.light_auto != 0;
-    t->light_manual_off = !t->light_auto && sv.light_manual_off != 0;
-    t->light_tip_seen = sv.light_tip_seen != 0;
+    t->light_auto = sv.light_auto != 0;                /* (a MANUAL save, the double-tap's: NEVER; its light_manual_off and
+                                                          light_tip_seen are read no more, 2026-10-28) */
     tank_screen_set(t, sv.screen_turned != 0);
     t->orient_lock = (sv.orient & 1) != 0; if (t->orient_lock) t->orient_inv = (sv.orient & 2) != 0;
     t->autofeed_off = sv.autofeed_off != 0;
@@ -840,7 +839,7 @@ void progression_tick(tank_t *t, float dt) {
         s_age[i] += aged;
         apply_stage(f, s_age[i]);
         apply_growth(f);
-        /* trait drift, slow: calm + fed -> bolder/more social; startled -> shyer */
+        /* trait drift, slow: calm + fed -> bolder/more social; stressed -> shyer */
         float k = tended / (DRIFT_HOURS * 3600.0f);          /* full unit per DRIFT_HOURS of pressure */
         float pressure = 0;                                   /* what the traits WANTED to move, before the clamps */
         if (f->stress > 7) { f->bold = clampf(f->bold - k, 0.05f, 0.95f); pressure += k; }
@@ -973,8 +972,8 @@ bool progression_save(tank_t *t) {
     sv.saved_release = PT_RELEASE_NUM;
     sv.sale_meals_need = s_sale_need;
     /* light_override / light_on stay zero in the save (2026-09-15) */
-    sv.light_idle_s = (uint16_t)t->light_idle_s; sv.light_auto = t->light_auto; sv.light_manual_off = t->light_manual_off;
-    sv.light_tip_seen = t->light_tip_seen;
+    sv.light_idle_s = (uint16_t)t->light_idle_s; sv.light_auto = t->light_auto;
+    sv.light_manual_off = 0; sv.light_tip_seen = 0;    /* (retired with the double-tap, 2026-10-28; the layout keeps them) */
     sv.screen_turned = t->screen_turned;
     sv.orient = (uint8_t)(t->orient_lock ? 1 | (t->orient_inv ? 2 : 0) : 0);
     sv.autofeed_off = t->autofeed_off;

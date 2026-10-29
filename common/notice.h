@@ -19,19 +19,15 @@
  * its population badge came up the frame before the flow opened.
  * Each notice carries the cue to play when it comes up; the platform takes
  * it with notice_take_cue.
- *
- * NOTICE_LIGHTS_OUT (2026-10-03, Strato: "in case it surprises someone the
- * first time it happens"): the first double-tap that turns the light off
- * (tank.h light_tip_seen, saved) says so, once, without a chime. A tap on it
- * closes it AND reaches the tank (notice_dismiss returns false), so the
- * double-tap it asks for works with the notice still up. */
+ * (NOTICE_LIGHTS_OUT, the first double-tap's word, went with the double-tap,
+ * 2026-10-28.) */
 #ifndef NOTICE_H
 #define NOTICE_H
 #include <stdbool.h>
 #include <stdint.h>
 #include "tank.h"
 
-enum { NOTICE_MILESTONE, NOTICE_TANK_MILESTONE, NOTICE_STAGE, NOTICE_LOW_BATTERY, NOTICE_UPDATED, NOTICE_LIGHTS_OUT };
+enum { NOTICE_MILESTONE, NOTICE_TANK_MILESTONE, NOTICE_STAGE, NOTICE_LOW_BATTERY, NOTICE_UPDATED };
 typedef struct { int kind; int fish; uint32_t bit; float age; } notice_t;
 
 #define NOTICE_UP_S   6.0f

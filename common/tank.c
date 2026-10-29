@@ -18,7 +18,7 @@ const char *const GOAL_NAMES[GOAL_COUNT] = {
 
 /* ---- the event bus (tank_events.h): one listener, synchronous ---- */
 const char *const TANK_EVENT_NAMES[TEV_COUNT] = {
-    "tap", "feed", "light_on", "light_off", "wipe", "snip", "eat", "spook", "investigate", "bubbles",
+    "tap", "feed", "light_on", "light_off", "wipe", "snip", "eat", "investigate", "bubbles",
     "welcome", "wheel_tick", "confirm",
 };
 static tank_event_fn s_ev_fn; static void *s_ev_ud;
@@ -110,13 +110,11 @@ void tank_init(tank_t *t, uint32_t seed) {
     }
     t->reef_x   = TANK_FX0 + TANK_FW * 0.15f; t->reef_y   = TANK_BOT * 0.85f;
     t->clock = 0; t->night = false; t->idle_s = 0;
-    t->light_idle_s = LIGHT_IDLE_S; t->light_auto = false; t->light_manual_off = false; t->light_tip_seen = false;
+    t->light_idle_s = LIGHT_IDLE_S; t->light_auto = false;
     t->orient_lock = false; t->autofeed_off = false;
     t->screen_turned = false; t->theme = 0;
     t->light_override = false; t->light_on = true;
     t->hold_active = false; t->hold_time = 0; t->hold_approached = false;
-    t->tap_count = 0; t->tap_burst_t = 99; t->startled = false;
-    t->startle_cooldown = 0;
     t->feed_spot_x = -1; t->player_feedings = 0; t->feed_open = false; t->hold_approaches = 0; t->greet_timer = 0;
     t->courting = false; t->court_a = t->court_b = -1;
     t->court_cool = 30; t->court_active = 0;
@@ -147,9 +145,7 @@ void tank_init(tank_t *t, uint32_t seed) {
     tank_scatter_food(t, 2);
 }
 
-#define TAP_WINDOW      0.5f    /* taps closer than this form a burst */
-#define STARTLE_COOLDOWN 6.0f   /* calm seconds before the spook wears off */
-/* (STARTLE_RADIUS, HOLD_RADIUS, HOLD_ATTRACT_S, HOLD_HUNGER_VETO: tank_internal.h) */
+/* (HOLD_RADIUS, HOLD_ATTRACT_S, HOLD_HUNGER_VETO: tank_internal.h) */
 #define SPAWN_NEAR_PX   20.0f   /* past the courtship loop's reach: a parent this close is circling in the fronds */
 #define HOLD_APPROACH_FROM 60.0f /* a hold-approach must START at least this far out:
                                  * a fish already under the finger earns nothing */
@@ -200,13 +196,11 @@ void tank_init(tank_t *t, uint32_t seed) {
 #define WIPE_RADIUS      20.0f  /* squeegee half-width around the drag path */
 #define WIPE_ENGAGE_PX   18.0f  /* stroke travel before a drag starts wiping
                                  * (a rolly fingertip tap stays under this) */
-#define SLASH_PX         16.0f  /* sideways travel before a stroke is scissors (a
-                                 * rolly fingertip tap stays under this; one
-                                 * frond pitch is 12 px, so a flick takes 1-2) */
-#define SLASH_RATIO      1.5f   /* ... and it must be this much more h than v */
-#define SLASH_TOOL_PX    10.0f  /* the SCISSORS picked from the toolbox: the keeper
-                                 * said "cut", so a shorter stroke, merely more
-                                 * sideways than not, is enough */
+#define SLASH_TOOL_PX    10.0f  /* the SCISSORS: sideways travel before a stroke cuts -
+                                 * the keeper said "cut", so a short stroke, merely
+                                 * more sideways than not, is enough (bare hands
+                                 * cut too until 2026-10-28, after 16 px, 1.5 x
+                                 * more sideways than not, begun on a frond) */
 #define SLASH_START_PX   10.0f  /* a slash must START this close to a FROND's tip
                                  * (upward) - not the bed's box: a cleaning scrub
                                  * begun mid-glass over a tall bed used to arm the
@@ -585,36 +579,28 @@ void tank_touch_drag(tank_t *t, float x, float y) {
     tank_handled(t);
     t->drag_active = true;
     if (!t->drag_has_prev) {
-        /* stroke start: a slash must BEGIN on a plant - within SLASH_START_PX
-         * of an actual frond (beside its spine, no higher than its tip). A
-         * cleaning scrub that starts mid-glass, even straight above a tall
-         * bed, and then works down through the grass arms nothing: it keeps
-         * wiping algae and the fronds stand. */
-        t->slash_armed = t->tool == TOOL_SCISSORS;   /* the scissors: any stroke (below) */
-        for (int b = 0; b < tank_veg_beds(t) && !t->slash_armed; b++)
-            t->slash_armed = veg_near_frond(t, b, x, y, SLASH_START_SIDE_PX, SLASH_START_PX);
-        /* ... or beside a wall frond, on no frond of that frond's own bed
-         * (SLASH_WALL_SIDE_PX; another bed's canopy under the finger does
-         * not make the stroke any less aimed at the wall) */
+        /* stroke start: only the SCISSORS cut (2026-10-28: bare hands armed
+         * a slash when the stroke began on a frond). One begun beside a wall
+         * frond, on no frond of that frond's own bed (SLASH_WALL_SIDE_PX;
+         * another bed's canopy under the finger does not make the stroke any
+         * less aimed at the wall), runs on into the wall. */
+        t->slash_armed = t->tool == TOOL_SCISSORS;
         t->slash_wall = 0;
-        for (int b = 0; b < tank_veg_beds(t) && !t->slash_wall; b++)
+        for (int b = 0; b < tank_veg_beds(t) && t->slash_armed && !t->slash_wall; b++)
             if (!veg_near_frond(t, b, x, y, SLASH_START_SIDE_PX, SLASH_START_PX))
                 t->slash_wall = (int8_t)veg_wall_frond(t, b, x, y, SLASH_START_PX);
-        if (t->slash_wall) t->slash_armed = true;
-        if (t->tool == TOOL_SPONGE) { t->slash_armed = false; t->slash_wall = 0; }   /* the sponge never cuts */
         t->slash_engaged = t->slash_cut = false; t->wipe_sounded = false;
         t->slash_x0 = x; t->slash_y0 = y; t->slash_h = t->slash_v = 0;
     }
     if (t->drag_has_prev) {
         float sdx = x - t->drag_px, sdy = y - t->drag_py;
         t->drag_dist += tank_dist(x, y, t->drag_px, t->drag_py);
-        if (t->tool != TOOL_SCISSORS && t->drag_dist >= WIPE_ENGAGE_PX) {   /* a real stroke, not a tap; the scissors never wipe */
+        if (t->tool == TOOL_SPONGE && t->drag_dist >= WIPE_ENGAGE_PX) {   /* the sponge, a real stroke and not a tap (bare hands wiped too until 2026-10-28) */
             wipe_algae(t, t->drag_px, t->drag_py, x, y);
             if (!t->wipe_sounded) { t->wipe_sounded = true; tank_emit(TEV_WIPE, -1); }
         }
-        /* the slash (2026-09-04, per frond): an armed stroke becomes scissors
-         * once it has travelled SLASH_PX sideways, mostly sideways - deliberate
-         * work, so a tap or a missed poke at a fish never shears the garden.
+        /* the slash (2026-09-04, per frond): the scissors' stroke engages
+         * once it has travelled SLASH_TOOL_PX sideways, more sideways than not.
          * From then on every sideways segment cuts the fronds it crosses at
          * the height it crosses them (the travel before engagement is cut
          * retroactively as one straight segment from the stroke start), so
@@ -624,8 +610,7 @@ void tank_touch_drag(tank_t *t, float x, float y) {
             t->slash_h += fabsf(sdx); t->slash_v += fabsf(sdy);
             int cuts = 0;
             if (!t->slash_engaged) {
-                if (t->tool == TOOL_SCISSORS ? t->slash_h >= SLASH_TOOL_PX && t->slash_h > t->slash_v
-                                             : t->slash_h >= SLASH_PX && t->slash_h > SLASH_RATIO * t->slash_v) {
+                if (t->slash_h >= SLASH_TOOL_PX && t->slash_h > t->slash_v) {
                     t->slash_engaged = true;
                     cuts += veg_cut(t, t->slash_x0, t->slash_y0, x, y, true, t->slash_wall);
                 }
@@ -640,7 +625,7 @@ void tank_touch_drag(tank_t *t, float x, float y) {
 }
 
 void tank_set_tool(tank_t *t, int tool) {
-    t->tool = (uint8_t)(tool == TOOL_SPONGE || tool == TOOL_SCISSORS ? tool : TOOL_HAND);
+    t->tool = (uint8_t)(tool == TOOL_SPONGE || tool == TOOL_SCISSORS || tool == TOOL_FEED ? tool : TOOL_HAND);
     t->tool_idle = 0;
 }
 
@@ -661,65 +646,16 @@ void tank_feed(tank_t *t, float x, int n) {
     t->feed_open = true;                         /* a meal once somebody eats from it */
 }
 
-/* the triple tap: fish near it bolt (stress, a little trust lost) and the
- * shrimp scatter - from the water or from the school alike */
-static void tank_startle(tank_t *t, float x, float y) {
-    tank_emit(TEV_SPOOK, -1);
-    t->startled = true; t->startle_x = x; t->startle_y = y; t->startle_cooldown = STARTLE_COOLDOWN;
-    for (int i = 0; i < t->n_fish; i++) {
-        fish_t *f = &t->fish[i];
-        if (tank_dist(f->x, f->y, x, y) < STARTLE_RADIUS) {
-            f->stress = fminf(10, f->stress + 2.5f);
-            f->trust = fmaxf(0, f->trust - 0.4f);
-            sp_startle_hit(t, i, x, y);   /* a species' puff, ink, claws, flip */
-        }
-    }
-    helper_startle_all(t, x, y, STARTLE_RADIUS);
-}
-int tank_shrimp_tap(tank_t *t, float x, float y) {
-    tank_handled(t);
-    if (t->school.tap_t > TAP_WINDOW) t->school.taps = 0;
-    if (t->school.taps < 255) t->school.taps++;
-    t->school.tap_t = 0;
-    if (t->school.taps == 3) tank_startle(t, x, y);
-    return t->school.taps;
-}
 void tank_touch_tap(tank_t *t, float x, float y) {
     tank_handled(t);
-    if (t->tool != TOOL_HAND) return;            /* a tool in hand: no feed, no light, no startle - DONE first (2026-10-04) */
-    if (y - tank_glass_top(x) < FEED_ZONE_Y) { tank_feed(t, x, 3); return; }     /* surface tap = feed, a portion of three; up to five portions fit (MAX_FOOD) */
-    if (t->tap_burst_t > TAP_WINDOW) t->tap_count = 0;
-    t->tap_count++; t->tap_burst_t = 0; t->tap_x = x; t->tap_y = y;
-    tank_emit(TEV_TAP, -1);
-    if (t->startled) {                              /* chasing: keep them spooked */
-        t->startle_x = x; t->startle_y = y; t->startle_cooldown = STARTLE_COOLDOWN;
-        for (int i = 0; i < t->n_fish; i++) {
-            t->fish[i].stress = fminf(10, t->fish[i].stress + 0.6f);
-            if (tank_dist(t->fish[i].x, t->fish[i].y, x, y) < STARTLE_RADIUS) sp_startle_hit(t, i, x, y);
-        }
-        helper_startle_all(t, x, y, STARTLE_RADIUS);
-    } else if (t->tap_count >= 3) tank_startle(t, x, y);   /* aggressive: engage */
+    if (t->tool == TOOL_FEED) { tank_feed(t, x, 3); t->tool_idle = 0; return; }   /* the FEED tool (2026-10-28): a portion of three at the surface over
+                                                                                    the tap; up to five portions fit (MAX_FOOD). A surface tap with bare hands before */
+    if (t->tool == TOOL_HAND) tank_emit(TEV_TAP, -1);   /* a knock on the glass, and nothing else (2026-10-28: two quick taps
+                                                           flipped the light and three startled the fish before) */
 }
 
-/* per-frame bookkeeping for the touch state machine */
+/* per-frame bookkeeping for the touch: the hold */
 static void touch_tick(tank_t *t, float dt) {
-    t->tap_burst_t += dt;
-    t->school.tap_t += dt;
-    /* two taps then a pause: the light (MANUAL, the default; in settings'
-       AUTO the idle rule owns it - 2026-09-15: the old always-on override
-       rode in the save and froze a tank in permanent day) */
-    if (!t->startled && t->tap_count == 2 && t->tap_burst_t > TAP_WINDOW) {
-        if (!t->light_auto) {
-            t->light_manual_off = !t->light_manual_off;
-            if (t->light_manual_off) t->light_tip_seen = true;   /* the first time: the notice says what happened (2026-10-03) */
-        }
-        t->tap_count = 0;
-    }
-    if (t->tap_count >= 3 && t->tap_burst_t > TAP_WINDOW) t->tap_count = 0;
-    if (t->startled) {
-        t->startle_cooldown -= dt;
-        if (t->startle_cooldown <= 0) { t->startled = false; t->tap_count = 0; }
-    }
     if (t->hold_active) {                           /* calm presence earns trust */
         float was = t->hold_time;
         t->hold_time += dt;
@@ -807,18 +743,17 @@ void tank_orient_lock(tank_t *t, bool lock) { t->orient_lock = lock; }
 
 const int LIGHT_IDLE_CHOICES[LIGHT_IDLE_N] = { 5, 15, 30, 60, 180, 300, 600, 1800 };
 int tank_light_choice(const tank_t *t) {
-    if (!t->light_auto) return 0;
+    if (!t->light_auto) return LIGHT_IDLE_N;          /* NEVER */
     int best = 0;
     for (int i = 1; i < LIGHT_IDLE_N; i++)
         if (abs(LIGHT_IDLE_CHOICES[i] - t->light_idle_s) < abs(LIGHT_IDLE_CHOICES[best] - t->light_idle_s)) best = i;
-    return best + 1;
+    return best;
 }
 void tank_light_choice_set(tank_t *t, int choice) {
     if (choice < 0) choice = 0;
     if (choice > LIGHT_IDLE_N) choice = LIGHT_IDLE_N;
-    t->light_auto = choice > 0;
-    if (choice > 0) t->light_idle_s = LIGHT_IDLE_CHOICES[choice - 1];
-    t->light_manual_off = false;
+    t->light_auto = choice < LIGHT_IDLE_N;
+    if (choice < LIGHT_IDLE_N) t->light_idle_s = LIGHT_IDLE_CHOICES[choice];
 }
 
 void tank_scatter_food(tank_t *t, int n) {
@@ -848,7 +783,7 @@ void tank_tick_sleep(tank_t *t, float seconds) {
         f->stress = clampf(f->stress - SLEEP_STRESS_PER_H * h, 0, 10);
         f->speed = 0; f->target_speed = 0; f->bored = 0;  /* a night's sleep is a fresh start */
         {                                                   /* ... a species' reflexes too: no puff, ink or flip to wake to (the classic fish has none) */
-            f->surface_s=0; f->puff = 0; f->ink = 0; f->spark = 0; f->sp_mode = SPM_NONE; f->sp_t = 0;
+            f->surface_s=0; f->puff = 0; f->ink = 0; f->spark = 0; f->sp_mode = SPM_NONE; f->sp_t = 0; f->flee_t = 0;
             if (f->air_s <= 0) f->air_s = 60;
         }
         f->goal_age += seconds; f->ask_age += seconds;  /* wake re-asks the advisor at once */
@@ -918,7 +853,7 @@ void tank_tick(tank_t *t, float dt, advisor_fn advise) {
     bool was_night = t->night;
     t->night = t->light_override ? !t->light_on
              : t->hold_light ? false
-             : !t->light_auto ? t->light_manual_off              /* MANUAL (default): the double-tap's state */
+             : !t->light_auto ? false                              /* NEVER (the default): the light stays on */
              : t->idle_s > (float)t->light_idle_s;                      /* AUTO: the idle rule */
     if (t->night != was_night) tank_emit(t->night ? TEV_LIGHT_OFF : TEV_LIGHT_ON, -1);
 

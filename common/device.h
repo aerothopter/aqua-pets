@@ -17,7 +17,6 @@
  *   TANK_BOT, TANK_FX0, TANK_FX1  the floor (tank.h)
  *   ALGAE_CELL, _COLS, _ROWS    the film grid
  *   VEG_SEG_PX                  a frond segment's height
- *   FEED_ZONE_Y                 how far under the glass a tap still feeds
  *   DECOR_MARGIN, PLANT_X_DEFAULT  the decor's room on the floor
  *   DEVICE_WORN                 worn on a wrist: the picture's way up is the
  *                               keeper's setting (settings SCREEN), never the

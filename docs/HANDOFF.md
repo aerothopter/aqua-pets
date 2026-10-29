@@ -2,6 +2,194 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-28: no double-tap light, no startle, no hold-to-move (the TODO's other half)
+
+**What changed (the keeper's asks and calls).** Bare hands now only reach
+the creatures: a tap on one (its card, two quick taps its trick), a tap on
+a helper (its card), and a held finger (the trusting come over).
+- **The light: AUTO or NEVER.**
+  - MANUAL and its double-tap are gone. The settings row is AUTO after
+    5 SEC .. 30 MIN, then NEVER, the default, which keeps the light on.
+  - The keeper's call: a NEVER choice rather than a default idle time. A new
+    tank stays lit as before.
+  - `tank_light_choice` runs 0..LIGHT_IDLE_N-1 (the times) and LIGHT_IDLE_N
+    (NEVER). `light_auto` false = NEVER, so a MANUAL save loads as NEVER.
+  - `light_manual_off` and `light_tip_seen` left `tank_t`. The save writes
+    them as 0 (the layout keeps the bytes).
+  - NOTICE_LIGHTS_OUT went: it taught the double-tap.
+- **The startle: deleted** (the keeper's call, as with the shake).
+  - Gone from tank.c/tank_internal.h: `tank_startle`, the tap burst
+    (`tap_count`, `tap_burst_t`, `tap_x/y`, `TAP_WINDOW`), `startled`,
+    `startle_x/y`, `startle_cooldown` and `STARTLE_*`. `tank_touch_tap` with
+    bare hands is a knock's cue and nothing else.
+  - Gone from creature.c: `sp_startle_hit`, every species' `startle` and
+    `flee` hook and `sp_startle_steer`.
+  - The species' startle-only reactions went with their state and art:
+    - the seahorse's `SPM_CLING`
+    - the crab's `SPM_CLAWS`/`SCUTTLE` (its claws-up art; `crab_state`)
+    - the lobster's `SPM_FLIP` (`sp_flip`, `lobster_move`, the tail curl,
+      `lean_flip`)
+    - the jellyfish's hurried pulse (`jelly_state`)
+  - Kept: the poke's tricks, the puff and the ink, which the double tap on a
+    creature still does. The eel's spark stays too: it is also an idle
+    flourish.
+  - The helpers' `startle` hook and `helper_startle_all` went. So did the
+    shrimp's scatter and dart (`shrimp_t.dart`, the dart art) and their tap
+    counting (`school.taps/tap_t`, `tank_shrimp_tap`; the shrimp have no
+    tap hook now, a tap is their card).
+  - `TEV_SPOOK` went (its sound stays in the generated bank).
+- **Hold-to-move: gone** on both platforms (`held_page` / `s_held_page`). A
+  piece's placement page opens from the shop's MOVE. `tank_decor_hit` stays
+  (the director and the tests use it).
+- **The words:**
+  - The care page lost "TWO TAPS FLIP THE LIGHT".
+  - The TRUST tip lost "3 QUICK TAPS SCARE THEM".
+  - The puffer's shop words: "A YOUNG ONE. TAP IT TWICE / AND IT PUFFS UP".
+  - README (trust, the tools, the shrimp, selling back, the light, the
+    sim's mouse, the status list), CLAUDE.md's helper hooks, docs/AUDIO.md,
+    docs/species.md and docs/progression.md.
+
+**Tests.**
+- `--selftest-sleep`'s light block: NEVER at the row's end, the steps back
+  through the times, both ends holding, a wheel-era 20 s, and two and three
+  taps on the glass never touching the light.
+- The spawning leg's dark is the director's override (`light_override`).
+- The startle checks went from `--selftest-species`, `-creatures`, `-shop`
+  (the shrimp: a tap is the card, no tap hook), `-tend` and the helpers'
+  run. The puffer's puff test pokes it: the poke sets the same 5 s timer.
+- The species sheet lost the crab's claws-up and the lobster's flip poses.
+  The golden decor run's shrimp pose pecks instead of darting
+  (`shrimp_peck`).
+
+**Proof.**
+- The baseline is HEAD (15832b6) with only the golden runs' startle taps
+  and the startle-only poses (the claws-up crab, the flipping lobster, the
+  darting shrimp) taken out.
+- `--golden-decor` hashes the same as it.
+- `--golden-creatures` differs only in four "what the model hears" lines.
+  That hash takes each creature's raw `sp_mode` byte, and the enum was
+  renumbered (the four values removed). With a temporary map back to the old
+  numbers, every hash matched.
+- So every frame, every state line and the save are untouched.
+
+**Then the reactions came back as double-tap tricks (the keeper's ask, the
+same day).** The seahorse grips a stem, the crab raises its claws and
+scuttles, the lobster flips its tail, the jellyfish pulses away, the eel
+sparks. With the puffer's puff and the inkers' ink, 8 of the 13 kinds now
+have a trick.
+- **The poke knows the finger.** `tank_poke(t, idx, x, y)` and the row's
+  `poke(t, idx, f, x, y)`; the platforms pass the press point (one word
+  each).
+- **A getaway is the creature's own.** `fish_t.flee_x/flee_y/flee_t` holds
+  where the finger landed and the seconds left; the tank-wide startle
+  cooldown is gone. While `flee_t` runs, `sp_flee_steer` and the row's
+  `flee` hook steer it: the seahorse to its stem, the crab sideways (still
+  in the display, fast in the scuttle), the jellyfish away at a hurried
+  drift. `flee_t` per poke: the seahorse's grip 6 s, the crab's 2 s, the
+  jellyfish's 4 s.
+- **The lobster's flip** moves by itself (`lobster_move`/`sp_flip`, from
+  HEAD). It faces the finger and shoots backward from it.
+- **The eel's spark** runs 1.3 s, the idle flourish's length; the startle's
+  was 0.6.
+- **Restored from HEAD:** `crab_state`, `jelly_state`, the seahorse's
+  `SPM_CLING` hold, the art (the crab's raised claws, the lobster's tail
+  curl and `lean_flip`) and the sheet's two poses. `SPM_*` is back in its
+  old order, so no number changed.
+- **Tests:** `--selftest-species` pokes each one. It checks:
+  - the seahorse holding at 4 s and let go by 8 s
+  - the crab's claws at 1.00 and 71 px away
+  - the lobster 92 px backward, tail curled, back on the floor
+  - the jellyfish's 5 pulses in 4 s, 59 px away, no ink
+  - the eel's spark
+
+  `--selftest-creatures` counts 8 kinds with a poke (each changes its
+  creature).
+- **Golden:**
+  - against the startle-free baseline above, `--golden-decor` is the same.
+  - `--golden-creatures` differs only in the sheet's `states_2` frames (the
+    two poses back) and from `run06` on (90..105 s: the run pokes every
+    creature at 95 s, and five more now do something), the night and the
+    save. Every line before the pokes, the state hashes too, is the same.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | the settings page (NEVER) and the care page looked at | yes (5.4.4, throwaway key, no warnings): app 0x201000, `.dram0.bss` 58,928 (58,632 without the startle; +296 for the tricks: `fish_t`'s three getaway floats) | no | no |
+
+**Open.** The keeper's TODO "no startle by tap or shake" is done (with the
+shake, earlier today).
+
+## 2026-10-28: a FEED tool; bare hands only reach the creatures
+
+**What changed (the keeper's asks).**
+- **FEED is the main menu's sixth tile** (the empty cell before),
+  `TOOL_FEED` and `MENU_TAP_FEED` (appended to the enum).
+  - With FEED in hand a tap anywhere drops a portion of three at the surface
+    over it (`tank_touch_tap`). It also restarts the tool's idle clock and
+    counts toward no light or startle. Its strokes wipe and cut nothing.
+  - Its chip and tile wear the first-feeding badge's can
+    (`icon_ms_first_feeding`) until FEED has its own art; new art needs
+    gen_icons.py, i.e. Pillow. `tool_icon()` picks a tool's art, and the
+    chip's width follows the art (the can is 32 px, the tools' 24).
+  - `render_menu_tool(tap)` maps a tile to its tool, so both platforms route
+    all three tools with one call. With a tool in hand, a tap that isn't the
+    chip's DONE now goes to `tank_touch_tap` (FEED feeds; the others still
+    do nothing).
+- **Bare hands no longer feed, wipe or cut.**
+  - `tank_touch_drag` only wipes with the SPONGE and only cuts with the
+    SCISSORS.
+  - `tank_touch_tap` no longer feeds at the surface. `FEED_ZONE_Y` left the
+    board header and device.h.
+  - The platforms' drag down from the top no longer feeds (sim/main.c,
+    touch_port_ft3168.c).
+  - Bare hands' own slash rules are gone: arming on a frond, `SLASH_PX`,
+    `SLASH_RATIO`. The wall-frond run-on stays for the scissors.
+  - Still with bare hands: a tap on a creature or helper (its card), a hold
+    (the trusting come over), the double tap (the light, in MANUAL), the
+    triple tap (the startle, the TODO's other half), and the hold on a piece
+    (its placement page).
+- **The words that taught the old gestures:** the first run's CARING FOR
+  THEM page (six lines, "THE MENU HOLDS YOUR TOOLS: FEED, SPONGE AND
+  SCISSORS"), and the fry checklist's FEED and GLASS tips (they name the
+  menu's FEED and SPONGE). Also README (the menu, Upkeep, "The tools", the
+  sim's mouse), docs/AUDIO.md's feed cue, the sim's usage text and the
+  touch port's header.
+
+**Tests.**
+- `--selftest-tend`:
+  - The two "a scrub begun mid-glass never cuts" tests are now one bare-hands
+    test: sweeps glass to glass along the floor and up a fouled glass wipe
+    nothing and cut nothing, and a surface tap feeds nothing.
+  - The cutting precision tests (the flick, the outer blade by the glass,
+    the lone wall frond) run with the SCISSORS: the rules are the cut's.
+  - The bed mow takes the scissors and the glass squeegee the sponge. That
+    squeegee now fouls the glass first: the night's film used to be wiped by
+    bare hands' trimming tests, which earned "first glass cleaning".
+  - New FEED block: the sixth tile is `MENU_TAP_FEED` (and
+    `render_menu_tool`); a tap mid-water drops three pellets at the surface
+    over it and counts no tap; its floor sweep wipes and cuts nothing.
+- `--selftest-shop`'s colony and mowing chores use the sponge and the
+  scissors. `--selftest`'s surface-tap meal is the FEED tool's.
+  `--selftest-menu` expects FEED. `--selftest-species`' startles tap the
+  creature itself (they kept below the feed zone before).
+- **Proof:** both golden oracles hash the same as HEAD (15832b6). They tap
+  mid-water and call `tank_feed` directly, so the tank's frames, what the
+  model hears and the save are untouched.
+- The snapshot mode also pictures FEED's chip (`_tool_chip_feed`). README's
+  sim-menu.png is the new menu.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | the menu, the care page, both tool chips looked at | yes (5.4.4, throwaway key, no warnings): app 0x201000 | no | no |
+
+**Open.**
+- FEED's own art (`assets/icons/tool_feed.png` and gen_icons.py).
+- The triple tap's startle: the other half of the "no startle by tap or
+  shake" TODO.
+
 ## 2026-10-28: the milestones page's lists scroll
 
 **What changed.** The keeper tried the shop on the glass ("a bit stiff

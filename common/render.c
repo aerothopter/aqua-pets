@@ -1613,20 +1613,24 @@ static void rect_fill(ctx_t *c, int x, int y, int w, int h, uint32_t rgb);   /* 
 
 /* the chip: the tool at 1x and DONE, top left where the card would be (TOOL_CHIP_X / _Y: the board's) */
 #define TOOL_CHIP_H 40
-static int tool_chip_w(void) { return 8 + 24 + 8 + text_w("DONE", 2) + 10; }
+/* a tool's art, the chip's and the menu tile's: FEED's is the first-feeding badge's can until it has its own (2026-10-28) */
+static const icon_t *tool_icon(int tool) {
+    return tool == TOOL_SCISSORS ? &icon_tool_scissors : tool == TOOL_FEED ? &icon_ms_first_feeding : &icon_tool_sponge;
+}
+static int tool_chip_w(const tank_t *t) { return 8 + tool_icon(t->tool)->w + 8 + text_w("DONE", 2) + 10; }
 void render_tool_chip(const tank_t *t, int fish_idx, uint16_t *fb, int stride) {
     render_use_theme(t->theme);
     if (t->tool == TOOL_HAND || (fish_idx >= 0 && fish_idx < t->n_fish)) return;
     ctx_t c = ctx_full(fb, stride, 1.0f);
-    const int X = TOOL_CHIP_X, Y = TOOL_CHIP_Y, W = tool_chip_w(), H = TOOL_CHIP_H;
+    const int X = TOOL_CHIP_X, Y = TOOL_CHIP_Y, W = tool_chip_w(t), H = TOOL_CHIP_H;
     shade_box(&c, X, Y, W, H);
     rect_edge(&c, X, Y, W, H, 0xffffff); rect_edge(&c, X + 1, Y + 1, W - 2, H - 2, 0x9fd8e2);
-    const icon_t *ic = t->tool == TOOL_SCISSORS ? &icon_tool_scissors : &icon_tool_sponge;
+    const icon_t *ic = tool_icon(t->tool);
     blit_icon(&c, X + 8, Y + (H - ic->h) / 2, ic, 255);
     draw_text(&c, X + 8 + ic->w + 8, Y + (H - 14) / 2, 2, 0xffffff, "DONE");
 }
 bool render_tool_chip_hit(const tank_t *t, float x, float y) {
-    return t->tool != TOOL_HAND && x < TOOL_CHIP_X + tool_chip_w() + 16 && y < TOOL_CHIP_Y + TOOL_CHIP_H + 24;
+    return t->tool != TOOL_HAND && x < TOOL_CHIP_X + tool_chip_w(t) + 16 && y < TOOL_CHIP_Y + TOOL_CHIP_H + 24;
 }
 
 
@@ -2544,17 +2548,7 @@ void render_notice(const tank_t *t, uint16_t *fb, int stride, int kind, int fish
     const char *caption2 = NULL;                              /* a second line: the title and both move up */
     const icon_t *ic = NULL;
     const fish_t *f = fish >= 0 && fish < t->n_fish ? &t->fish[fish] : NULL;
-    if (kind == 5) {                                          /* NOTICE_LIGHTS_OUT (2026-10-03): the first double-tap that turned the light off */
-        snprintf(title, sizeof title, "LIGHTS OUT");
-        snprintf(caption, sizeof caption, "YOU DOUBLE-TAPPED THE GLASS");
-        caption2 = "DOUBLE-TAP TO TURN IT ON";
-        /* a crescent moon: a disc with a bite out of it */
-        const int R = 20, PX = X + W / 2 - 3, PY = Y + 36;
-        for (int dy = -R; dy <= R; dy++) for (int dx = -R; dx <= R; dx++) {
-            int bx = dx - 10, by = dy + 7;
-            if (dx * dx + dy * dy <= R * R && bx * bx + by * by > 17 * 17) rect_fill(&c, PX + dx, PY + dy, 1, 1, MSP_TEAL);
-        }
-    } else if (kind == 4) {                                   /* NOTICE_UPDATED (2026-09-30): the first boot of a new release */
+    if (kind == 4) {                                   /* NOTICE_UPDATED (2026-09-30): the first boot of a new release */
         snprintf(title, sizeof title, "UPDATED");
         snprintf(caption, sizeof caption, "YOUR TANK IS NOW V%s", PT_RELEASE);
         /* a tick in a ring, teal: the shape says it, not the hue */
@@ -2816,7 +2810,8 @@ void render_shop_show_item(int item) { scroll_to(&g_shp_scroll, (float)(item * S
 
 /* ---- the main menu (2026-10-21): the BOOT key's page ----
  * Six tiles, three across: TANK (the milestones page), UPGRADES (the shop),
- * SETTINGS; then the SPONGE, the SCISSORS and an empty cell. The page
+ * SETTINGS; then the tools: the SPONGE, the SCISSORS and FEED (2026-10-28,
+ * the empty cell before; its art the first-feeding badge's can for now). The page
  * icons are placeholders (the bubbles badge) until their own art lands:
  * assets/icons/menu_*.png through tools/gen_icons.py, then the table below.
  * The tool in hand is lit (the toolbox's look: a white double edge on a
@@ -2824,9 +2819,10 @@ void render_shop_show_item(int item) { scroll_to(&g_shp_scroll, (float)(item * S
  * fish card's look, the water a sixth through. */
 static const icon_t *const MENU_ICON[MENU_TILES] = {
     &icon_ms_first_bubbles, &icon_ms_first_bubbles, &icon_ms_first_bubbles,   /* TANK, UPGRADES, SETTINGS (placeholders) */
-    &icon_tool_sponge, &icon_tool_scissors, NULL,
+    &icon_tool_sponge, &icon_tool_scissors, &icon_ms_first_feeding,
 };
-static const char *const MENU_LABEL[MENU_TILES] = { "TANK", "UPGRADES", "SETTINGS", "SPONGE", "SCISSORS", NULL };
+static const char *const MENU_LABEL[MENU_TILES] = { "TANK", "UPGRADES", "SETTINGS", "SPONGE", "SCISSORS", "FEED" };
+static const int MENU_TOOL[MENU_TILES] = { -1, -1, -1, TOOL_SPONGE, TOOL_SCISSORS, TOOL_FEED };   /* a tile's tool */
 static void menu_tile_page(int i, int *x, int *y) {
     *x = MENU_X0 + (i % 3) * (MENU_TILE_W + MENU_GAP_X);
     *y = MENU_Y0 + (i / 3) * (MENU_TILE_H + MENU_GAP_Y);
@@ -2840,7 +2836,7 @@ void render_menu(const tank_t *t, uint16_t *fb, int stride) {
     for (int i = 0; i < MENU_TILES; i++) {
         if (!MENU_ICON[i]) continue;                 /* the empty cell */
         int x, y; menu_tile_page(i, &x, &y);
-        bool held = (i == 3 && t->tool == TOOL_SPONGE) || (i == 4 && t->tool == TOOL_SCISSORS);
+        bool held = MENU_TOOL[i] >= 0 && t->tool == MENU_TOOL[i];
         src_t bg = src_color(theme_ui_color(held ? 0x356670 : 0x04141a), 1.0f);   /* the card's backdrop (card_draw) */
         for (int yy = y; yy < y + MENU_TILE_H; yy++) span(&c, x, x + MENU_TILE_W - 1, yy, &bg, 215);
         uint32_t edge = held ? 0xffffff : MSP_TEAL;
@@ -2858,13 +2854,16 @@ int render_menu_tap(const tank_t *t, float x, float y) {
     if (x < MENU_X0 - MENU_SLOP || x >= MENU_X0 + gw + MENU_SLOP || y < MENU_Y0 - MENU_SLOP || y >= MENU_Y0 + gh + MENU_SLOP)
         return RENDER_BAT_HIT(x + PAGE_X, y + PAGE_Y) ? MENU_TAP_BATTERY   /* off the grid on the pill: its page */
                                                       : MENU_TAP_CLOSE;    /* elsewhere off the grid: back to the tank */
-    static const int CODE[MENU_TILES] = { MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS, MENU_TAP_NONE };
+    static const int CODE[MENU_TILES] = { MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS, MENU_TAP_FEED };
     for (int i = 0; i < MENU_TILES; i++) {       /* each tile with half the gap around it, so a near miss still lands */
         int tx, ty; menu_tile_page(i, &tx, &ty);
         if (x >= tx - MENU_GAP_X / 2 && x < tx + MENU_TILE_W + MENU_GAP_X / 2 && y >= ty - MENU_GAP_Y / 2 && y < ty + MENU_TILE_H + MENU_GAP_Y / 2)
             return CODE[i];
     }
     return MENU_TAP_NONE;                        /* the grid's slop */
+}
+int render_menu_tool(int menu_tap) {
+    return menu_tap == MENU_TAP_SPONGE ? TOOL_SPONGE : menu_tap == MENU_TAP_SCISSORS ? TOOL_SCISSORS : menu_tap == MENU_TAP_FEED ? TOOL_FEED : -1;
 }
 
 /* the toast: "+N" by a coin, top centre, for TOAST_S on the tank clock */
@@ -2904,8 +2903,8 @@ static const int         SET_BRIGHT_PCT[10] = { 10, 20, 30, 40, 50, 60, 70, 80, 
 #define SET_BRIGHT_N 10
 static int bright_index(int pct) { int i = (pct + 5) / 10 - 1; return i < 0 ? 0 : i >= SET_BRIGHT_N ? SET_BRIGHT_N - 1 : i; }
 static const char *const SET_VOLUME[3] = { "OFF", "QUIET", "NORMAL" };
-static const char *const SET_LIGHT[LIGHT_IDLE_N + 1] = { "DOUBLE-TAP",   /* MANUAL, the default: the row says how the light is worked */
-    "5 SEC", "15 SEC", "30 SEC", "1 MIN", "3 MIN", "5 MIN", "10 MIN", "30 MIN" };
+static const char *const SET_LIGHT[LIGHT_IDLE_N + 1] = {
+    "5 SEC", "15 SEC", "30 SEC", "1 MIN", "3 MIN", "5 MIN", "10 MIN", "30 MIN", "NEVER" };   /* NEVER the default (2026-10-28; DOUBLE-TAP, MANUAL, first before) */
 static const char *const SET_FEED[2]   = { "ON", "OFF" };          /* the default first */
 #if DEVICE_WORN
 static const char *const SET_SCREEN[2] = { "NORMAL", "TURNED" };   /* the default first */
@@ -3134,7 +3133,7 @@ int render_settings_touch(tank_t *t, float x, float y, bool down, int *value) {
                 int was = tank_light_choice(t), now = was + (h == SET_HIT_LIGHT_NEXT ? 1 : -1);
                 if (now >= 0 && now <= LIGHT_IDLE_N) {
                     tank_light_choice_set(t, now); tank_emit(TEV_WHEEL_TICK, -1); progression_settings_changed();
-                    if ((was == 0) != (now == 0)) { r = SET_TAP_LIGHT; *value = now != 0; }
+                    if ((was == LIGHT_IDLE_N) != (now == LIGHT_IDLE_N)) { r = SET_TAP_LIGHT; *value = now != LIGHT_IDLE_N; }
                     else { r = SET_TAP_IDLE; *value = t->light_idle_s; }
                 }
             } else if (h == SET_TAP_FEED) {                    /* ON (1, the default) / OFF */

@@ -146,8 +146,8 @@ the card (or the open water) to put it away.
 
 **The main menu.** Press the BOOT key (the small one) for the main menu: TANK
 (the milestones page), UPGRADES (the shop) and SETTINGS across the top, the
-SPONGE and the SCISSORS below, standing over the live tank the way a fish's
-card does, with the battery up in the corner. Each page's CLOSE brings you back to the menu;
+tools below - the SPONGE, the SCISSORS and FEED - standing over the live
+tank the way a fish's card does, with the battery up in the corner. Each page's CLOSE brings you back to the menu;
 BOOT on a page does the same, and BOOT on the menu (or a tap off its tiles)
 goes back to the tank.
 
@@ -178,8 +178,8 @@ starts or a fry can be born.
 
 **Trust.** Hold a finger on the glass for three seconds and the fish that
 trust you come over from anywhere in the tank, the most trusting first and
-fastest. Rap three times and nearby fish scatter and stay spooked. Calm holds
-earn trust, startles cost it, and the model reads trust as part of every
+fastest. Calm holds earn trust (rapping three times scared them off and
+cost it, until 2026-10-28), and the model reads trust as part of every
 decision, so a fish that trusts you acts differently in every situation.
 
 **Hunger.** A meal lasts five or six minutes awake. Left alone, the tank
@@ -190,18 +190,22 @@ darting back and forth, and go into a frenzy when the pellets land. The tank
 holds off feeding itself while they beg, so the first meal is yours.
 
 **Upkeep.** The sea grass keeps growing, every frond on its own, right up to
-the surface. A sideways stroke that starts on the grass cuts exactly the
-fronds it crosses at the height of your finger; a sweep along the floor mows
-a bed down to nubs. Algae films the glass over hours and a drag across it
-squeegees it clean. Fish like cover: grass calms them, and only a tank truly
+the surface. With the scissors a sideways stroke cuts exactly the fronds
+it crosses at the height of your finger; a sweep along the floor mows a bed
+down to nubs. Algae films the glass over hours, and a drag of the sponge
+across it squeegees it clean. Fish like cover: grass calms them, and only a tank truly
 smothered by two beds at the ceiling stresses them.
 
-**The sponge and the scissors.** One stroke can wipe and trim at once, and
-sometimes you only want one. Press BOOT: the main menu's bottom row holds two
-tools. Pick the sponge and your strokes only wipe algae and leave the grass
-alone; pick the scissors and they only trim. While a tool is in your hand
-the glass takes its strokes and nothing else: no feeding, no cards, no
-light, no moving a decoration. A DONE chip sits top left: tap it to put the
+**The tools.** Your bare hands only reach the creatures (since 2026-10-28):
+a tap checks on one, and a held finger draws the trusting ones over. (Two
+taps on the glass flipped the light, three startled the fish, and a finger
+held on a decoration opened its placement page, until then.) Feeding, wiping and trimming are tools on the main menu's
+bottom row. Pick FEED and every tap drops a portion of food at the surface
+over your finger; pick the sponge and your strokes wipe algae; pick the
+scissors and they trim the grass. (Until then a tap at the surface fed, a
+drag down from the top fed, and a bare stroke guessed whether to wipe or
+trim.) While a tool is in your hand the glass takes its work and nothing
+else: no cards, no light, no moving a decoration. A DONE chip sits top left: tap it to put the
 tool back (or pick it again on the menu), or leave it and it goes back by
 itself after two minutes.
 
@@ -407,9 +411,8 @@ shrimp, up to ten, never two within fifteen minutes. With more than half
 the glass covered in algae they refuse food: they keep to the grass and
 turn away from pellets, so the school stops growing until you wipe the
 glass (it never shrinks). Tap the school for its card: how many, the
-pellets they have eaten, and ten pips toward the next shrimp. Three quick
-taps on them scare them like the fish: they flick away tail first and
-regroup.
+pellets they have eaten, and ten pips toward the next shrimp; tap again to
+put it away.
 
 **The sea urchin.** The seventh thing in the shop (120). It lives on the
 sand and nibbles the tallest grass down a little at a time. It never cuts
@@ -422,10 +425,10 @@ sleeps. A tank with a snail wakes up with about a third less algae on the
 glass, and a tank with an urchin wakes up to shorter grass. Helpers take
 the edge off a long sleep; they never take the chores away.
 
-**Selling back, and the short way to a piece.** Tap and hold a still
-finger on any decoration in the tank and its placement page opens right
-there, with MOVE, DEPTH and, in the top-left corner, SELL. The same SELL
-sits next to MOVE in the shop's modal for anything you own. A sale needs
+**Selling back.** A piece's modal in the shop has SELL next to MOVE for
+anything you own, and its placement page (MOVE opens it) has SELL in the
+top-left corner. (A finger held on a decoration in the tank opened that
+page too, until 2026-10-28.) A sale needs
 two taps: the first arms the button and shows the refund, the second
 sells. You get 20% of the price back, the piece leaves the tank, and it is
 in the shop again at full price. The snail and the shrimp are not for
@@ -474,17 +477,17 @@ The whole design is in [docs/species.md](docs/species.md).
 ![Placing the reef cluster: the LOOK row](docs/media/sim-place-cluster.png)
 ![SELL armed in the castle's modal](docs/media/sim-shop-sell.png)
 
-**The light.** Two quick taps on the glass turn the tank light off and on
-(two quick taps on a creature are its own business: a pufferfish puffs up,
-a squid or an octopus squirts ink; the light stays as it was);
-in the dark the fish rest and the palette dims. The first time a double-tap
-turns the light off, a small LIGHTS OUT notice says what happened and how
-to turn it back on, once per tank. The settings page has a
-LIGHTS OUT row that can hand the light to the tank instead: step it from
-DOUBLE-TAP to a time, 5 seconds up to 30 minutes. The tank knows when it
-is being handled (the motion sensor, or a touch) and goes dark by itself
-after that long still, so a tank left on the desk is asleep until you pick
-it up. Six hours of device sleep in one stretch earns the tank its first
+**The light.** The settings page's LIGHTS OUT row decides it: NEVER (the
+default) keeps the light on, or step it to a time, 5 seconds up to 30
+minutes. The tank knows when it is being handled (the motion sensor, or a
+touch) and goes dark by itself after that long still, so a tank left on the
+desk is asleep until you pick it up; in the dark the fish rest and the
+palette dims. (Until 2026-10-28 the default was MANUAL: two quick taps on
+the glass turned the light off and on, with a notice the first time.) Two
+quick taps on a creature are its own business: a pufferfish puffs up, a
+squid or an octopus squirts ink, a seahorse grips a stem, a crab raises its
+claws and scuttles off, a lobster flips its tail, a jellyfish pulses away,
+an eel sparks. Six hours of device sleep in one stretch earns the tank its first
 full night's sleep.
 
 **Feeding is yours if you want it.** The tank drops a pellet now and then
@@ -669,11 +672,12 @@ The selftests write their scratch saves to `/tmp`, which the native
 shell's `cp`. Without that line, MSYS2's `/tmp` is a different folder,
 so the restore misses and the shop, sleep and tend tests fail.
 
-In the window, the mouse is your finger: tap the water surface or drag down
-from the top edge to feed, click a fish for its stats card (the shrimp for
-theirs), click the card to put it away, hold the button to rest a finger on the glass, three quick
-clicks to startle, two to toggle the light, drag across the glass to wipe
-algae, and stroke sideways through a bed to trim it. Keys: **F** feed at the
+In the window, the mouse is your finger: click a fish for its stats card
+(the shrimp for theirs), click the card to put it away, hold the button to
+rest a finger on the glass, two quick clicks on a creature for its trick.
+Feeding, wiping and trimming take the menu's tools (**Space**, then
+FEED, the SPONGE or the SCISSORS): FEED's click drops food, the sponge's
+drag wipes, the scissors' sideways stroke trims. Keys: **F** feed at the
 mouse, **N** light, **A** auto light, **H** handle the tank (moving the
 mouse over the window counts too), **L** switch
 between the rule stub and the LLM brain, **U** overlays, **Space** the BOOT
@@ -885,15 +889,14 @@ seven-minute prompt check before an overnight run is always worth it.
   births announced and named with a family page, a sleep that lives
   through the night at the next boot, fish that get bored and go exploring
 - ✅ Sound: the board's own little speaker plays cues for what you do (a
-  feed, the light, a trim, a card) and for the fish (eating, a spook, a
-  fish coming to your finger), plus a welcome, a birth fanfare and
+  feed, the light, a trim, a card) and for the fish (eating, a fish coming
+  to your finger), plus a welcome, a birth fanfare and
   milestone chimes with an on-screen announcement; the codec is only
   powered while the tank is in your hands, and a low-battery notice keeps
   the gauge on screen until it is charged; a settings page (from the
   milestones page) for brightness and volume, with a mute
 - ✅ The light follows the hand: an optional idle rule (the motion sensor
-  and touch) puts a tank left on the desk to sleep; the double-tap by
-  default
+  and touch) puts a tank left on the desk to sleep; always on by default
 - ✅ Sand dollars: care earns points, the shop spends them; a sword plant,
   an algae-grazing snail, a swim-through castle, a sunken wreck (a different boat in each theme), a drifting frogman and a cruising submarine with a periscope; twelve species besides the fish, the swordfish (2026-10-10 night) and the sea turtle (2026-10-11; it naps on the sand and surfaces for a breath) the latest; what you buy you place yourself,
   (four themes: Original, Quiet Lagoon, Tidepool Club and the realistic

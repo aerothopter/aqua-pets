@@ -242,8 +242,8 @@ bool render_shop_row(int item, int *x, int *y);
 void render_shop_show_item(int item);
 /* The MAIN MENU (2026-10-21): the BOOT key's page, a grid of six tiles -
  * TANK (the milestones page), UPGRADES (the shop), SETTINGS; then the
- * SPONGE, the SCISSORS (tank.h TOOL_*; the one in hand is lit) and an
- * empty cell. Since 2026-10-28 the tiles stand over the live tank, in the
+ * tools - the SPONGE, the SCISSORS and FEED (2026-10-28; an empty cell
+ * before) - tank.h TOOL_*, the one in hand lit. Since 2026-10-28 the tiles stand over the live tank, in the
  * fish card's look; the platform draws the tank first, and the battery pill
  * with it. render_menu_tap maps a tap (the frame's coordinates): a tile's
  * MENU_TAP_*, MENU_TAP_BATTERY off the grid on the pill (RENDER_BAT_HIT: the
@@ -253,7 +253,10 @@ void render_shop_show_item(int item);
  * the page, or puts the tool in hand (the same tool again: back to the hand)
  * and closes the menu. BOOT on the platforms: from the tank the menu, from
  * the menu the tank, from any of its pages back to the menu. */
-enum { MENU_TAP_NONE = 0, MENU_TAP_CLOSE, MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS, MENU_TAP_BATTERY };
+enum { MENU_TAP_NONE = 0, MENU_TAP_CLOSE, MENU_TAP_TANK, MENU_TAP_UPGRADES, MENU_TAP_SETTINGS, MENU_TAP_SPONGE, MENU_TAP_SCISSORS, MENU_TAP_BATTERY, MENU_TAP_FEED };
+/* a tool tile's tool (TOOL_SPONGE / _SCISSORS / _FEED), or -1 for any other tap: the platform puts
+   it in hand, or back in the box if it already is, and closes the menu */
+int  render_menu_tool(int menu_tap);
 void render_menu(const tank_t *t, uint16_t *fb, int stride);
 int  render_menu_tap(const tank_t *t, float x, float y);
 void render_menu_tile_rect(int i, int *x, int *y, int *w, int *h);   /* tile i (0..MENU_TILES-1, row by row) in the frame's coordinates */
@@ -293,9 +296,9 @@ int  render_confirm_hit(float x, float y);
  * for it): BRIGHTNESS 30 / 60 / 100 % and VOLUME OFF / QUIET / NORMAL as
  * segment buttons - tap the one you want - then LIGHTS OUT, one row since
  * 0.3.2 (Strato: "takes up too much real estate ... condense it and give a
- * few options"): a value between two arrows, DOUBLE-TAP (MANUAL, the default:
- * the keeper's double-tap on the glass) and then AUTO after 5 SEC .. 30 MIN
- * still (LIGHT_IDLE_CHOICES); a tap on the row's left half steps back, on its
+ * few options"): a value between two arrows, AUTO after 5 SEC .. 30 MIN still
+ * (LIGHT_IDLE_CHOICES), then NEVER (the default since 2026-10-28; DOUBLE-TAP,
+ * MANUAL, came first before); a tap on the row's left half steps back, on its
  * right half forward. Under it AUTO FEED ON / OFF (tank_t.autofeed_off) and,
  * on a tank that turns its picture over by itself, ROTATION: one button, an
  * open padlock in a turning arrow while the picture follows the tank, a shut
@@ -306,7 +309,7 @@ int  render_confirm_hit(float x, float y);
  * applies the tank's own settings to the tank itself (and marks the save),
  * and returns what happened: SET_TAP_BRIGHT with *value = the percent,
  * SET_TAP_VOLUME 0..2 (those two are the platform's to apply),
- * SET_TAP_LIGHT (the row stepped to or from MANUAL: *value 1 = AUTO),
+ * SET_TAP_LIGHT (the row stepped to or from NEVER: *value 1 = AUTO),
  * SET_TAP_IDLE (AUTO's time stepped: *value = the seconds now set),
  * SET_TAP_FEED (*value 1 = AUTO FEED on), SET_TAP_ROTATE (*value 1 =
  * locked), SET_TAP_CLOSE, or nothing.

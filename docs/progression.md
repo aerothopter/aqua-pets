@@ -83,12 +83,12 @@ machine.*
 - **Tap-and-hold** (settled, ~3 s of contact — 2026-08-30): fish swim toward
   the held spot (trust-gated approach; a strongly hungry fish ignores the
   finger). The 3 s gate keeps taps/card-taps from twitching the school.
-- **Aggressive taps**: fish flee the impact site.
-  - While fleeing, continued taps (chasing) keep them fleeing until a
-    **cooldown timer** resets.
-  - After cooldown, it takes **3 consecutive quick taps** to trigger flee
-    mode again (single taps become harmless).
-- (Double-tap toggled the light until 2026-09-15; the light is the idle detector's now, see below.)
+- (**Aggressive taps** - three quick taps made the fish near them flee, and
+  more taps kept them fleeing until a cooldown - went on 2026-10-28, the
+  keeper's call: no keeper would rap the glass on purpose; the species'
+  reactions to it are double-tap tricks now, docs/species.md. So did the
+  double-tap's light, and the hold on a decoration that opened its placement
+  page: the shop's MOVE does that.)
 - Tap reactions are reflex-layer, not model decisions.
 
 ## Upkeep chores (2026-08-30, `tank_veg_bed`/`tank_grow_algae` in tank.c)
@@ -120,7 +120,7 @@ machine.*
 - Tank milestone "a school of ten shrimp" (2026-09-30): the shrimp school reaches SHRIMP_MAX.
   Its badge shows only once shrimp are bought, past the sixth on the TANK row, which then
   scrolls sideways (2026-10-28; six badges a page behind an arrow before).
-- Neither chore ever counts toward the tap burst (no accidental startles).
+- (Neither chore counted toward the tap burst, so they never startled; the tap burst went with the triple tap, 2026-10-28.)
 
 ## Sand dollars and the shop (2026-09-15, `progression.c` SD_*, `render_shop`)
 
@@ -189,9 +189,11 @@ was before.
 ## Light discipline / sleep
 
 - **The keeper runs the light (2026-09-15).** By default (settings LIGHTS
-  OUT = MANUAL) the light stays on until a double-tap on the glass turns it
-  off, and another turns it on; that state is saved. The 240 s day/night
-  cycle is gone (a saved override had frozen a tank in permanent day).
+  OUT = NEVER, since 2026-10-28) the light stays on. (Until then the default
+  was MANUAL: a double-tap on the glass turned it off and another on, the
+  state saved, with a notice the first time; the keeper took the double-tap
+  out, and a MANUAL save loads as NEVER.) The 240 s day/night cycle is gone
+  (a saved override had frozen a tank in permanent day).
   The keeper can opt into AUTO: then the light is on while the device is
   handled - moved (the IMU's motion detector) or touched - and goes off
   after the idle time (15 s by default, `tank_handled`). A tank left on the
@@ -199,11 +201,13 @@ was before.
   A setup page or prompt holds
   the light on (`hold_light`); the director's `light` / `auto` are the only
   override, never saved. The settings page's LIGHTS OUT is one row since
-  0.3.2: a value between two arrows, DOUBLE-TAP (MANUAL, the default:
-  `light_manual_off`, saved) and then AUTO (`light_auto`, the idle rule)
+  0.3.2: a value between two arrows, AUTO (`light_auto`, the idle rule)
   after 5 s, 15 s, 30 s, 1, 3, 5, 10 or 30 min still (`LIGHT_IDLE_CHOICES`,
   `light_idle_s`; until 0.3.2 a swipeable number 5..999 s - a save from
-  then keeps its seconds and shows as the nearest choice).
+  then keeps its seconds and shows as the nearest choice), then NEVER (the
+  default; DOUBLE-TAP came first until 2026-10-28). The save's
+  `light_manual_off` and `light_tip_seen` bytes are written as 0 and read
+  no more (the layout keeps them).
 - Light off → fish retreat to the **seaweed/reef corner** and enter visible
   sleep mode. Obvious, readable behavior.
 - Doubles as a **stasis/pause mode**: light off ≈ pausing the tank without

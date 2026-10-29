@@ -5,7 +5,7 @@
  * What makes six pixels a shrimp: the hunched back, the body thinning to a
  * fanned tail, one eye up front, antennae longer than the body; the tail,
  * legs and antennae are see-through. Character is in the motion: paddling
- * legs, a peck at the floor, the tail-flick escape. (working-assets/shrimp/
+ * legs, a peck at the floor. (working-assets/shrimp/
  * has the approved drafts.) Tones: o belly edge, r cherry, h the back's
  * light, s a glint, e the eye, a antenna, l legs, t tail fan. */
 #define SHRIMP_TONES 8
@@ -21,13 +21,9 @@ static const char *const SHRIMP_IDLE_B[8] = {
 static const char *const SHRIMP_PECK[8] = {      /* nose to the sand */
     "..................", "......ohhs........", "....ohrrrhhhs.....", "..ohrrrrrrrrrr.aa.",
     ".trrrrrrrrrrrrea..", "tto..oorrrrrrrrr..", "t......l.l.l.lo.a.", "................a." };
-static const char *const SHRIMP_DART[8] = {      /* the escape: tail snapped under, antennae streaming back */
-    "..................", "aaaa..ohhs........", "....ohrrrhhhs.....", "...orrrrrrrrrea...",
-    "...ttrrrrrrrrrr...", "...tt.oorrrroo....", "..................", ".................." };
 static void draw_shrimp(ctx_t *c, const shrimp_t *q, const src_t *pal) {
     float sp2 = q->vx * q->vx + q->vy * q->vy;
-    const char *const *fr = q->dart > 0 ? SHRIMP_DART
-                          : q->pecking ? (fmodf(q->ph * 3, 1) < 0.5f ? SHRIMP_PECK : SHRIMP_IDLE_A)
+    const char *const *fr = q->pecking ? (fmodf(q->ph * 3, 1) < 0.5f ? SHRIMP_PECK : SHRIMP_IDLE_A)
                           : (fmodf(q->ph * (sp2 > 9 ? 8 : 2.5f), 1) < 0.5f ? SHRIMP_IDLE_A : SHRIMP_IDLE_B);
     float s = q->yaw;                                   /* head-on it is a sliver, never nothing */
     if (s > -0.3f && s < 0.3f) s = s < 0 ? -0.3f : 0.3f;

@@ -1,10 +1,10 @@
 /* touch_port_ft3168.c — FT3168 capacitive touch (FT5x06 register family) ->
  * tank_touch_hold / tank_touch_tap, with the same gesture timing as the sim's
  * mouse: press+release < 350 ms with < 24 px displacement = tap (fingertips
- * roll and this panel is 322 ppi); held > 300 ms = hold; a drag down from
- * the top edge = feed at that x; every touched frame streams to
- * tank_touch_drag (a moving stroke wipes algae; a horizontal slash through
- * a canopy trims it). Fish taps hit-test each creature's own reach (tank_fish_hit_r) against the press-time fish
+ * roll and this panel is 322 ppi); held > 300 ms = hold; every touched
+ * frame streams to tank_touch_drag (the SPONGE's stroke wipes algae, the
+ * SCISSORS' trims the grass; bare hands neither since 2026-10-28, and a
+ * drag down from the top no longer feeds - the FEED tool's tap does). Fish taps hit-test each creature's own reach (tank_fish_hit_r) against the press-time fish
  * snapshot AND the current position - fish move during a tap. While the stats
  * card is up, a tap anywhere on empty glass dismisses it (hunting the same
  * fish again to close it was the old, cumbersome way) and does nothing else.
@@ -52,7 +52,6 @@ static bool s_shop;                               /* the shop page up (CLOSE ret
 static bool s_back;                               /* the settings page's CLOSE just brought the main menu back: that
                                                      release must not reach the menu as a tap */
 static int  s_shop_act;                           /* an UNLOCK / MOVE / SELL tapped: the raw tap code, for main (one-shot) */
-static bool s_held_page;                          /* this press opened a piece's page by holding on it (2026-09-24) */
 static int  s_set_what, s_set_val;                /* a segment tapped: SET_TAP_* + value, for main */
 static bool s_pill;                               /* main.c drew the battery pill this frame: a tap on it is its page's */
 static bool s_bat; static int64_t s_bat_us;       /* the battery page up, and since when (it closes itself) */
@@ -372,7 +371,7 @@ static void map_touch(uint16_t px, uint16_t py, float *tx, float *ty) {
  * drive the report to its very end). A stroke keeps the finger's own
  * travel for its first EDGE_RAMP0_PX and eases into the full stretch by
  * EDGE_RAMP1_PX: a tap's roll is not magnified into a wipe or a snip (tank.c
- * WIPE_ENGAGE_PX / SLASH_PX), a real stroke runs to the glass. It LANDS
+ * WIPE_ENGAGE_PX / SLASH_TOOL_PX), a real stroke runs to the glass. It LANDS
  * fully stretched in y (a sweep along the floor is on the floor from its
  * first frame, and stays level) but only EDGE_LAND_X of the way in x: a
  * finger put down on a bed's outer frond, 24 px from the wall, reads as the
@@ -500,15 +499,8 @@ void touch_port_poll(tank_t *t) {
         s_dlx = dx; s_dly = dy; s_frames++;
         s_lx = tx; s_ly = ty; if (!modal) tank_touch_drag(t, dx, dy);
     }
-    /* tap-and-hold on a decoration (2026-09-24, Strato: "right now it's like 5
-       taps to get back to the edit"): a still finger 700 ms on an owned
-       piece opens its placement page (MOVE / DEPTH / SELL) right there */
-    if (touched && !modal && !s_held_page && t->tool == TOOL_HAND && now - s_press_us > 700000 && fabsf(tx - s_px) < 24 && fabsf(ty - s_py) < 24) {
-        int it = tank_decor_hit(t, s_px, s_py);
-        if (it >= 0) { setup_begin_place(t, it); s_held_page = true; s_sel = -1;
-                       ESP_LOGI(TAG, "held on the %s: placement page up", SD_ITEMS[it].name); }
-    }
-    if (touched && !modal && !s_held_page && now - s_press_us > 300000 && fabsf(ty - s_py) < 30) tank_touch_hold(t, tx, ty);
+    /* (a still finger 700 ms on a piece opened its placement page until 2026-10-28: the shop's MOVE does) */
+    if (touched && !modal && now - s_press_us > 300000 && fabsf(ty - s_py) < 30) tank_touch_hold(t, tx, ty);
     if (!touched && s_down) {
         /* release: classify with the LAST touched position (the old code fell
            back to the PRESS position here, so dx/dy were always 0 - every
@@ -550,12 +542,12 @@ void touch_port_poll(tank_t *t) {
             if (s_menu) {                                           /* the main menu (2026-10-21): a page, a tool, or off the grid */
                 int r = render_menu_tap(t, s_px, s_py);
                 ESP_LOGI(TAG, "menu tap at %.0f,%.0f -> %s", s_px, s_py, r == MENU_TAP_TANK ? "TANK" : r == MENU_TAP_UPGRADES ? "UPGRADES" : r == MENU_TAP_SETTINGS ? "SETTINGS"
-                         : r == MENU_TAP_SPONGE ? "SPONGE" : r == MENU_TAP_SCISSORS ? "SCISSORS" : r == MENU_TAP_BATTERY ? (s_pill ? "the pill: battery page" : "off the grid: closed")
+                         : r == MENU_TAP_SPONGE ? "SPONGE" : r == MENU_TAP_SCISSORS ? "SCISSORS" : r == MENU_TAP_FEED ? "FEED" : r == MENU_TAP_BATTERY ? (s_pill ? "the pill: battery page" : "off the grid: closed")
                          : r == MENU_TAP_CLOSE ? "off the grid: closed" : "nothing");
                 if (r == MENU_TAP_TANK || r == MENU_TAP_UPGRADES || r == MENU_TAP_SETTINGS) {
                     s_menu = false; s_ms = r == MENU_TAP_TANK; s_shop = r == MENU_TAP_UPGRADES; s_set = r == MENU_TAP_SETTINGS;
-                } else if (r == MENU_TAP_SPONGE || r == MENU_TAP_SCISSORS) {
-                    int tl = r == MENU_TAP_SPONGE ? TOOL_SPONGE : TOOL_SCISSORS;
+                } else if (render_menu_tool(r) >= 0) {             /* the SPONGE, the SCISSORS, FEED (2026-10-28) */
+                    int tl = render_menu_tool(r);
                     tank_set_tool(t, t->tool == tl ? TOOL_HAND : tl); s_menu = false;   /* the same tool again: back to bare hands */
                 } else if (r == MENU_TAP_BATTERY) {               /* the pill (2026-10-28: it shows with the menu): its page, if it shows */
                     s_menu = false; if (s_pill) { s_bat = true; s_bat_us = now; }
@@ -584,9 +576,10 @@ void touch_port_poll(tank_t *t) {
                 progression_ack_milestones(t); render_milestones_leave();   /* everything shown is now "seen" */
                 goto released;
             }
-            if (t->tool != TOOL_HAND) {                      /* a tool in hand owns the glass (2026-10-04): only its chip's DONE answers a tap */
+            if (t->tool != TOOL_HAND) {                      /* a tool in hand owns the glass (2026-10-04): its chip's DONE, or the tool's own tap */
                 s_sel = -1;
                 if (render_tool_chip_hit(t, s_px, s_py)) { tank_set_tool(t, TOOL_HAND); ESP_LOGI(TAG, "tool chip tapped at %.0f,%.0f: back to bare hands", s_px, s_py); }
+                else if (t->tool == TOOL_FEED) { tank_touch_tap(t, s_px, s_py); ESP_LOGI(TAG, "tap at %.0f,%.0f: FEED drops a portion", s_px, s_py); }   /* (2026-10-28) */
                 else ESP_LOGI(TAG, "tap at %.0f,%.0f ignored: a tool is in hand (DONE first)", s_px, s_py);
                 goto released;
             }
@@ -626,7 +619,7 @@ void touch_port_poll(tank_t *t) {
                 static int s_poke_fish = -1; static int64_t s_poke_us;
                 bool again = best == s_poke_fish && now - s_poke_us < 500000;
                 s_poke_fish = best; s_poke_us = now;
-                if (again && tank_poke(t, best)) { s_sel = -1; s_poke_fish = -1; ESP_LOGI(TAG, "%s double-tapped: its trick", t->fish[best].name); }
+                if (again && tank_poke(t, best, s_px, s_py)) { s_sel = -1; s_poke_fish = -1; ESP_LOGI(TAG, "%s double-tapped: its trick", t->fish[best].name); }
                 else { s_sel = (best == s_sel) ? -1 : best; s_sel_us = now; }
             }
             else if ((hk = render_helper_tap(t, s_px, s_py, &s_sel)) >= 0) {   /* a helper (the fish first): its card */
@@ -637,10 +630,8 @@ void touch_port_poll(tank_t *t) {
                                                   (no feed, no light-toggle burst) */
             else tank_touch_tap(t, s_px, s_py);
         }
-        else if (!s_ms && t->tool == TOOL_HAND && s_py - tank_glass_top(s_px) < 60 && dy >= 40) tank_feed(t, s_lx, 3);  /* drag down from the top = feed (not with a tool in hand) */
     }
 released:
-    if (!touched) s_held_page = false;
     s_down = touched;
     if (s_sel >= t->n_fish && !render_card_is_helper(t, s_sel)) s_sel = -1;   /* fresh tank / save load */
     if (s_sel >= 0 && now - s_sel_us > 10 * 1000000) s_sel = -1; /* auto-dismiss */
