@@ -1,0 +1,14 @@
+# Aqua Pets preflight 2026-10-28_1900 on COM4
+I (28526) batlog: 1 samples (h:mm since the first | SoC | VBAT | bright | state | mA since previous)
+I (28526) batlog:     0:00 |  74% | 3882 mV |   0 | asleep | bed
+I (28530) batlog:   (SoC is 1% = 2 mAh; short awake windows are coarse, a night is not)
+I (32585) director: 0 kelp    fish    /0 elder age 30.4h size 1.12 hunger 5.3 energy 10.0 stress 0.0 curiosity 0.0 trust 0.0 ms 1f3b  rest at 91,209
+I (32587) director: 1 pip     fish    /0 elder age 30.4h size 1.16 hunger 6.0 energy 10.0 stress 0.0 curiosity 4.6 trust 0.0 ms 1f33  rest at 120,237
+I (32600) director: pellets 0 | trickle on | ravenous 0 | night idle 27s | veg 0.24 0.26 0.26 | algae cells 55/644 | courting no | arrival -
+I (32613) director: sand dollars 184 (earned 184) | shop: - | colonies 43 | 1013 cm trimmed
+I (32621) director: species: fish 2 | 2 of 25 places | courting pair of one species: no
+I (32629) director: bed 0 fronds (x from 19, pitch 12): 0.30 0.29 0.29 0.28 0.28 0.27 0.27 0.27 0.27 0.26 0.26 0.26 0.10 0.10 0.10
+I (32640) director: bed 1 fronds (x from 376, pitch 12): 0.26 0.26 0.26 0.26 0.26
+I (32648) director: bed 2 fronds (x from 278, pitch 12): 0.26 0.26 0.26 0.26 0.26 0.26 0.26 0.26
+I (32656) director: nursery bed 1 (a bed >= 0.12) | parked real tank: no (this IS the real tank)
+I (32665) director: battery 70% charging, VBAT 3955 mV | brightness 91/255 (level 60%)

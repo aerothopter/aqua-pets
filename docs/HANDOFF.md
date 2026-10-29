@@ -56,7 +56,7 @@ lines and a few dozen bytes of RAM.
 
 | board | `make check-all` | pictured | firmware built | flashed | on the glass |
 |---|---|---|---|---|---|
-| 1.8 rect | passes (18 selftests) | the shop's snapshot pages looked at (top and scrolled) | yes (5.4.4, throwaway key, no warnings): app 0x201000 (unchanged), `.dram0.bss` 58,656 (−440 from the shake's removal: `fish_t` lost its toss) | no | no |
+| 1.8 rect | passes (18 selftests) | the shop's snapshot pages looked at (top and scrolled) | yes (5.4.4, throwaway key, no warnings): app 0x201000 (unchanged), `.dram0.bss` 58,656 (−440 from the shake's removal: `fish_t` lost its toss) | **yes, 2026-10-28 19:00** (`tools/flash.sh`, app only; archive docs/batlog/2026-10-28_1900.txt; with the shake's removal) | not yet by the keeper; the serial log after boot: 2 fish (the save kept), resting at night, 13.1 tok/s, heap 40 KB, no errors |
 
 **Open.**
 - Next: the milestones page's creature rows (vertical; now a chevron and a
@@ -97,7 +97,7 @@ unchanged. All 118 snapshot pages are identical.
 
 | board | `make check-all` | pictured | firmware built | flashed | on the glass |
 |---|---|---|---|---|---|
-| 1.8 rect | passes (18 selftests) | snapshot pages identical; board_sheet.py not run | yes (5.4.4, throwaway key, no warnings): app 0x201000 | no | no |
+| 1.8 rect | passes (18 selftests) | snapshot pages identical; board_sheet.py not run | yes (5.4.4, throwaway key, no warnings): app 0x201000 | yes, 2026-10-28 19:00 (with the scrolling shop, the entry above) | not yet by the keeper |
 
 **Open.** The tap half of the TODO: the triple tap that startles the
 creatures.
