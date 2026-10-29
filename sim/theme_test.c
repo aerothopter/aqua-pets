@@ -105,9 +105,9 @@ static int art_sheets(const tank_t *base,const char *prefix) {
         }
         shot(prefix,"jellyfish_life",id);
         render_shop_leave();render_shop(&t,fb,TANK_W);
-        for(int page=1;page<SHP_PAGES;page++)render_shop_tap(&t,SHP_ARROW_X1+PAGE_X+8,SHP_ARROW_Y+PAGE_Y+8);
+        render_shop_show_item(SD_ITEM_COUNT-1);
         render_shop(&t,fb,TANK_W);shot(prefix,"jellyfish_shop",id);
-        render_shop_tap(&t,PAGE_X+70,PAGE_Y+SHP_ROW_Y0+12);
+        {int rx,ry;render_shop_row(SD_ITEM_COUNT-2,&rx,&ry);render_shop_tap(&t,(float)rx,(float)ry);}
         render_shop(&t,fb,TANK_W);shot(prefix,"jellyfish_buy",id);render_shop_leave();
         for(int j=0;j<4;j++) {
             render_rect(fb,TANK_W,-PAGE_X,-PAGE_Y,TANK_W,TANK_H,0x031015);

@@ -456,7 +456,7 @@ void tank_frogman_place(tank_t *t) {
 }
 void tank_sub_place(tank_t *t) {
     t->sub.x = TANK_W / 2; t->sub.y = t->sub.lane = TANK_H * 0.26f; t->sub.yaw = -1; t->sub.dir = -1; t->sub.lane_t = 15;
-    t->sub.v = SUB_SPEED; t->sub.stop = 0; t->sub.next = 18; t->sub.peri = 0; t->sub.look = 0; t->sub.toss = 0; t->sub.vx = t->sub.vy = 0;
+    t->sub.v = SUB_SPEED; t->sub.stop = 0; t->sub.next = 18; t->sub.peri = 0; t->sub.look = 0;
 }
 bool tank_sub_hit(const tank_t *t, float x, float y) {
     if (!(t->sd_unlocks & SD_ITEM_SUB)) return false;
@@ -496,20 +496,6 @@ static const drift_t *drift_near(tank_t *t, int self) {
 static void sub_tick(tank_t *t, float dt) {
     if (!(t->sd_unlocks & SD_ITEM_SUB)) return;
     float lo = tank_glass_x0(t->sub.y) + SUB_MARGIN, hi = tank_glass_x1(t->sub.y) - SUB_MARGIN;   /* the glass at its height: the bowl narrows toward the top and the sand */
-    if (t->sub.toss > 0) {
-        t->sub.toss -= dt; float damp = expf(-dt * 1.5f);
-        t->sub.vx *= damp; t->sub.vy = t->sub.vy * damp + 6 * dt;
-        t->sub.x += t->sub.vx * dt; t->sub.y += t->sub.vy * dt;
-        if (t->sub.x < lo) { t->sub.x = lo; t->sub.vx = fabsf(t->sub.vx) * 0.6f; }
-        if (t->sub.x > hi) { t->sub.x = hi; t->sub.vx = -fabsf(t->sub.vx) * 0.6f; }
-        float top = fmaxf(SUB_LANE_LO - 10, tank_glass_top(t->sub.x) + 20);
-        if (t->sub.y < top) { t->sub.y = top; t->sub.vy = fabsf(t->sub.vy) * 0.6f; }
-        if (t->sub.y > TANK_BOT - 50) { t->sub.y = TANK_BOT - 50; t->sub.vy = -fabsf(t->sub.vy) * 0.5f; }
-        t->sub.yaw = clampf(t->sub.yaw + (t->sub.vx >= 0 ? 4 : -4) * dt, -1, 1); t->sub.dir = t->sub.vx >= 0 ? 1 : -1;
-        t->sub.stop = 0; t->sub.peri = 0;
-        if (t->sub.toss <= 0) { t->sub.toss = 0; t->sub.lane = clampf(t->sub.y, SUB_LANE_LO, SUB_LANE_HI); t->sub.next = tank_randf(t, SUB_CRUISE_LO, SUB_CRUISE_HI); }
-        return;
-    }
     if (t->sub.stop > 0) {
         t->sub.stop -= dt;
         float into = SUB_STOP_S - t->sub.stop, want = into < 1 ? into : t->sub.stop < 1 ? t->sub.stop : 1;
@@ -551,19 +537,6 @@ bool tank_frogman_hit(const tank_t *t, float x, float y) {
 static void frogman_tick(tank_t *t, float dt) {
     if (!(t->sd_unlocks & SD_ITEM_FROGMAN)) return;
     float lo = tank_glass_x0(t->frogman.y) + FROG_MARGIN, hi = tank_glass_x1(t->frogman.y) - FROG_MARGIN;   /* the glass at his height (the whole column is his since 2026-10-10 night) */
-    if (t->frogman.toss > 0) {                                  /* tossed by a shake: the throw, damping out, off the glass */
-        t->frogman.toss -= dt; float damp = expf(-dt * 1.5f);
-        t->frogman.vx *= damp; t->frogman.vy = t->frogman.vy * damp + 8 * dt;
-        t->frogman.x += t->frogman.vx * dt; t->frogman.y += t->frogman.vy * dt;
-        if (t->frogman.x < lo) { t->frogman.x = lo; t->frogman.vx = fabsf(t->frogman.vx) * 0.6f; }
-        if (t->frogman.x > hi) { t->frogman.x = hi; t->frogman.vx = -fabsf(t->frogman.vx) * 0.6f; }
-        float top = fmaxf(FROG_LANE_LO - 10, tank_glass_top(t->frogman.x) + 18);
-        if (t->frogman.y < top) { t->frogman.y = top; t->frogman.vy = fabsf(t->frogman.vy) * 0.6f; }
-        if (t->frogman.y > TANK_BOT - 40) { t->frogman.y = TANK_BOT - 40; t->frogman.vy = -fabsf(t->frogman.vy) * 0.5f; }
-        t->frogman.yaw = clampf(t->frogman.yaw + (t->frogman.vx >= 0 ? 4 : -4) * dt, -1, 1); t->frogman.dir = t->frogman.vx >= 0 ? 1 : -1;
-        if (t->frogman.toss <= 0) { t->frogman.toss = 0; t->frogman.lane = clampf(t->frogman.y, FROG_LANE_LO, FROG_LANE_HI); }
-        return;
-    }
     if (t->frogman.dir >= 0 && t->frogman.x >= hi) t->frogman.dir = -1;
     if (t->frogman.dir < 0 && t->frogman.x <= lo) t->frogman.dir = 1;
     float want = (float)t->frogman.dir, d = want - t->frogman.yaw, step = 2.5f * dt;
@@ -590,7 +563,7 @@ bool tank_shrimp_hit(const tank_t *t, float x, float y) {
     return false;
 }
 
-/* ---- what each one does at tank_init, on arrival, at a startle and a shake,
+/* ---- what each one does at tank_init, on arrival and at a startle,
  * and what it keeps across a boot ---- */
 static void snail_init(tank_t *t) {
     t->snail.x = -1; t->snail.y = -1; t->snail.heading = 0; t->snail.cell = -1; t->snail.graze = 0;
@@ -622,7 +595,6 @@ static void urchin_load(tank_t *t, const helper_rec_t *r) {
 }
 static void shrimp_init(tank_t *t) { memset(&t->school, 0, sizeof t->school); }   /* (2026-10-22: tank_init left the last tank's school, its tally on its card) */
 static void shrimp_arrive(tank_t *t) { tank_shrimp_place(t, SHRIMP_START); t->school.food = 0; t->school.cool = 0; }
-static void shrimp_shake(tank_t *t, float strength) { (void)strength; shrimp_scatter(t, TANK_W * 0.5f, TANK_H * 0.5f, 10000); }
 static int  shrimp_tap(tank_t *t, float x, float y) {
     int taps = tank_shrimp_tap(t, x, y);
     return taps == 1 ? 1 : taps >= 3 ? -1 : 0;         /* the third quick tap scares them: the card goes */
@@ -640,15 +612,6 @@ static void shrimp_load(tank_t *t, const helper_rec_t *r) {
         t->school.cool = r->amount > 0 && r->amount <= SHRIMP_COOLDOWN_S ? r->amount : 0;
         t->school.eaten = r->count > 0 ? r->count : 0;
     } else { t->school.n = 0; t->school.eaten = 0; }
-}
-static void frogman_init(tank_t *t) { tank_frogman_place(t); t->frogman.toss = 0; t->frogman.vx = t->frogman.vy = 0; }
-static void frogman_shake(tank_t *t, float strength) {
-    float a = tank_randf(t, 0, 6.2831853f), v = tank_randf(t, 120, 220) * strength;
-    t->frogman.toss = TOSS_S; t->frogman.vx = cosf(a) * v; t->frogman.vy = sinf(a) * v;
-}
-static void sub_shake(tank_t *t, float strength) {
-    float a = tank_randf(t, 0, 6.2831853f), v = tank_randf(t, 80, 160) * strength;
-    t->sub.toss = TOSS_S; t->sub.vx = cosf(a) * v; t->sub.vy = sinf(a) * v;
 }
 static drift_t *frogman_drift(tank_t *t) { return &t->frogman; }
 static drift_t *sub_drift(tank_t *t)     { return &t->sub; }
@@ -670,14 +633,14 @@ const helper_def_t HELPER[HK_COUNT] = {
                      .hit = tank_urchin_hit, .body = urchin_body, .save = urchin_save, .load = urchin_load },
     [HK_SHRIMP]  = { .name = "SHRIMP", .shop_bit = SD_ITEM_SHRIMP, .shop_item = 5, .habitat = HAB_FLOOR,
                      .init = shrimp_init, .arrive = shrimp_arrive, .tick = shrimp_tick, .sleep = shrimp_sleep,
-                     .startle = shrimp_scatter, .shake = shrimp_shake, .hit = tank_shrimp_hit, .tap = shrimp_tap, .body = shrimp_body,
+                     .startle = shrimp_scatter, .hit = tank_shrimp_hit, .tap = shrimp_tap, .body = shrimp_body,
                      .save = shrimp_save, .load = shrimp_load },
     /* the drifters: no card yet - a tap on one goes through to the water */
     [HK_FROGMAN] = { .name = "FROGMAN", .shop_bit = SD_ITEM_FROGMAN, .shop_item = SD_ITEM_FROGMAN_IDX, .habitat = HAB_WATER,
-                     .init = frogman_init, .arrive = tank_frogman_place, .tick = frogman_tick, .shake = frogman_shake,
+                     .init = tank_frogman_place, .arrive = tank_frogman_place, .tick = frogman_tick,
                      .body = frogman_body, .drift = frogman_drift },
     [HK_SUB]     = { .name = "SUBMARINE", .shop_bit = SD_ITEM_SUB, .shop_item = SD_ITEM_SUB_IDX, .habitat = HAB_WATER,
-                     .init = tank_sub_place, .arrive = tank_sub_place, .tick = sub_tick, .shake = sub_shake,
+                     .init = tank_sub_place, .arrive = tank_sub_place, .tick = sub_tick,
                      .body = sub_body, .drift = sub_drift },
 };
 
@@ -711,9 +674,6 @@ void helper_sleep_slice_all(tank_t *t, float seconds) {
 }
 void helper_startle_all(tank_t *t, float x, float y, float radius) {
     for (int k = 0; k < HK_COUNT; k++) if (HELPER[k].startle && helper_owned(t, k)) HELPER[k].startle(t, x, y, radius);
-}
-void helper_shake_all(tank_t *t, float strength) {
-    for (int k = 0; k < HK_COUNT; k++) if (HELPER[k].shake && helper_owned(t, k)) HELPER[k].shake(t, strength);
 }
 void helper_leave(tank_t *t, int k) {
     if (k >= 0 && k < HK_COUNT && HELPER[k].init) HELPER[k].init(t);

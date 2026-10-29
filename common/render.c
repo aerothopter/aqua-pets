@@ -7,6 +7,7 @@
 #include "icons.h"
 #include "progression.h"
 #include "tank_events.h"
+#include "scroll.h"
 #include "setup.h"
 #include "version.h"
 #include <math.h>
@@ -32,6 +33,15 @@ static ctx_t ctx_page(uint16_t *fb, int stride) {
     ctx_t c = { fb, stride, 1.0f, -PAGE_X, -PAGE_Y, TANK_W, TANK_H };
     g_dirty_hold = true;                           /* a page's coordinates must never reach the mask */
     return c;
+}
+/* a list's view (2026-10-28, scroll.h): the same coordinates, drawing only inside (x, y, w, h) */
+static ctx_t ctx_clip(const ctx_t *c, int x, int y, int w, int h) {
+    int x0 = x > c->ox ? x : c->ox, y0 = y > c->oy ? y : c->oy;
+    int x1 = x + w < c->ox + c->w ? x + w : c->ox + c->w, y1 = y + h < c->oy + c->h ? y + h : c->oy + c->h;
+    if (x1 < x0) x1 = x0;
+    if (y1 < y0) y1 = y0;
+    ctx_t k = { c->fb + (y0 - c->oy) * c->stride + (x0 - c->ox), c->stride, c->dim, x0, y0, x1 - x0, y1 - y0 };
+    return k;
 }
 #define CTX_IN(c, x, y) ((unsigned)((x) - (c)->ox) < (unsigned)(c)->w && (unsigned)((y) - (c)->oy) < (unsigned)(c)->h)
 #define CTX_PX(c, x, y) ((c)->fb[((y) - (c)->oy) * (c)->stride + ((x) - (c)->ox)])
@@ -2602,19 +2612,22 @@ static const icon_t *shop_icon(int item) {
     return item == 0 ? &icon_shop_plant : item == 1 ? &icon_shop_snail : item == 2 ? &icon_shop_castle : item == 3 ? &icon_shop_coral : item == 4 ? &icon_shop_cluster : item == 5 ? &icon_shop_shrimp : item == SD_ITEM_WRECK_IDX ? &icon_shop_wreck : item == SD_ITEM_FROGMAN_IDX ? &icon_shop_frogman : item == SD_ITEM_SUB_IDX ? &icon_shop_sub : &icon_shop_urchin; }
 /* a species' creature needs one free place (2026-10-07; a pair needed two): with no room its UNLOCK reads NO ROOM, dim */
 static bool shop_no_room(const tank_t *t, int item) { return progression_item_species(item) > 0 && !progression_has_room_one(t); }
-/* pages (2026-09-23, the fourth item): SHP_PER_PAGE rows fit between the
- * coin and the foot buttons once the filler caption went (HOW TO EARN says
- * the same). With more items than a page holds, arrows at the header's
- * right flip through the pages; with one page nothing shows. */
-static int g_shp_page;
-static void shop_arrow(ctx_t *c, int x, int y, bool right, uint32_t rgb) {   /* a chevron in a button */
-    button(c, x, y, SHP_ARROW_W, SHP_ARROW_H, 0x1c2f36, rgb, "", 2);
-    int cx = x + SHP_ARROW_W / 2, cy = y + SHP_ARROW_H / 2;
-    for (int i = 0; i < 7; i++) {                            /* a chevron: two strokes meeting at the tip */
-        int x = right ? cx - 3 + i : cx + 3 - i;
-        rect_fill(c, x, cy - 6 + i, 2, 1, rgb);
-        rect_fill(c, x, cy + 6 - i, 2, 1, rgb);
-    }
+/* the list (2026-10-28): every item's row in one column that scrolls
+ * between the header's rule and the foot (scroll.h); four rows a page behind
+ * arrows at the header's right before (2026-09-23). */
+static scroll_t g_shp_scroll = { .max = SHP_LIST_H - (SHP_LIST_Y1 - SHP_LIST_Y0) };
+static int shop_row_top(int i) { return SHP_ROW_Y0 + i * SHP_ROW_DY - scroll_px(&g_shp_scroll); }
+/* a list's scroll bar (2026-10-28): a dim track the view's height, the thumb as long as the view's share of the list, where it is */
+static void scroll_bar(ctx_t *c, const scroll_t *s, int x, int y0, int y1, int content) {
+    if (s->max <= 0) return;
+    int view = y1 - y0, len = view * view / content, at = (int)(s->pos * (view - len) / s->max);
+    if (len < 16) len = 16;
+    if (at < 0) { len += at; at = 0; }                        /* squeezed past an end, as the list gives */
+    if (at + len > view) len = view - at;
+    if (len < 4) len = 4;
+    src_t track = src_color(theme_ui_color(MSP_DIM), 1.0f), thumb = src_color(theme_ui_color(MSP_TEAL), 1.0f);
+    for (int y = y0; y < y1; y++) span(c, x, x + 2, y, &track, 70);
+    for (int y = y0 + at; y < y0 + at + len && y < y1; y++) span(c, x, x + 2, y, &thumb, scroll_moving(s) ? 255 : 170);
 }
 static void price_tag(ctx_t *c, int x, int y, int price, uint32_t rgb) {   /* the small coin + the number */
     blit_icon(c, x, y - 1, &icon_shop_sand_dollar_16, 255);
@@ -2630,13 +2643,12 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
     char bal[16]; snprintf(bal, sizeof bal, "%d", (int)t->sd_balance);
     draw_text(&c, SHP_HEAD_X, SHP_COIN_Y + 28, 4, 0xffffff, bal);
     for (int x = 24; x < PAGE_W - 24; x++) px_blend(&c, x, SHP_ROW_Y0 - 10, MSP_DIM, 200);
-    if (SHP_PAGES > 1) {
-        shop_arrow(&c, SHP_ARROW_X0, SHP_ARROW_Y, false, g_shp_page > 0 ? MSP_TEAL : MSP_DIM);
-        shop_arrow(&c, SHP_ARROW_X1, SHP_ARROW_Y, true, g_shp_page < SHP_PAGES - 1 ? MSP_TEAL : MSP_DIM);
-    }
-    for (int i = g_shp_page * SHP_PER_PAGE; i < SD_ITEM_COUNT && i < (g_shp_page + 1) * SHP_PER_PAGE; i++) {
+    ctx_t page = c;
+    c = ctx_clip(&page, -PAGE_X, SHP_LIST_Y0, TANK_W, SHP_LIST_Y1 - SHP_LIST_Y0);   /* the rows, inside the list's view */
+    for (int i = 0; i < SD_ITEM_COUNT; i++) {
         const sd_item_t *it = &SD_ITEMS[i];
-        int top = SHP_ROW_Y0 + (i - g_shp_page * SHP_PER_PAGE) * SHP_ROW_DY;
+        int top = shop_row_top(i);
+        if (top + 34 <= SHP_LIST_Y0 || top >= SHP_LIST_Y1) continue;   /* out of the view */
         /* (a species' row is never "owned": one is bought as often as there is room, 2026-10-07) */
         bool owned = (t->sd_unlocks & it->bit) != 0 && progression_item_species(i) <= 0, room = !shop_no_room(t, i), can = t->sd_balance >= it->price && room;
         /* a thing not yet bought is its silhouette; a species is always shown as the creature
@@ -2652,6 +2664,8 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
                         draw_text(&c, SHP_BTN_X + (SHP_BTN_W - text_w("UNLOCK", 2)) / 2, top + (SHP_BTN_H - 14) / 2, 2, MSP_INK, "UNLOCK"); }
         else           button(&c, SHP_BTN_X, top, SHP_BTN_W, SHP_BTN_H, 0x1c2f36, MSP_DIM, "UNLOCK", 2);
     }
+    c = page;
+    scroll_bar(&c, &g_shp_scroll, SHP_BAR_X, SHP_LIST_Y0 + 2, SHP_LIST_Y1 - 2, SHP_LIST_H);
     button(&c, SHP_EARN_X, MSP_CLOSE_Y, SHP_EARN_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "HOW TO EARN", 2);
     button(&c, SHP_CLOSE_X, MSP_CLOSE_Y, MSP_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
     if (g_shp_modal < 0 && !g_shp_earn) return;
@@ -2715,6 +2729,7 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
 int render_shop_tap(const tank_t *t, float x, float y) {
     x -= PAGE_X; y -= PAGE_Y;                    /* the page's own coordinates */
     if (g_shp_earn) { g_shp_earn = false; return SHOP_TAP_KEPT; }
+    if (g_shp_modal < 0 && scroll_took(&g_shp_scroll)) return SHOP_TAP_KEPT;   /* the stroke scrolled the list (or stopped it) */
     if (g_shp_modal >= 0) {
         int item = g_shp_modal; const sd_item_t *it = &SD_ITEMS[item];
         bool owned = (t->sd_unlocks & it->bit) != 0 && progression_item_species(item) <= 0, can = t->sd_balance >= it->price && !shop_no_room(t, item);   /* (a species: never owned, 2026-10-07) */
@@ -2741,18 +2756,26 @@ int render_shop_tap(const tank_t *t, float x, float y) {
     }
     if (x >= SHP_CLOSE_X - 6 && y >= MSP_CLOSE_Y - 4) return SHOP_TAP_CLOSE;
     if (x < SHP_EARN_X + SHP_EARN_W + 8 && y >= MSP_CLOSE_Y - 4) { g_shp_earn = true; return SHOP_TAP_KEPT; }
-    if (SHP_PAGES > 1 && y < SHP_ROW_Y0 - 10 && x >= SHP_ARROW_X0 - 8) {   /* the page arrows, in the header band */
-        if (x < SHP_ARROW_X1 - 4) { if (g_shp_page > 0) g_shp_page--; }
-        else if (g_shp_page < SHP_PAGES - 1) g_shp_page++;
-        return SHOP_TAP_KEPT;
-    }
-    for (int i = g_shp_page * SHP_PER_PAGE; i < SD_ITEM_COUNT && i < (g_shp_page + 1) * SHP_PER_PAGE; i++) {
-        int top = SHP_ROW_Y0 + (i - g_shp_page * SHP_PER_PAGE) * SHP_ROW_DY;
+    if (y < SHP_LIST_Y0 || y >= SHP_LIST_Y1) return SHOP_TAP_NONE;   /* (a row cut by the view's edge: only what shows) */
+    for (int i = 0; i < SD_ITEM_COUNT; i++) {
+        int top = shop_row_top(i);
         if (x >= 20 && y >= top - 8 && y < top + SHP_ROW_DY - 8) { g_shp_modal = i; return SHOP_TAP_KEPT; }
     }
     return SHOP_TAP_NONE;
 }
-void render_shop_leave(void) { g_shp_modal = -1; g_shp_earn = false; g_shp_page = 0; g_shp_sell_armed = false; }
+void render_shop_leave(void) { g_shp_modal = -1; g_shp_earn = false; g_shp_sell_armed = false; scroll_reset(&g_shp_scroll); }
+void render_shop_touch(float x, float y, bool down, uint32_t now_ms) {
+    x -= PAGE_X; y -= PAGE_Y;
+    bool on = g_shp_modal < 0 && !g_shp_earn && y >= SHP_LIST_Y0 && y < SHP_LIST_Y1 && x >= 0 && x < PAGE_W;   /* (under a modal the rows are out of reach) */
+    scroll_touch(&g_shp_scroll, y, down, on, now_ms);
+}
+bool render_shop_row(int item, int *x, int *y) {
+    if (item < 0 || item >= SD_ITEM_COUNT) return false;
+    int top = shop_row_top(item);
+    *x = PAGE_X + 100; *y = PAGE_Y + top + 20;               /* on its name's line */
+    return top - 8 >= SHP_LIST_Y0 && top + 34 <= SHP_LIST_Y1;
+}
+void render_shop_show_item(int item) { scroll_to(&g_shp_scroll, (float)(item * SHP_ROW_DY)); }
 
 /* ---- the main menu (2026-10-21): the BOOT key's page ----
  * Six tiles, three across: TANK (the milestones page), UPGRADES (the shop),

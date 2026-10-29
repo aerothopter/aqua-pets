@@ -13,7 +13,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef enum {                     /* order fixed: the ticks, the shake and the save's records run in it
+typedef enum {                     /* order fixed: the ticks and the save's records run in it
                                     * (the tank's RNG is drawn in this order) */
     HK_SNAIL, HK_URCHIN, HK_SHRIMP, HK_FROGMAN, HK_SUB,
     HK_COUNT } helper_kind_t;
@@ -106,7 +106,6 @@ typedef struct {
     int8_t   dir;                  /* the way it is going */
     float    lane;                 /* the y it eases toward */
     float    lane_t;               /* seconds until it picks another lane */
-    float    toss, vx, vy;         /* tossed by a shake (tank_shake): seconds left, the throw */
     /* the sub's cruise */
     float    v;                    /* px/s along its heading: eases to SUB_SPEED, or to 0 for a stop */
     float    stop;                 /* seconds left of a stop (0 = cruising) */
@@ -137,7 +136,6 @@ typedef struct {
     void     (*sleep)(tank_t *t, float seconds);   /* asleep: the whole span at once, before the night is lived */
     void     (*sleep_slice)(tank_t *t, float seconds);   /* asleep: a slice at a time, after the slice's grass and film grow */
     void     (*startle)(tank_t *t, float x, float y, float radius);   /* a startle at (x, y) */
-    void     (*shake)(tank_t *t, float strength);  /* a hard shake of the device */
     bool     (*hit)(const tank_t *t, float x, float y);   /* a tap on it opens its card; NULL = a tap goes through to the water */
     int      (*tap)(tank_t *t, float x, float y);  /* a tap on it: 1 = its card up or down, 0 = nothing, -1 = the card down; NULL = 1 */
     bool     (*body)(const tank_t *t, int i, float *x, float *y);   /* its i-th body's centre (the school's shrimp, one by one); false past the last */
@@ -158,7 +156,6 @@ void  helper_tick_all(tank_t *t, float dt);
 void  helper_sleep_all(tank_t *t, float seconds);
 void  helper_sleep_slice_all(tank_t *t, float seconds);
 void  helper_startle_all(tank_t *t, float x, float y, float radius);
-void  helper_shake_all(tank_t *t, float strength);
 
 /* ---- the snail ----
  * It has two poses (Strato's sprites, 2026-09-15): UPRIGHT, walking the tank

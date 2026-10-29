@@ -224,6 +224,17 @@ _Static_assert(SD_ITEM_COUNT <= SHOP_TAP_MOVE - SHOP_TAP_BUY && SD_ITEM_COUNT <=
 void render_shop(const tank_t *t, uint16_t *fb, int stride);
 int  render_shop_tap(const tank_t *t, float x, float y);
 void render_shop_leave(void);
+/* the list scrolls (2026-10-28; four rows a page behind the header's arrows
+ * before): every frame the shop is up the platform hands it the finger, in
+ * the frame's coordinates (scroll.h); a drag on the rows moves them, a flick
+ * flings them, and the stroke's release is no tap (render_shop_tap keeps it).
+ * A thin bar at the right says where the view is. */
+void render_shop_touch(float x, float y, bool down, uint32_t now_ms);
+/* for the tests and the director, so neither knows the list's numbers: a
+ * point on an item's row in the frame (false = not wholly in view), and the
+ * list scrolled to bring a row to its top (as far as the list goes) */
+bool render_shop_row(int item, int *x, int *y);
+void render_shop_show_item(int item);
 /* The MAIN MENU (2026-10-21): the BOOT key's page, a grid of six tiles -
  * TANK (the milestones page), UPGRADES (the shop), SETTINGS; then the
  * SPONGE, the SCISSORS (tank.h TOOL_*; the one in hand is lit) and an
@@ -388,7 +399,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define MSP_HOW_SLOP_UP 12
 #define MSP_HOW_SLOP_DN 28
 /* the shop (the board's: the header's SHP_COIN_X / SHP_HEAD_X, the foot's
- * SHP_EARN_X / SHP_CLOSE_X, and the page arrows' inset SHP_ARROW_IN) */
+ * SHP_EARN_X / SHP_CLOSE_X, and the list's bar SHP_BAR_X) */
 #define SHP_COIN_Y   10
 #define SHP_ROW_Y0    98
 #define SHP_ROW_DY    56
@@ -407,13 +418,11 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define SHP_TWO_GAP 16               /* MOVE and SELL side by side in the modal */
 #define SHP_TWO_X0  (SHP_MODAL_X + (SHP_MODAL_W - 2 * MSP_HOW_W - SHP_TWO_GAP) / 2)
 #define SHP_TWO_X1  (SHP_TWO_X0 + MSP_HOW_W + SHP_TWO_GAP)
-#define SHP_PER_PAGE 4
-#define SHP_PAGES    ((SD_ITEM_COUNT + SHP_PER_PAGE - 1) / SHP_PER_PAGE)
-#define SHP_ARROW_W  36
-#define SHP_ARROW_H  32
-#define SHP_ARROW_Y  (SHP_COIN_Y + 16)
-#define SHP_ARROW_X1 (PAGE_W - SHP_ARROW_IN - SHP_ARROW_W)   /* next */
-#define SHP_ARROW_X0 (SHP_ARROW_X1 - SHP_ARROW_W - 8)     /* previous */
+/* the list (2026-10-28): its view from under the header's rule to above the foot,
+   every item's row in it - SHP_ROW_DY apart, 34 px tall (the button and the price line), 9 px in at each end */
+#define SHP_LIST_Y0  (SHP_ROW_Y0 - 9)
+#define SHP_LIST_Y1  (MSP_CLOSE_Y - 6)
+#define SHP_LIST_H   (9 + (SD_ITEM_COUNT - 1) * SHP_ROW_DY + 34 + 9)
 /* the main menu: three tiles across, two down, inside the area every board shows whole (x 56..392, y 60..300) */
 #define MENU_TILES    6
 #define MENU_X0       56

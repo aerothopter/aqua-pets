@@ -125,17 +125,21 @@ static goal_t advisor_inspect(const tank_t *t, int fish_idx, bool request) {
     return g;
 }
 static int ms_tap(float px, float py) { return render_milestones_tap(&tank, PG_X(px), PG_Y(py)); }
-/* the shop: row r's band, the modal's one button (UNLOCK) or two (MOVE, SELL), the header's arrows */
+/* the shop: row r's band (with the list at the top, or scrolled to bring the old page's first
+   item there: render_shop_show_item), the modal's one button (UNLOCK) or two (MOVE, SELL) */
 #define SHOP_ROW_X     100                                         /* on a row's name (the band runs the page's width) */
 #define SHOP_ROW_Y(r)  (SHP_ROW_Y0 + (r) * SHP_ROW_DY + 20)
 #define SHOP_BTN_Y     (SHP_MODAL_Y + SHP_MODAL_H - 12 - MSP_HOW_H / 2)
 #define SHOP_BTN_X     (SHP_MODAL_X + SHP_MODAL_W / 2)
 #define SHOP_MOVE_X    (SHP_TWO_X0 + MSP_HOW_W / 2)
 #define SHOP_SELL_X    (SHP_TWO_X1 + MSP_HOW_W / 2)
-#define SHOP_ARROW_Y   (SHP_ARROW_Y + SHP_ARROW_H / 2)
-#define SHOP_PREV_X    (SHP_ARROW_X0 + SHP_ARROW_W / 2)
-#define SHOP_NEXT_X    (SHP_ARROW_X1 + SHP_ARROW_W / 2)
 static int shop_tap(float px, float py) { return render_shop_tap(&tank, PG_X(px), PG_Y(py)); }
+/* an item's row, wherever the list puts it: scrolled to (as far as the list goes) and tapped */
+static int shop_item_tap(int item) {
+    int x, y; render_shop_show_item(item);
+    if (!render_shop_row(item, &x, &y)) return -1;
+    return render_shop_tap(&tank, (float)x, (float)y);
+}
 /* the settings page: segment i of a row's buttons, the LIGHTS OUT row's two arrows */
 #define SETP_SEG_X(i)  (SET_SEG_X + (i) * SET_SEG_DX + SET_SEG_W / 2)
 #define SETP_PREV_X    (SET_SEG_X + SET_ARW_W / 2)
@@ -2931,7 +2935,7 @@ static int snapshot(const char *prefix, int seconds) {
         snprintf(path, sizeof path, "%s_place_sell.ppm", prefix); write_ppm(path, fb);
         setup_cancel(&tank); tank.sd_unlocks &= ~SD_ITEM_CASTLE;
         render_shop_leave(); render_shop(&tank, fb, TANK_W);
-        render_shop_tap(&tank, PAGE_X + 400, PAGE_Y + 30);                              /* the header's right arrow: page 2 */
+        render_shop_show_item(4);                                                        /* scrolled: the cluster's row at the top */
         render_shop(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_shop2.ppm", prefix); write_ppm(path, fb);
         render_shop_leave();
@@ -2968,7 +2972,7 @@ static int snapshot(const char *prefix, int seconds) {
             snprintf(path, sizeof path, "%s_species_card%d.ppm", prefix, k); write_ppm(path, fb);
         }
         tank.sd_balance = 260; tank.sd_unlocks &= (1u << SD_ITEM_SP_FIRST) - 1; progression_species_sync(&tank);
-        render_shop_leave(); render_shop_tap(&tank, PG_X(SHOP_NEXT_X), PG_Y(SHOP_ARROW_Y)); render_shop_tap(&tank, PG_X(SHOP_NEXT_X), PG_Y(SHOP_ARROW_Y));
+        render_shop_leave(); render_shop_show_item(8);
         render_shop(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_species_shop3_full.ppm", prefix); write_ppm(path, fb);
         render_shop_tap(&tank, PG_X(SHOP_ROW_X), PG_Y(SHOP_ROW_Y(1))); render_shop(&tank, fb, TANK_W);   /* the squid: here, back when none are left */
@@ -2978,10 +2982,10 @@ static int snapshot(const char *prefix, int seconds) {
         snprintf(path, sizeof path, "%s_species_shop_noroom.ppm", prefix); write_ppm(path, fb);
         render_shop_leave();
         tank.n_fish = 6; progression_species_sync(&tank);   /* room: four of them step out */
-        render_shop_tap(&tank, PG_X(SHOP_NEXT_X), PG_Y(SHOP_ARROW_Y)); render_shop_tap(&tank, PG_X(SHOP_NEXT_X), PG_Y(SHOP_ARROW_Y));
+        render_shop_show_item(8);
         render_shop(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_species_shop3.ppm", prefix); write_ppm(path, fb);
-        render_shop_tap(&tank, PG_X(SHOP_NEXT_X), PG_Y(SHOP_ARROW_Y)); render_shop(&tank, fb, TANK_W);
+        render_shop_show_item(12); render_shop(&tank, fb, TANK_W);
         snprintf(path, sizeof path, "%s_species_shop4.ppm", prefix); write_ppm(path, fb);
         render_shop_tap(&tank, PG_X(SHOP_ROW_X), PG_Y(SHOP_ROW_Y(0))); render_shop(&tank, fb, TANK_W);   /* the crabs' modal */
         snprintf(path, sizeof path, "%s_species_shop_modal.ppm", prefix); write_ppm(path, fb);
@@ -3460,6 +3464,64 @@ static int selftest_shop(void) {
         render_shop_leave();
         printf("selftest-shop: pages: the sand dollar opens the shop (UPGRADES is the main menu's now); a row -> modal -> UNLOCK buys; a dim UNLOCK does not; HOW TO EARN; CLOSE\n");
     }
+    /* the list scrolls (2026-10-28): the finger every frame as the platforms hand it, ~13 ms apart as the
+       device polls. A drag moves the rows and its release is no tap; a flick flings them and they settle
+       at the end, every row reachable; past the top it gives and springs back; a press on a moving list
+       stops it and is no tap; a still tap still opens a row */
+    {
+        static uint16_t fb[TANK_W * TANK_H];
+        uint32_t ms = 1000;
+        int x0, y0, x, y;
+        #define SH_DOWN(fy, ty, n) for (int k_ = 0; k_ <= (n); k_++, ms += 13) render_shop_touch((float)x0, (fy) + ((ty) - (fy)) * k_ / (float)(n), true, ms)
+        #define SH_UP(ty) render_shop_touch((float)x0, (float)(ty), false, ms)
+        #define SH_IDLE(t_ms) do { for (uint32_t e_ = ms + (t_ms); ms < e_; ms += 13) render_shop_touch((float)x0, 0, false, ms); } while (0)
+        #define SH_TAP(px, py) (render_shop_touch((float)(px), (float)(py), true, ms), ms += 13, render_shop_touch((float)(px), (float)(py), true, ms), ms += 13, \
+                                render_shop_touch((float)(px), (float)(py), false, ms), render_shop_tap(&tank, (float)(px), (float)(py)))
+        #define SH_MODAL() (SH_TAP(PG_X(SHP_CLOSE_X + 40), PG_Y(MS_FOOT_Y)) != SHOP_TAP_CLOSE)   /* a modal up takes CLOSE's tap (and closes) */
+        render_shop_leave(); render_shop(&tank, fb, TANK_W);
+        render_shop_row(2, &x0, &y0);
+        int y_before = y0;
+        SH_DOWN((float)y0, (float)y0 - 150, 40); SH_DOWN((float)y0 - 150, (float)y0 - 150, 12); SH_UP(y0 - 150);   /* a slow drag up, half a second, held still, lifted */
+        SH_IDLE(300);
+        render_shop_row(2, &x, &y);
+        if (y > y_before - 130 || y < y_before - 160) { printf("FAIL: shop scroll: a 150 px drag moved row 2 from %d to %d\n", y_before, y); return 1; }
+        if (render_shop_tap(&tank, (float)x0, (float)y0 - 150) != SHOP_TAP_KEPT || SH_MODAL()) { printf("FAIL: shop scroll: the drag's release opened a row\n"); return 1; }
+        render_shop(&tank, fb, TANK_W);
+        render_shop_leave(); render_shop_row(2, &x0, &y0);
+        SH_DOWN((float)y0, (float)y0 - 120, 6); SH_UP(y0 - 120);  /* a flick: 120 px in 80 ms */
+        render_shop_row(2, &x, &y); int y_lift = y;
+        SH_IDLE(100); render_shop_row(2, &x, &y);
+        if (y >= y_lift - 20) { printf("FAIL: shop scroll: a flick did not carry on (row 2 at %d, %d at the lift)\n", y, y_lift); return 1; }
+        for (int k = 0; k < 6; k++) { SH_DOWN((float)y0, (float)y0 - 120, 6); SH_UP(y0 - 120); SH_IDLE(60); }   /* more flicks: to the end */
+        SH_IDLE(4000);
+        if (!render_shop_row(SD_ITEM_COUNT - 1, &x, &y)) { printf("FAIL: shop scroll: flung to the end, the last row is not in view\n"); return 1; }
+        int y_end = y; SH_IDLE(500); render_shop_row(SD_ITEM_COUNT - 1, &x, &y);
+        if (y != y_end || y + 14 > PAGE_Y + SHP_LIST_Y1) { printf("FAIL: shop scroll: the end did not settle (the last row at %d, then %d)\n", y_end, y); return 1; }
+        render_shop(&tank, fb, TANK_W);
+        if (SH_TAP(x, y) != SHOP_TAP_KEPT || !SH_MODAL()) { printf("FAIL: shop scroll: the last row did not open at the end\n"); return 1; }
+        render_shop_leave(); render_shop_row(0, &x0, &y0);
+        SH_DOWN((float)y0, (float)y0 + 200, 20);                  /* past the top: it gives, then springs back */
+        render_shop_row(0, &x, &y); SH_UP(y0 + 200);
+        if (y <= y0 + 20 || y >= y0 + 200) { printf("FAIL: shop scroll: pulled 200 px past the top, row 0 went %d px\n", y - y0); return 1; }
+        SH_IDLE(1500); render_shop_row(0, &x, &y);
+        if (y != y0) { printf("FAIL: shop scroll: row 0 did not spring back (%d, was %d)\n", y, y0); return 1; }
+        SH_DOWN((float)y0 + 100, (float)y0 - 20, 6); SH_UP(y0 - 20);   /* a flick, then a press on the moving list */
+        SH_IDLE(40);
+        render_shop_row(4, &x, &y);
+        int r_caught = SH_TAP(x, y), y_caught; render_shop_row(4, &x0, &y_caught);
+        SH_IDLE(300); render_shop_row(4, &x0, &y0);
+        if (y0 != y_caught) { printf("FAIL: shop scroll: a press did not stop the fling (row 4 at %d, then %d)\n", y_caught, y0); return 1; }
+        if (r_caught != SHOP_TAP_KEPT || SH_MODAL()) { printf("FAIL: shop scroll: the press that stopped it opened a row\n"); return 1; }
+        render_shop_row(4, &x, &y);                                /* a still tap on the still list */
+        if (SH_TAP(x, y) != SHOP_TAP_KEPT || !SH_MODAL()) { printf("FAIL: shop scroll: a still tap on a row did not open it\n"); return 1; }
+        render_shop_leave();
+        #undef SH_DOWN
+        #undef SH_UP
+        #undef SH_IDLE
+        #undef SH_TAP
+        #undef SH_MODAL
+        printf("selftest-shop: the list scrolls: a drag moves it (its release no tap), a flick flings it to the end (every row reachable), past the top it springs back, a press stops it, a still tap opens a row\n");
+    }
     /* the coral (2026-09-23): the fourth item at 100, placeable with all three
        depths (AMONG by default, in the reef bed's grass), its colour picked on
        the placement page's COLOR row and kept by the save; four rows fit the
@@ -3548,21 +3610,21 @@ static int selftest_shop(void) {
         render_shop_leave(); render_shop(&tank, fb, TANK_W);
         if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(0)) != SHOP_TAP_KEPT) { printf("FAIL: page 1 row 0\n"); return 1; }
         render_shop_leave(); render_shop(&tank, fb, TANK_W);
-        if (shop_tap(SHOP_NEXT_X, SHOP_ARROW_Y) != SHOP_TAP_KEPT) { printf("FAIL: the right arrow\n"); return 1; }
-        render_shop(&tank, fb, TANK_W);                                /* page 2: row 0 is the cluster */
-        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(0)) != SHOP_TAP_KEPT) { printf("FAIL: page 2 row 0 did not open a modal\n"); return 1; }
+        render_shop_show_item(4);
+        render_shop(&tank, fb, TANK_W);                                /* scrolled: the cluster's row at the top */
+        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(0)) != SHOP_TAP_KEPT) { printf("FAIL: the cluster's row did not open a modal\n"); return 1; }
         render_shop(&tank, fb, TANK_W);
         tank.sd_unlocks &= ~SD_ITEM_CLUSTER; tank.sd_balance = SD_PRICE_CLUSTER;
         int r = shop_tap(SHOP_BTN_X, SHOP_BTN_Y);
         if (r != SHOP_TAP_BUY + 4) { printf("FAIL: UNLOCK in the cluster's modal returned %d\n", r); return 1; }
-        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(3)) != SHOP_TAP_KEPT) { printf("FAIL: page 2's fourth row (the shipwreck since 2026-10-10; the seahorses before) did not open a modal\n"); return 1; }
+        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(3)) != SHOP_TAP_KEPT) { printf("FAIL: the shipwreck's row (fourth from the cluster) did not open a modal\n"); return 1; }
         shop_tap(SHOP_ROW_X, SHOP_ROW_Y(3));                           /* (any tap closes its modal) */
-        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(2)) != SHOP_TAP_KEPT) { printf("FAIL: page 2 row 2 (the urchin) did not open a modal\n"); return 1; }
+        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(2)) != SHOP_TAP_KEPT) { printf("FAIL: the urchin's row did not open a modal\n"); return 1; }
         render_shop(&tank, fb, TANK_W);
         shop_tap(SHOP_ROW_X, SHOP_ROW_Y(0));                           /* (any tap closes its modal) */
-        if (shop_tap(SHOP_PREV_X, SHOP_ARROW_Y) != SHOP_TAP_KEPT) { printf("FAIL: the left arrow\n"); return 1; }
+        render_shop_show_item(0);
         render_shop(&tank, fb, TANK_W);
-        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(3)) != SHOP_TAP_KEPT) { printf("FAIL: back on page 1, row 3 (the coral)\n"); return 1; }
+        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(3)) != SHOP_TAP_KEPT) { printf("FAIL: back at the top, row 3 (the coral)\n"); return 1; }
         render_shop_leave();
         tank.sd_balance = SD_PRICE_CLUSTER - 1;
         if (progression_buy(&tank, 4)) { printf("FAIL: the cluster sold short\n"); return 1; }
@@ -3602,7 +3664,7 @@ static int selftest_shop(void) {
         progression_save(&tank); tank_init(&tank, 4245); progression_boot(&tank);
         if (!(tank.sd_unlocks & SD_ITEM_CLUSTER) || fabsf(tank_decor_x(&tank, 4) - 250) > 0.01f || tank_decor_z(&tank, 4) != DECOR_Z_BACK || tank_cluster_scheme(&tank) != 2 || tank_cluster_growth(&tank) != CLUSTER_FULL) {
             printf("FAIL: the save lost the cluster (x %.0f z %d look %d g %.2f)\n", tank_decor_x(&tank, 4), tank_decor_z(&tank, 4), tank_cluster_scheme(&tank), tank_cluster_growth(&tank)); return 1; }
-        printf("selftest-shop: the reef cluster: page 2 by the arrows, UNLOCK at %d, arrives at %d%% (%d / %d cells), a day +%.3f, LOOK -> DUSK, dragged to 250, a bloom of %d px, saved\n", SD_PRICE_CLUSTER, c_young * 100 / c_full, c_young, c_full, g1 - g0, bloom);
+        printf("selftest-shop: the reef cluster: its row scrolled to, UNLOCK at %d, arrives at %d%% (%d / %d cells), a day +%.3f, LOOK -> DUSK, dragged to 250, a bloom of %d px, saved\n", SD_PRICE_CLUSTER, c_young * 100 / c_full, c_young, c_full, g1 - g0, bloom);
         tank_veg_set(&tank, 3, VEG_START);
     }
     /* the shrimp school (2026-09-29): the sixth item at 180, a resident (no
@@ -3615,9 +3677,8 @@ static int selftest_shop(void) {
         if (SD_ITEMS[5].bit != SD_ITEM_SHRIMP || SD_ITEMS[5].price != SD_PRICE_SHRIMP || SD_PRICE_SHRIMP != 180) { printf("FAIL: the shrimp are not the sixth item at 180\n"); return 1; }
         if (tank_decor_placeable(5)) { printf("FAIL: the shrimp are placeable\n"); return 1; }
         render_shop_leave(); render_shop(&tank, fb, TANK_W);
-        if (shop_tap(SHOP_NEXT_X, SHOP_ARROW_Y) != SHOP_TAP_KEPT) { printf("FAIL: the right arrow (to the shrimp)\n"); return 1; }
         render_shop(&tank, fb, TANK_W);
-        if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(1)) != SHOP_TAP_KEPT) { printf("FAIL: page 2 row 1 (the shrimp) did not open a modal\n"); return 1; }
+        if (shop_item_tap(5) != SHOP_TAP_KEPT) { printf("FAIL: the shrimp's row did not open a modal\n"); return 1; }
         render_shop(&tank, fb, TANK_W);
         render_shop_leave();
         tank.sd_unlocks &= ~SD_ITEM_SHRIMP; tank.sd_balance = SD_PRICE_SHRIMP - 1;
@@ -4064,24 +4125,6 @@ static int selftest_shop(void) {
           progression_save(&tank); tank_t back; tank_init(&back, 8); progression_boot(&back);
           if (!(back.sd_unlocks & SD_ITEM_SUB) || back.sub.x != TANK_W / 2) { printf("FAIL: the submarine did not come back from the save mid-tank\n"); return 1; }
           printf("shop: the submarine - item %d at %d, cruised %d turns, %d stops with the periscope up, never nearer the frogman than %.0f px, back from the save\n", SD_ITEM_SUB_IDX, SD_PRICE_SUB, turns, stops, closest); }
-        /* a hard shake (2026-10-10): every creature and the frogman thrown, moving fast at once, then
-           settled within TOSS_S + 2 s - inside the glass, steering back, nothing NaN */
-        { float s0 = 0; for (int i = 0; i < tank.n_fish; i++) s0 += tank.fish[i].stress;
-          tank_shake(&tank, 1.0f);
-          for (int i = 0; i < tank.n_fish; i++) if (tank.fish[i].toss <= 0 || fabsf(tank.fish[i].toss_vx) + fabsf(tank.fish[i].toss_vy) < 100) { printf("FAIL: fish %d was not tossed\n", i); return 1; }
-          if (tank.frogman.toss <= 0) { printf("FAIL: the frogman was not tossed\n"); return 1; }
-          if (tank.sub.toss <= 0) { printf("FAIL: the submarine was not tossed\n"); return 1; }
-          float s1 = 0; for (int i = 0; i < tank.n_fish; i++) s1 += tank.fish[i].stress;
-          if (s1 <= s0) { printf("FAIL: a shake did not stress the creatures\n"); return 1; }
-          float moved = 0; { float x0[N_FISH_MAX]; for (int i = 0; i < tank.n_fish; i++) x0[i] = tank.fish[i].x;
-            for (int k = 0; k < 30; k++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-            for (int i = 0; i < tank.n_fish; i++) moved += fabsf(tank.fish[i].x - x0[i]); }
-          if (moved < tank.n_fish * 8) { printf("FAIL: the tossed creatures barely moved in half a second (%.0f px in all)\n", moved); return 1; }
-          for (int k = 0; k < (int)((TOSS_S + 2) * 60); k++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-          for (int i = 0; i < tank.n_fish; i++) { fish_t *f = &tank.fish[i];
-              if (f->toss != 0 || f->x != f->x || f->y != f->y || f->x < TANK_FX0 || f->x > TANK_FX1 || f->y < 0 || f->y > TANK_BOT) { printf("FAIL: fish %d after the shake: toss %.2f at %.0f,%.0f\n", i, f->toss, f->x, f->y); return 1; } }
-          if (tank.frogman.toss != 0 || tank.frogman.x < 0 || tank.frogman.x > TANK_W) { printf("FAIL: the frogman after the shake\n"); return 1; }
-          printf("shake: %d creatures and the frogman tossed, stress up, settled inside the glass within %.0f s\n", tank.n_fish, TOSS_S + 2); }
     }
     {
         static uint16_t fb[TANK_W * TANK_H];
@@ -4089,7 +4132,6 @@ static int selftest_shop(void) {
         char keep[700]; snprintf(keep, sizeof keep, "cp %s %s.keep", sav, sav);
         progression_save(&tank); (void)system(keep);           /* the tank so far, for the blocks after this one */
         tank_init(&tank, 9191); progression_fresh(&tank); progression_setup_done(&tank); tank.trickle_off = true;
-        if (SHP_PAGES != 6) { printf("FAIL: %d shop pages for %d items\n", SHP_PAGES, SD_ITEM_COUNT); return 1; }
         for (int sp = 1; sp < SP_COUNT; sp++) {
             int item = SD_ITEM_SP_FIRST + sp - 1; const sd_item_t *it = &SD_ITEMS[item];
             uint32_t want_bit = sp < SP_SWORDFISH ? SD_ITEM_SP_SEAHORSE << (sp - 1) : SD_ITEM_SP_SWORDFISH << (sp - SP_SWORDFISH);   /* the species' bits run from 7; the swordfish's (2026-10-10 night) and the turtle's (2026-10-11) sit past the wreck's, the frogman's and the sub's */
@@ -4109,10 +4151,8 @@ static int selftest_shop(void) {
                 int n0 = tank.n_fish; tank.sd_balance = it->price;
                 if (progression_buy(&tank, item) || tank.n_fish != n0 || tank.sd_balance != it->price || (tank.sd_unlocks & it->bit)) {
                     printf("FAIL: the %s sold with no room (%d fish)\n", it->name, tank.n_fish); return 1; }
-                render_shop_leave();
-                for (int p = 0; p < item / SHP_PER_PAGE; p++) shop_tap(SHOP_NEXT_X, SHOP_ARROW_Y);
-                render_shop(&tank, fb, TANK_W);
-                if (shop_tap(SHOP_ROW_X, SHOP_ROW_Y(item % SHP_PER_PAGE)) != SHOP_TAP_KEPT) { printf("FAIL: the %s row did not open\n", it->name); return 1; }
+                render_shop_leave(); render_shop(&tank, fb, TANK_W);
+                if (shop_item_tap(item) != SHOP_TAP_KEPT) { printf("FAIL: the %s row did not open\n", it->name); return 1; }
                 render_shop(&tank, fb, TANK_W);
                 if (shop_tap(SHOP_BTN_X, SHOP_BTN_Y) != SHOP_TAP_KEPT) { printf("FAIL: the %s modal's NO ROOM button sold\n", it->name); return 1; }
                 render_shop_leave();
@@ -4133,10 +4173,8 @@ static int selftest_shop(void) {
             tank.sd_balance = it->price - 1;
             if (progression_buy(&tank, item)) { printf("FAIL: the %s sold short\n", it->name); return 1; }
             tank.sd_balance = it->price;
-            render_shop_leave();
-            for (int p = 0; p < item / SHP_PER_PAGE; p++) shop_tap(SHOP_NEXT_X, SHOP_ARROW_Y);
-            render_shop(&tank, fb, TANK_W);
-            shop_tap(SHOP_ROW_X, SHOP_ROW_Y(item % SHP_PER_PAGE)); render_shop(&tank, fb, TANK_W);
+            render_shop_leave(); render_shop(&tank, fb, TANK_W);
+            shop_item_tap(item); render_shop(&tank, fb, TANK_W);
             int r = shop_tap(SHOP_BTN_X, SHOP_BTN_Y);
             if (r != SHOP_TAP_BUY + item) { printf("FAIL: the %s modal's UNLOCK returned %d\n", it->name, r); return 1; }
             /* decoded as the firmware decodes it (main.c: SELL before MOVE before BUY) - the jellyfish, item 16,
@@ -4149,10 +4187,8 @@ static int selftest_shop(void) {
             /* and a second of its kind sells while the first is here (two of a kind breed): the
                page's row and modal offer it (the bit is up, the row is not "owned") */
             tank.sd_balance = it->price;
-            render_shop_leave();
-            for (int p = 0; p < item / SHP_PER_PAGE; p++) shop_tap(SHOP_NEXT_X, SHOP_ARROW_Y);
-            render_shop(&tank, fb, TANK_W);
-            shop_tap(SHOP_ROW_X, SHOP_ROW_Y(item % SHP_PER_PAGE)); render_shop(&tank, fb, TANK_W);
+            render_shop_leave(); render_shop(&tank, fb, TANK_W);
+            shop_item_tap(item); render_shop(&tank, fb, TANK_W);
             r = shop_tap(SHOP_BTN_X, SHOP_BTN_Y);
             if (r != SHOP_TAP_BUY + item) { printf("FAIL: with one %s here the modal's UNLOCK returned %d\n", it->name, r); return 1; }
             render_shop_leave();
@@ -5375,9 +5411,8 @@ static int golden_decor(const char *prefix) {
                 }
             }
             if (theme == 0 && cached) {
-                tank_shake(&tank, 1.0f);
                 for (int s = 0; s < 120; s++) tank_tick(&tank, 1.0f / 60.0f, advisor_rules);
-                render_tank(&tank, fb, TANK_W); golden_frame(prefix, "t0_cache_shaken", fb);
+                render_tank(&tank, fb, TANK_W); golden_frame(prefix, "t0_cache_later", fb);
                 tank_tick_sleep(&tank, 8 * 3600);
                 render_tank(&tank, fb, TANK_W); golden_frame(prefix, "t0_cache_slept", fb);
                 static char save[512];
@@ -5398,7 +5433,7 @@ static int golden_decor(const char *prefix) {
  * both facings, by day and by night (the last of each row resting, asleep at night),
  * then the species sheet's states, the turns and the pages' previews; in every theme,
  * the scene cache on and off. Then a tank of all thirteen kinds running on the rules -
- * pellets, a startle, a shake, the pokes, a courtship, the light out - with a hash of
+ * pellets, a startle, the pokes, a courtship, the light out - with a hash of
  * every creature's state line (what the model hears) as it goes, a night asleep and
  * the save. One hash a line, as --golden-decor: two builds that print the same lines
  * move, draw and encode the creatures the same. */
@@ -5502,7 +5537,6 @@ static int golden_creatures(const char *prefix) {
     for (int s = 0; s < 30 * 180; s++) {
         if (s == 30 * 20) { tank_feed(&tank, TANK_W * 0.35f, 3); tank_feed(&tank, TANK_W * 0.7f, 3); }
         if (s == 30 * 45) for (int i = 0; i < 3; i++) tank_touch_tap(&tank, TANK_W * 0.5f, TANK_H * 0.55f);
-        if (s == 30 * 70) tank_shake(&tank, 1.0f);
         if (s == 30 * 95) for (int i = 0; i < tank.n_fish; i++) tank_poke(&tank, i);
         if (s == 30 * 110) {                               /* a courtship: the first pair of a kind */
             for (int a = 0; a < tank.n_fish && !tank.courting; a++)
@@ -5647,7 +5681,7 @@ static int selftest_decor(void) {
 /* --selftest-helpers (2026-10-22): every row of HELPER[] (common/helper.h) in
  * this board's world - bought, it arrives inside the glass and goes about its
  * rules there through half an hour of the tank (film and tall grass to work,
- * pellets, a shake, a startle) and a night asleep; a second purchase is
+ * pellets, a startle) and a night asleep; a second purchase is
  * refused; a tap on one with a card brings the card up (and it draws) and the
  * next tap puts it away; the save and the load keep what it keeps; sold, it
  * leaves (its card too) and a rebuy starts fresh. A new row is
@@ -5678,13 +5712,12 @@ static int selftest_helpers(void) {
         if (hl_outside(k, &x, &y)) HL_FAIL("arrives at %.0f,%.0f, off the glass", x, y);
         helper_rec_t fresh; memset(&fresh, 0, sizeof fresh); if (h->save) h->save(&tank, &fresh);   /* what a purchase starts from */
         int card_id = -1;
-        /* half an hour of the tank: film on the glass, the grass grown tall, pellets, a shake, a startle */
+        /* half an hour of the tank: film on the glass, the grass grown tall, pellets, a startle */
         tank_grow_algae(&tank, 40);
         for (int b = 0; b < VEG_BEDS; b++) tank_veg_set(&tank, b, 0.85f);
         const float dt = 1.0f / 30;
         for (int s = 0; s < 30 * 60 * 30; s++) {
             if (s % (30 * 90) == 0) tank_feed(&tank, TANK_W * (0.3f + 0.4f * (s % 7) / 6.0f), 3);
-            if (s == 30 * 600) tank_shake(&tank, 1.0f);
             if (s == 30 * 900) for (int i = 0; i < 3; i++) tank_touch_tap(&tank, TANK_W * 0.5f, TANK_H * 0.55f);
             tank_tick(&tank, dt, advisor_rules);
             if (s % 30 == 0 && hl_outside(k, &x, &y)) HL_FAIL("at %.0f s it is at %.0f,%.0f, off the glass", s * dt, x, y);
@@ -5751,8 +5784,8 @@ static int selftest_helpers(void) {
 /* --selftest-creatures (2026-10-23): every row of SPECIES[] (common/creature.h),
  * the classic fish's too, in this board's world - the row is whole; a pair
  * arrives as its kind, in a design it has; it draws in every theme; it stays
- * inside the glass through twenty minutes of the tank (pellets, a startle, a
- * shake) and a night asleep; a startle and a poke do what its row's hooks say
+ * inside the glass through twenty minutes of the tank (pellets, a startle)
+ * and a night asleep; a startle and a poke do what its row's hooks say
  * (one with a hook changes it, one without leaves it be); the save keeps its
  * kind and design; and its fry are its kind (a classic fish's may hatch as
  * another, by its row's mutate_p). A new species is checked here with no new
@@ -5813,12 +5846,11 @@ static int selftest_creatures(void) {
             poked += did;
             memcpy(f, &was, sizeof was);
         }
-        /* twenty minutes of the tank: pellets, a startle, a shake; every second, inside the glass */
+        /* twenty minutes of the tank: pellets, a startle; every second, inside the glass */
         const float dt = 1.0f / 30;
         for (int st = 0; st < 30 * 60 * 20; st++) {
             if (st % (30 * 90) == 0) tank_feed(&tank, TANK_W * (0.3f + 0.4f * (st % 7) / 6.0f), 3);
             if (st == 30 * 400) for (int i = 0; i < 3; i++) tank_touch_tap(&tank, tank.fish[a].x, tank.fish[a].y);
-            if (st == 30 * 700) tank_shake(&tank, 1.0f);
             tank_tick(&tank, dt, advisor_rules);
             if (st % 30 == 0)
                 for (int i = a; i < a + 2; i++)
@@ -6004,6 +6036,8 @@ int main(int argc, char **argv) {
                                            printf("reset prompt (from settings): click YES or NO (it gives up after %d s)\n", CONFIRM_MS / 1000); }
             else if (r == SET_TAP_ABOUT) { if (s_adev) { SDL_LockAudioDevice(s_adev); audio_jingle(v); SDL_UnlockAudioDevice(s_adev); }   /* the about page: its jingle while it is up */
                                            printf(v ? "about page up (the jingle plays)\n" : "about page closed\n"); }
+        } else if (shop_view && !confirm_view) {
+            render_shop_touch((float)mx, (float)my, mpress, now_ms);   /* the list scrolls (2026-10-28); its taps at the release, below */
         } else if (updates_view && !confirm_view) {              /* the UPDATES page: CHECK, FORGET, CLOSE */
             int r = updates_page_touch((float)mx, (float)my, mpress);
             if (r == UPD_TAP_CLOSE) { updates_view = false; settings_view = true; ms_back = true; }   /* back to the settings page */
@@ -6260,7 +6294,6 @@ int main(int argc, char **argv) {
         gdown = k[SDL_SCANCODE_G];
         if (k[SDL_SCANCODE_Q] || k[SDL_SCANCODE_ESCAPE]) { progression_save(&tank); break; }
         if (k[SDL_SCANCODE_F] && !fdown) tank_feed(&tank, (float)mx, 3);
-        { static bool onedown; if (k[SDL_SCANCODE_1] && !onedown) { tank_shake(&tank, 1.0f); printf("shaken: every creature tossed, settling over ~%.0f s\n", TOSS_S); } onedown = k[SDL_SCANCODE_1]; }   /* 1: a hard shake (2026-10-10; Q quits, A is the light) */
         if (k[SDL_SCANCODE_N] && !ndown) tank_toggle_light(&tank);
         if (k[SDL_SCANCODE_A]) tank_light_auto(&tank);
         if (k[SDL_SCANCODE_L] && !ldown && llm_available) {

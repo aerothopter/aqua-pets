@@ -613,7 +613,6 @@ static void tank_task(void *arg) {
         imu_port_poll(now);
         if (imu_port_moving()) audio_port_prewarm();   /* in a hand: the codec stays warm (docs/AUDIO.md) */
         if (imu_port_handled()) tank_handled(&tank);   /* ... and the light stays on (two polls of motion: a bump on the desk is not a pick-up) */
-        if (imu_port_shaken() && !tank.ui_cover) { tank_shake(&tank, 1.0f); ESP_LOGI(TAG, "shaken: the creatures are tossed"); }   /* (2026-10-10) */
         bool inv = tank_orient(&tank, imu_port_inverted());   /* the live flip, or the way up settings' ROTATION locked (0.3.2) */
 #if DEVICE_WORN
         inv = tank_screen_turned(&tank);  /* worn on a wrist the live flip never runs (the arm swings through every angle):

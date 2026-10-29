@@ -470,6 +470,7 @@ void touch_port_poll(tank_t *t) {
         else if (r == SET_TAP_RESET) { s_set = false; s_back = true; touch_port_confirm_open(); ESP_LOGI(TAG, "settings: RESET - the confirm prompt is up (NO / YES, it times out)"); }
         else if (r == SET_TAP_BRIGHT || r == SET_TAP_VOLUME || r == SET_TAP_LIGHT || r == SET_TAP_IDLE || r == SET_TAP_FEED || r == SET_TAP_ROTATE || r == SET_TAP_ABOUT) { s_set_what = r; s_set_val = v; }
     }
+    if (s_shop && !s_cf && !su) render_shop_touch(tx, ty, touched, (uint32_t)(now / 1000));   /* the shop's list scrolls (2026-10-28); its taps at the release, below */
     if (s_upd && !s_cf && !su) {                             /* the UPDATES page: CHECK (main restarts), FORGET, CLOSE */
         int r = updates_page_touch(tx, ty, touched);
         if (r == UPD_TAP_CLOSE) { s_upd = false; s_set = true; s_back = true; ESP_LOGI(TAG, "updates page: CLOSE -> settings"); }

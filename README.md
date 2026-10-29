@@ -264,7 +264,10 @@ cut, again and again. Nothing is ever needed and nothing is lost: a tank with no
 sand dollars is exactly the tank there was before. The coin on the
 milestones page's TANK row shows your balance, and it (or UPGRADES on the
 main menu) opens the shop: a row per item with its price, UNLOCK when you can
-afford it, IN TANK once you own it, and HOW TO EARN for the list. Three
+afford it, IN TANK once you own it, and HOW TO EARN for the list. The rows
+are one list (since 2026-10-28; four a page behind arrows before): drag it
+to scroll, flick it to fling, and a thin bar at the right shows where you
+are. Three
 things to buy so far. The **sword plant** (40) is a fourth bed of broad
 leaves on the open floor, trimmed and grown and counted as cover like the
 grass. The **snail** (80) grazes the glass clean cell by cell, crawling
@@ -374,7 +377,7 @@ floor's own stones is heaped round it, so the trunk grows out of the floor
 instead of standing on it.
 
 **The reef cluster.** The fifth thing in the shop, and the dearest (240),
-lives on the shop's second page: the header's arrows flip to it. It is a
+sits just below the first four rows (scroll the list down to it). It is a
 whole mature reef on a pile of stones, drawn the same procedural way from
 Strato's cluster art: a branching coral to the left, four tube sponges
 with dark mouths, a lobed brain coral in front, green weed between the
@@ -534,17 +537,10 @@ Lydian lullaby at 72, a perky steel-pan tune at 120, sparse minor-key bells at
 60. It follows the
 VOLUME setting. BACK returns to the settings.
 
-**A hard shake (2026-10-10).** Shake the tank hard and every creature is
-tossed: thrown with a random velocity and spin, tumbling off the glass, the
-floor and the surface, the species reacting on the way (the pufferfish puffs,
-the squid and the octopus ink, the crab raises its claws), the shrimp
-scattering, the frogman thrown too. Over about three seconds the throw damps
-out and they settle back to their own ways, a little stressed, a little less
-trusting. The accelerometer counts jolts of about 1.8 g of change per poll and wants
-three of them in a row (five at first; cut to three later that night), about
-three quarters of a second of hard shaking, so a knock or a drop never counts;
-once every 2.5 s at most. The sim's 1 key does
-the same.
+**No shake (since 2026-10-28).** A hard shake used to toss every creature
+(2026-10-10). The keeper took it out: no keeper would shake the tank except by
+accident. The IMU still turns the picture and keeps the light on while the
+tank is handled.
 
 **The night and the battery (2026-10-10).** Lights out used to keep the full
 25 fps and never sleep, so a tank forgotten on the desk burned its cell at awake

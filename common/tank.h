@@ -287,9 +287,6 @@ typedef struct fish {
     float flourish_wait, surface_s; /* transient: idle event countdown; positive rise/float, negative return */
     uint16_t flourish_cycle;       /* staggered events; never persisted */
     float  sp_x;            /* the anglerfish's home spot along the floor (-1 = not yet) */
-    /* tossed by a shake (2026-10-10, tank_shake): seconds left tumbling, the throw's velocity
-       (px/s, damped), the spin (rad/s). Steering is off while it lasts. Not saved. */
-    float toss, toss_vx, toss_vy, toss_spin;
 } fish_t;
 /* fish_t.sp_mode (not saved) */
 enum { SPM_NONE, SPM_JET, SPM_CLING, SPM_RISE, SPM_GULP, SPM_SINK, SPM_CLAWS, SPM_SCUTTLE, SPM_FLIP, SPM_LUNGE };
@@ -686,14 +683,6 @@ int   tank_species_n(const tank_t *t, int species);
 float tank_fish_hit_r(const fish_t *f);
 bool  tank_poke(tank_t *t, int idx);        /* a double tap on creature idx: its trick (puff, ink); false = it has none */
 void  tank_wreck_place(tank_t *t);           /* the shipwreck bought: its default spot (item 7) */
-/* a hard shake of the device (2026-10-10; the IMU's shake detector, the sim's 1 key): every
- * creature is thrown - a random velocity and spin, tumbling off the glass, the species'
- * startle reactions on the way (the puffer puffs, the squid and octopus ink, the crab's
- * claws), the shrimp scatter, the frogman tumbles - and settles back over TOSS_S seconds
- * (the throw damps out, steering returns). strength ~1 for a hard shake. Stress rises, a
- * little trust goes. */
-void  tank_shake(tank_t *t, float strength);
-#define TOSS_S 3.2f
 float tank_species_size(const fish_t *f);   /* its base size: from its personality, so a load gets the same */
 /* the species' motion, for the renderer and the tests (see THE CONVENTION in
  * fish_t). tank_ground_y: the top of what a floor walker stands on at x -

@@ -881,21 +881,6 @@ void tank_tick_sleep(tank_t *t, float seconds) {
     }
 }
 
-void tank_shake(tank_t *t, float strength) {
-    tank_handled(t);
-    strength = clampf(strength, 0.3f, 1.5f);
-    for (int i = 0; i < t->n_fish; i++) {
-        fish_t *f = &t->fish[i];
-        float a = tank_randf(t, 0, 6.2831853f), v = tank_randf(t, 170, 300) * strength;
-        f->toss = clampf(TOSS_S * (0.7f + 0.3f * strength) + tank_randf(t, -0.4f, 0.4f), 1.5f, 4.5f);
-        f->toss_vx = cosf(a) * v; f->toss_vy = sinf(a) * v; f->toss_spin = tank_randf(t, -6, 6);
-        f->stress = fminf(10, f->stress + 2.5f * strength); f->trust = fmaxf(0, f->trust - 0.3f);
-        sp_startle_hit(t, i, f->x + 20, f->y);    /* a species' puff, ink, claws, flip */
-    }
-    helper_shake_all(t, strength);                          /* the shrimp scatter, the frogman and the sub tumble */
-    tank_emit(TEV_SPOOK, -1);
-}
-
 /* Coarse state signature (the browser prototype's "blunt" gate): banded
  * drives plus bucketed sightings. Excludes clock bearings and exact drive
  * digits, which only steer - a change here is a reason to re-decide. */

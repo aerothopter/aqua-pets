@@ -29,8 +29,8 @@ creature's goal; the species decides how that goal is carried out.
   2026-10-07; before that a pair, on an exotic ladder from crabs 140 to
   hammerheads 400), and sells back from its card for 10 at most
   (`progression_fish_value`). The items are 7..16 in species
-  order (`SD_ITEM_SP_FIRST` + species - 1), on the shop's pages 2..5 (the
-  jellyfish, item 16 / bit 16, is the fifth page's one row).
+  order (`SD_ITEM_SP_FIRST` + species - 1), in the shop's list (it scrolls
+  since 2026-10-28; pages 2..5 behind arrows before).
 - **The bit** of a species' item means "some of them are in the tank"
   (`progression_species_sync`, run on load, after a sale, a birth and a
   buy): it clears when the last one is sold and a surprise hatched in the

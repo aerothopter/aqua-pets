@@ -38,7 +38,7 @@
 #define SHP_HEAD_X    112               /* "SAND DOLLARS" and the balance */
 #define SHP_EARN_X    32
 #define SHP_CLOSE_X   MSP_CLOSE_X
-#define SHP_ARROW_IN  28                /* the page arrows, in from the right edge */
+#define SHP_BAR_X     428               /* the list's scroll bar: right of the rows' buttons (they end at 416) */
 
 /* the settings page (2026-10-28: no title; UPDATES and RESET a row of their
  * own under ROTATION, the foot ABOUT and CLOSE) */

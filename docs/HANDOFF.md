@@ -2,6 +2,106 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## 2026-10-28: a scroll helper; the shop's list scrolls
+
+**What changed.** The keeper asked for swipes and scrolling in place of
+fixed pages and page buttons. The plan is one helper for the shop, the
+milestones page, the settings page and a fish card that grows too big. The
+shop is first.
+- **`common/scroll.c`/`scroll.h`:** one list's scroll, with no drawing. A
+  page keeps a `scroll_t` and hands it the finger every frame: the
+  coordinate along the list, down or not, whether the press is on the
+  list, and a millisecond clock.
+  - A press becomes a drag past 10 px. At the lift the list flings at the
+    finger's speed and slows (friction e^-3.5 a second).
+  - Past either end it follows a third of the finger and springs back.
+  - A press on a moving list only stops it.
+  - `scroll_took` says the stroke was the list's, so its release is no tap.
+    The platforms still classify taps as before (under 350 ms, under
+    24 px), and the page's tap call asks the helper.
+  - **Why the clock:** the device polls touch three times a frame and the
+    sim once, and a fling must go as far on both.
+- **The shop:**
+  - All 22 rows are one column, drawn at `-scroll_px` in a clipped context
+    (`ctx_clip`) between the header's rule and the foot (`SHP_LIST_Y0`/`Y1`,
+    `SHP_LIST_H` in render.h). The context already carried a clip box.
+  - A 3 px bar at `SHP_BAR_X` (the board's layout header) shows the view's
+    place, brighter while it moves.
+  - Gone: the header's arrows, `SHP_PER_PAGE`, `SHP_PAGES`, `SHP_ARROW_*`
+    and `SHP_ARROW_IN`.
+  - New calls:
+    - `render_shop_touch(x, y, down, now_ms)`: the platforms call it every
+      frame while the shop is up. It is one line each in sim/main.c and
+      touch_port_ft3168.c.
+    - `render_shop_row(item, &x, &y)` and `render_shop_show_item(item)`:
+      for the tests, so they ask where a row is instead of counting pages.
+- **Tests:** a new block in `--selftest-shop` drives the gesture at the
+  device's poll rate. It checks:
+  - a drag's distance, and that its release opens nothing
+  - a flick that carries on, and flicks to the end that settle with the last
+    row tappable
+  - the rubber band past the top and its spring back
+  - a press that stops a fling (and is no tap)
+  - a still tap that still opens a row
+
+  The old arrow taps became `render_shop_show_item`, so the rows' offsets
+  are unchanged.
+- **Docs:** README's shop paragraph and docs/species.md describe the list.
+
+**Cost.** The pages were already redrawn whole every frame over the tank,
+so a scrolled list draws as much as a page did. The helper is about 80
+lines and a few dozen bytes of RAM.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | the shop's snapshot pages looked at (top and scrolled) | yes (5.4.4, throwaway key, no warnings): app 0x201000 (unchanged), `.dram0.bss` 58,656 (−440 from the shake's removal: `fish_t` lost its toss) | no | no |
+
+**Open.**
+- Next: the milestones page's creature rows (vertical; now a chevron and a
+  sideways swipe) and the TANK row's badges (sideways; now an arrow).
+  Then settings (it fits today, so it only needs the helper once it grows)
+  and the fish card.
+- On the glass: the feel. The slop (10 px), friction, spring and catch
+  speed are `SCROLL_*` at the top of scroll.c.
+
+## 2026-10-28: no shake (half of the "no startle by tap or shake" TODO)
+
+**What changed.** The keeper's call was to delete all of it rather than just
+unhook the trigger. It is in git history if Play ever wants a deliberate
+shake. Nothing of it was in the save or the model's schema. Removed:
+- **The firmware:** the IMU's shake detector (`imu_port_shaken`,
+  `SHAKE_THRESH`/`COUNT`/`COOLDOWN_US`) and main.c's call. It was
+  hand-rolled from raw QMI8658 samples: three polls in a row each with about
+  1.8 g of change. The chip's own motion engine was never used. The IMU's
+  flip and "handled" logic is untouched.
+- **`common/`:** `tank_shake`, `TOSS_S`, the creatures' tumble
+  (`fish_t.toss*`, `toss_tick`), the helpers' `shake` hook and
+  `helper_shake_all`, the shrimp's scatter on a shake, and the frogman's
+  and the sub's tumble (`drift_t.toss/vx/vy`). `frogman_init` is just
+  `tank_frogman_place` now.
+- **The sim:** the 1 key, the shop selftest's shake block, and the shakes in
+  `--selftest-helpers`, `--selftest-creatures` and both golden oracles.
+  `--golden-decor`'s `t0_cache_shaken` frame is now `t0_cache_later`.
+- **The docs:** README's shake paragraph is now a short removal note, and
+  CLAUDE.md's helper-hook list no longer has `shake`.
+  docs/refactor-plan.md is history and still mentions it.
+
+**Proof.** The baseline was HEAD (73b283e) with only the oracles'
+`tank_shake` calls deleted. Both golden oracles from the new build hash
+identically to it, so with no shake every frame, state line and save is
+unchanged. All 118 snapshot pages are identical.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (18 selftests) | snapshot pages identical; board_sheet.py not run | yes (5.4.4, throwaway key, no warnings): app 0x201000 | no | no |
+
+**Open.** The tap half of the TODO: the triple tap that startles the
+creatures.
+
 ## 2026-10-28: pushed; the keeper's TODOs so far
 
 The keeper looked at the flashed 1.8 ("it all looks good"). `main`
