@@ -1,6 +1,6 @@
-/* ---- the reef cluster, procedural (2026-09-24; Strato's coral-cluster.png:
- * a branching coral, three purple tube sponges, a cyan brain coral and green
- * weed on a pile of grey stones). The same idiom as the coral, bigger: a
+/* ---- the reef cluster, procedural: a branching coral, three purple tube
+ * sponges, a cyan brain coral and green weed on a pile of grey stones. The
+ * same idiom as the coral, bigger: a
  * CL_CW x CL_CH grid of 2 px cells, five ELEMENTS drawn in painter's order
  * (rock, weed, the coral, the tubes, the brain, weed in front), each classed
  * by its own signed distance - rim below / right, lit above / left, a deep

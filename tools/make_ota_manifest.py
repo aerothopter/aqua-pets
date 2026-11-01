@@ -8,22 +8,21 @@ firmware/main/net_port_esp.c).
       -> ota/aqua_pets-v0.3.0-amoled18.bin  (a copy of the build's signed image)
          ota/latest-amoled18.json
 
-One run per board (2026-10-02: 0.3.0 ships three - docs/BOARDS.md). The
-board is read from the image's own marker (tools/pt_boards.py), never from
+One run per board (docs/BOARDS.md). The board is read from the image's own marker (tools/pt_boards.py), never from
 a flag, and names both files; a tank fetches latest-<its board>.json and
 refuses a manifest or an image for another board.
 
   --note "One plain line for the offer page"   (default: the annotated tag's
          first line, else "A new version of the tank")
   --min-from 0.2.0     the oldest release this one can update from
-  --model-url URL      phase two: the model is offered over the air
+  --model-url URL      the model's url for the manifest (the tank does not fetch it: docs/OTA.md)
 
 The manifest, by field: release "0.3.0" and release_num (PT_RELEASE_NUM's
 encoding), board (the image's marker), build (the git build id), min_from, app {url, size, sha256},
 note, needs_cable, model {version, size[, url]}. The tank offers the update
 only when release_num is higher than its own, and says "needs the cable"
 when needs_cable is set, when min_from is above its release, or when the
-model's version is not the one it carries (until phase two).
+model's version is not the one it carries.
 
 The build must be SIGNED (tools/ota_key.sh; the tank refuses anything else)
 and its common/version.h must agree with the model file (model_trailer.py

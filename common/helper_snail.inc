@@ -1,25 +1,23 @@
-/* ---- the snail, procedural (2026-09-16; Strato: "explore doing the same
- * for the snail so the aesthetic matches") ----
- * Drawn the castle's way in place of the two sprites: a little geometry with
+/* ---- the snail, procedural ----
+ * Drawn the castle's way, so the aesthetic matches: a little geometry with
  * a per-pixel tone rule, the castle's position hash for the foot's mottle,
  * golden light from the upper left (the lower right of the shell falls into
  * the dark tones, the rim shades, a wet gleam sits high on the left), mixed
  * with the water of its row like the fronds - a touch stronger on the pane
  * than on the floor, so the glass snail reads closer - and no outline. And
- * it moves (Strato: "the fish animations are so nice, maybe you can add a
- * subtle animation"): PEDAL WAVES run along the foot, head-ward on the glass
+ * it moves, subtly: PEDAL WAVES run along the foot, head-ward on the glass
  * and back along the belly upright, the eye stalks sway against each other,
  * and the shell heaves a pixel with the wave.
  * UPRIGHT faces +x, the origin at the sole under the shell (snail.y +
  * SNAIL_SOLE_DY), mirrored to the heading; ~34 x 17 px. ON THE GLASS the
- * head points +y from the foot's centre, turned to the heading like the
- * sprite was; ~22 x 25 px. The tone rule runs over ~750 px per pose. */
+ * head points +y from the foot's centre, turned to the heading; ~22 x 25 px.
+ * The tone rule runs over ~750 px per pose. */
 enum { SN_S0, SN_S1, SN_S2, SN_S3, SN_S4, SN_F0, SN_F1, SN_F2, SN_F3, SN_TIP, SN_EYE, SN_NONE };
 static const uint32_t SNAIL_RGB[SN_NONE] = {
     0xf8c868, 0xe6953c, 0xc4641e, 0x8c3d16, 0x4a2010,      /* the shell: lit .. the groove */
     0xf2ebe4, 0xd8cec6, 0xb3a7a6, 0x847a80,                /* the foot: lit .. its edge */
     0x1a1c34, 0x0a0c18 };                                  /* stalk tips; the eye and the mouth */
-#define SNAIL_SOLE_DY   6.0f                               /* the sole below snail.y (the sprite's centre) */
+#define SNAIL_SOLE_DY   6.0f                               /* the sole below snail.y (the body's centre) */
 #define SNAIL_TINT_FLOOR 0.84f
 #define SNAIL_TINT_GLASS 0.90f
 static inline int sn_clamp(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -43,7 +41,7 @@ static inline int sn_shell_tone(int band, float lit, bool rim) {
 }
 /* UPRIGHT: the tone at local (lx, ly), or SN_NONE. top = the foot's ridge at
  * this column (computed once per column by the caller) */
-typedef struct { float heave, sw1, sw2; } sn_sway_t;       /* this frame's heave and stalk sways: once, not per pixel (2026-10-03) */
+typedef struct { float heave, sw1, sw2; } sn_sway_t;       /* this frame's heave and stalk sways: once, not per pixel */
 static int snail_upright_tone(int lx, int ly, float top, float clock, const sn_sway_t *sw) {
     float heave = sw->heave;
     float sw1 = sw->sw1, sw2 = sw->sw2;
@@ -58,7 +56,7 @@ static int snail_upright_tone(int lx, int ly, float top, float clock, const sn_s
     if (r <= R) {
         float ax = lx - (cx - 1.5f), ay = ly - (cy + 0.5f);
         float ar = sqrtf(ax * ax + ay * ay), th = atan2f(ay, ax);
-        const float pitch = 2.25f;                                 /* ~4 turns: Strato asked for one more groove */
+        const float pitch = 2.25f;                                 /* ~4 turns */
         float w = fmodf(ar - th / TAU * pitch, pitch); if (w < 0) w += pitch; w /= pitch;
         int tone = sn_shell_tone(w < 0.5f ? 1 : w < 0.74f ? 2 : 3, (-dx * 0.55f - dy * 0.83f) / R, r > R - 1.3f);
         if (ar < 2.2f) tone = 3;                                   /* the apex whorl is tight and dark */
@@ -147,9 +145,9 @@ static inline void snail_put(ctx_t *c, int x, int y, int tone, float tint, sn_ro
 /* ON THE GLASS the shell and the empty corners depend only on the heading:
  * kept per pixel of the 35 x 35 box until the snail turns (the decor
  * scratch, PSRAM). SNG_DYN = the foot, or within reach of a stalk: asked
- * every frame. 2026-10-03: on the glass it cost the 1.8 ~4.5 ms a frame - a
- * sqrtf and an atan2f for every shell pixel, two divides and two sines for
- * every pixel of the box. */
+ * every frame. Asked every frame for all of it, the pose would cost the 1.8
+ * ~4.5 ms: a sqrtf and an atan2f for every shell pixel, two divides and two
+ * sines for every pixel of the box. */
 #define SNG_N    35
 #define SNG_NONE 0xff
 #define SNG_DYN  0xfe

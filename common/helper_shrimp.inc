@@ -1,12 +1,11 @@
-/* ---- the shrimp (2026-09-29): cherry shrimp from 18 x 8 pixel grids,
- * facing right, drawn pixel by pixel through the fish's turn - the yaw
- * foreshortens x - so they stay procedural (Strato: "all aquatic marine life
- * sprites should be procedurally drawn. raster icons only for menus").
+/* ---- the shrimp: cherry shrimp from 18 x 8 pixel grids, facing right,
+ * drawn pixel by pixel through the fish's turn - the yaw foreshortens x - so
+ * they stay procedural (all marine life is drawn procedurally; raster icons
+ * are for menus only).
  * What makes six pixels a shrimp: the hunched back, the body thinning to a
  * fanned tail, one eye up front, antennae longer than the body; the tail,
  * legs and antennae are see-through. Character is in the motion: paddling
- * legs, a peck at the floor. (working-assets/shrimp/
- * has the approved drafts.) Tones: o belly edge, r cherry, h the back's
+ * legs, a peck at the floor. Tones: o belly edge, r cherry, h the back's
  * light, s a glint, e the eye, a antenna, l legs, t tail fan. */
 #define SHRIMP_TONES 8
 static const char SHRIMP_KEYS[SHRIMP_TONES + 1] = "orhsealt";

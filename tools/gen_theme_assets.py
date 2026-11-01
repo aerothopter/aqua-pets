@@ -6,9 +6,8 @@ Run: python3 tools/gen_theme_assets.py [--check]
 --check regenerates into memory and verifies every tracked output.
 Existing Original icons remain untouched. UI replacements have identical extents.
 
-One theme for now (2026-10-26): common/theme_assets.c is out of the tree and
-the build, with the themes (git tag multi-board-multi-theme); don't run this
-until they come back. Its raster() and array() stay in use: the jellyfish,
+One theme for now (docs/THEMES.md): common/theme_assets.c is out of the tree
+and the build; don't run this until the themes come back. Its raster() and array() stay in use: the jellyfish,
 wreck, frogman and sub generators import them.
 """
 from pathlib import Path
@@ -25,7 +24,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'common/theme_assets.c'
 THEMES = [(1, 'quiet-lagoon'), (2, 'tidepool-club')]
-PREVIEW_ONLY = [(3, 'blackwater')]   # a picker fish of its own; icons and fonts borrowed from the lagoon (theme_asset_set: flash)
+PREVIEW_ONLY = [(3, 'blackwater')]   # a picker fish of its own; icons and fonts borrowed from the lagoon
 class Rect(C.Structure):
     _fields_ = [('x', C.c_double), ('y', C.c_double), ('width', C.c_double), ('height', C.c_double)]
 
@@ -97,7 +96,7 @@ def main():
         for scale in [2,3]:
             w,h=5*scale,7*scale; packed=[]
             font=ImageFont.truetype(str(font_path),h)
-            cap_top=ImageDraw.Draw(Image.new('L',(w,h))).textbbox((0,0),'H',font=font)[1]   # one baseline for the cell (2026-10-10: each glyph sat on its own top, so a period floated to the cap line)
+            cap_top=ImageDraw.Draw(Image.new('L',(w,h))).textbbox((0,0),'H',font=font)[1]   # one baseline for the cell, so a period does not float to the cap line
             for code in range(32,127):
                 im=Image.new('L',(w,h)); d=ImageDraw.Draw(im); box=d.textbbox((0,0),chr(code),font=font)
                 d.text(((w-(box[2]-box[0]))//2-box[0],-cap_top),chr(code),font=font,fill=255)

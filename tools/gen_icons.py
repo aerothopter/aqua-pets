@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """gen_icons.py - bake assets/icons/*.png into common/icons.c + icons.h.
 
-Full-color pixel-art icons, hand-drawn (the style: 16/24 px, hard edges,
+Full-color pixel-art icons, hand-drawn (the style: small, hard edges,
 three-tone shading). Each PNG becomes an icon_t: RGB565
 pixels + an 8-bit alpha plane, blended at draw time by render.c's
 blit_icon() (which can also scale alpha for dimming/unrevealed states).
 
 Run from anywhere; paths are repo-relative to this file:
-    ~/.venvs/aquapets/bin/python tools/gen_icons.py
+    python3 tools/gen_icons.py      # needs Pillow
 """
 import os, re, sys
 from PIL import Image
@@ -54,15 +54,15 @@ def main():
         "#include <stdint.h>\n\n"
         "typedef struct { uint8_t w, h; const uint16_t *rgb; const uint8_t *a; } icon_t;\n\n"
         + "\n".join(decls) + "\n"
-        # the thumbnails other generators bake (2026-10-10): kept here so a regeneration never drops them
+        # the thumbnails other generators bake: kept here so a regeneration never drops them
         + "/* per-theme shop thumbnails from their own generators (not assets/icons): */\n"
         + "extern const icon_t icon_shop_jellyfish;        /* common/jellyfish_assets.c, tools/gen_jellyfish_assets.py */\n"
         + "const icon_t *jellyfish_theme_icon(int theme);\n"
-        + "extern const icon_t icon_shop_wreck;            /* the wreck (2026-10-10): common/wreck_assets.c, tools/gen_wreck_assets.py */\n"
+        + "extern const icon_t icon_shop_wreck;            /* the wreck: common/wreck_assets.c, tools/gen_wreck_assets.py */\n"
         + "const icon_t *wreck_theme_icon(int theme);\n"
-        + "extern const icon_t icon_shop_frogman;          /* the frogman (2026-10-10): common/frogman_assets.c, tools/gen_frogman_assets.py */\n"
+        + "extern const icon_t icon_shop_frogman;          /* the frogman: common/frogman_assets.c, tools/gen_frogman_assets.py */\n"
         + "const icon_t *frogman_theme_icon(int theme);\n"
-        + "extern const icon_t icon_shop_sub;              /* the submarine (2026-10-10 night): common/sub_assets.c, tools/gen_sub_assets.py */\n"
+        + "extern const icon_t icon_shop_sub;              /* the submarine: common/sub_assets.c, tools/gen_sub_assets.py */\n"
         + "const icon_t *sub_theme_icon(int theme);\n"
         + "\n#endif\n")
     src = (

@@ -1,4 +1,4 @@
-/* tank_events.h - moments the tank reports as they happen (2026-09-15).
+/* tank_events.h - moments the tank reports as they happen.
  *
  * Sounds are feedback, never behavior (docs/AUDIO.md): tank.c emits an
  * event at the instant something audible happens and carries on; whoever
@@ -10,9 +10,9 @@
 #define TANK_EVENTS_H
 
 enum {
-    TEV_TAP,          /* a tap on the glass that was not a feed */
+    TEV_TAP,          /* a bare-handed tap on the water: a knock on the glass */
     TEV_FEED,         /* the keeper dropped pellets (tank_feed) */
-    TEV_LIGHT_ON,     /* the light toggle, and where it landed */
+    TEV_LIGHT_ON,     /* the light came on / went off (tank_tick) */
     TEV_LIGHT_OFF,
     TEV_WIPE,         /* a stroke became a wipe (once per stroke) */
     TEV_SNIP,         /* a segment of a slash cut at least one frond */

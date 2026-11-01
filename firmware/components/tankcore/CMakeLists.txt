@@ -10,11 +10,9 @@ idf_component_register(
     INCLUDE_DIRS "${COMMON}" "."
     PRIV_REQUIRES nvs_flash esp_driver_i2c
 )
-# POP_CAP: the population ceiling, N_FISH_MAX = 25 on every board since
-# 2026-10-07 (10 with the species on 2026-10-05; the device shipped 5 until
-# then). Each creature is a turn in the advisor's queue: at ~3.7 s a decision
-# on the device, ten creatures each get a fresh decision every ~37 s, a full
-# tank of 25 every ~90 s (six: ~22 s); the reflex layer keeps them moving in
-# between, on older decisions.
+# POP_CAP: the population ceiling, N_FISH_MAX = 25. Each creature is a turn in
+# the advisor's queue: at ~3.7 s a decision on the device, six creatures each
+# get a fresh decision every ~22 s, ten every ~37 s, a full tank of 25 every
+# ~90 s; the reflex layer keeps them moving in between, on older decisions.
 target_compile_options(${COMPONENT_LIB} PRIVATE -O2 -ffast-math -DPOP_CAP=25)
 target_compile_definitions(${COMPONENT_LIB} PUBLIC POP_CAP=25)

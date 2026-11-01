@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Bake the shipwreck's shop thumbnails (2026-10-10), one per theme, the jellyfish's way: the
-Original's tilted boat, Quiet Lagoon's capsized mossy hull, Tidepool Club's little tug,
-Blackwater's sunken fighter plane (the four hulls of render.c draw_wreck); --check verifies the tracked outputs are what this script makes."""
+"""Bake the shipwreck's shop thumbnails, one per theme, the jellyfish's way: the Original's tilted
+boat (decor_wreck.inc), Quiet Lagoon's capsized mossy hull, Tidepool Club's little tug, Blackwater's
+sunken galleon; --check verifies the tracked outputs are what this script makes."""
 from pathlib import Path
 import sys,io
 from gen_theme_assets import raster,array
@@ -62,7 +62,7 @@ def svg_club(wood,dark,hole,sand,metal,sail,water):
 <circle cx="4" cy="6" r=".8" fill="{water}" opacity=".7"/><circle cx="27" cy="4" r="1.1" fill="{water}" opacity=".6"/>
 </svg>'''
 def svg_blackwater(wood,dark,hole,sand,metal,sail,water):
-    # the abyss (2026-10-12): a sunken galleon as render.c's - an oak hull bow right, a high stern castle
+    # the abyss: a sunken galleon - an oak hull bow right, a high stern castle
     # with amber windows, a leaning main mast, a foremast with a rag of sail, two lanterns, a breach
     oak,lit,amber,glow='#6a4a30','#a8865c','#ffb648','#3fd8e6'
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">

@@ -2,7 +2,7 @@
  * PC-sim version; the firmware (main/advisor_llm_esp.c) is the same shape
  * with a FreeRTOS task instead of a pthread.
  *
- * Architecture (mirrors the ESP32 plan):
+ * Architecture (the device's too):
  *   - the tank asks need-based (tank_tick): a request marks the fish PENDING;
  *   - on any poll, if the worker is free and this fish is next in line
  *     (urgent fish first, then rotation), its state is encoded NOW - fresh -
@@ -87,7 +87,7 @@ bool advisor_llm_init(const char *model_path, const char *tok_path) {
     return true;
 }
 
-/* synchronous single decision with prints: warms the mmap'd weights and shows
+/* synchronous single decision with prints: warms the weights and shows
  * the exact state string + raw model output (debug/selftest only) */
 void advisor_llm_debug(const tank_t *t, int fish_idx) {
     char s[400];

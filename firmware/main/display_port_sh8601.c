@@ -3,17 +3,16 @@
  * 368x448, so frames are rotated 90 degrees in software into DMA stripes.
  * Works for V1 (SH8601) and V2 (CO5300) - same init sequence, V2 adds an x gap.
  *
- * And the ROUND 1.75C (2026-10-01; CO5300 again, 466x466, the same driver):
+ * And the ROUND 1.75C (CO5300 again, 466x466, the same driver):
  * recognized at boot by what answers on the I2C bus, its resets on GPIOs
  * instead of the expander, its clock on another pin. The same 448x368 frame
  * is presented in the circle unrotated - scaled 4/5 so all of it shows (FIT),
  * or px for px with the corners cropped (FULL); see display_port.h.
  *
- * And the WATCH (the 2.06, 2026-10-02; CO5300, 410x502 portrait), with GPIO
- * resets and its own init. The image on a watch takes the 1.8's path - its
- * 448x368 frame turned 90 degrees, centred in the glass (a black border,
- * drawn once). (The round and watch boards' own builds were removed on
- * 2026-10-26, to come back later: git tag multi-board-multi-theme.) */
+ * And the WATCH (the 2.06; CO5300, 410x502 portrait), with GPIO resets and
+ * its own init. The image on a watch takes the 1.8's path - its 448x368 frame
+ * turned 90 degrees, centred in the glass (a black border, drawn once). (The
+ * round and watch boards' own builds are at git tag multi-board-multi-theme.) */
 #include "display_port.h"
 #include "board_pins.h"
 #include "tank.h"
@@ -44,7 +43,7 @@ static esp_lcd_panel_io_handle_t s_io;          /* kept for DCS writes after ini
 static uint8_t s_brightness = 0xFF;             /* what init_cmds' 0x51 sets */
 static uint16_t *s_stripe[2];                   /* PANEL_W x STRIPE_ROWS, DMA-capable; ping-pong */
 static SemaphoreHandle_t s_stripe_free;         /* counts stripe buffers not in DMA flight */
-/* where a flush's time goes (2026-10-03): waiting for a stripe buffer to come
+/* where a flush's time goes: waiting for a stripe buffer to come
  * back from the wire, and inside the driver's send; the rest is the CPU
  * filling stripes from the frame */
 static int64_t s_prof_wait, s_prof_send;
@@ -96,11 +95,10 @@ void display_port_deep_sleep_pins(bool tp_awake_high) {
         gpio_hold_en(h[i].pin);
     }
 }
-/* the round board's QSPI lines through the night (2026-10-03). The 1.8 cuts
- * the panel's power at sleep; here the panel stays powered on VCC3V3, and
- * the deep-sleep hold leaves every un-held pad isolated - the clock and the
- * four data lines float into a powered chip. The night drew ~8 mA with
- * everything else asleep (1.63 %/h of a ~500 mAh cell). Driven low, held. */
+/* the round board's QSPI lines through the night. The 1.8 cuts the panel's
+ * power at sleep; here the panel stays powered on VCC3V3, and the deep-sleep
+ * hold leaves every un-held pad isolated - the clock and the four data lines
+ * would float into a powered chip. Driven low, held. */
 static const gpio_num_t ROUND_BUS[] = { R_PIN_LCD_PCLK, PIN_LCD_DATA0, PIN_LCD_DATA1, PIN_LCD_DATA2, PIN_LCD_DATA3 };
 void display_port_deep_sleep_bus(void) {
     if (!s_round) return;
@@ -111,7 +109,7 @@ void display_port_deep_sleep_bus(void) {
         gpio_hold_en(ROUND_BUS[i]);
     }
 }
-/* the night's deep sleep (2026-10-02): DSTBON 4Fh 01 from the sleep-in the
+/* the night's deep sleep: DSTBON 4Fh 01 from the sleep-in the
  * grace left it in (the datasheet allows it there). The panel is then deaf
  * until RESX goes low > 3 ms - the boot's reset - so its reset is held high
  * all night (display_port_deep_sleep_pins). */
@@ -245,7 +243,7 @@ bool display_port_init(void) {
     ESP_ERROR_CHECK(i2c_new_master_bus(&bus, &s_i2c));
     /* which board: the 1.8 has the TCA9554 expander; the 1.75C has none, and
        an ES7210 the 1.8 lacks. Neither, with the PMIC answering = the 1.8's
-       path, as before. Nothing at all = a dead bus (the 1.75C with A3V3 off
+       path. Nothing at all = a dead bus (the 1.75C with A3V3 off
        is exactly that - battery_port.h): no panel is driven on a guess, the
        pins differ between the boards. */
     s_expander = probe(I2C_ADDR_EXPANDER);
@@ -331,7 +329,7 @@ void display_port_sleep(void) {
     }
 }
 
-/* drowse wake: rail back up (expander re-sequenced), then the full panel init
+/* waking from the sleep's grace: rail back up (expander re-sequenced), then the full panel init
  * over the still-open QSPI/I2C buses - no reboot needed. init_cmds is file-
  * static, so the driver's retained pointer stays valid for this re-init. */
 void display_port_wake(void) {

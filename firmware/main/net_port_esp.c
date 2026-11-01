@@ -19,9 +19,9 @@
  *   the board     every image carries a board marker right after its app
  *                 descriptor (pt_board_marker below, PT_BOARD_MARKER_OFFSET):
  *                 the download reads it back from the slot at the first
- *                 sector and stops on another board's - all three boards
- *                 share the signing key, so the signature alone would let a
- *                 bowl install the 1.8's image (2026-10-02)
+ *                 sector and stops on another board's - boards share the
+ *                 signing key, so the signature alone would let one install
+ *                 another's image
  *   the download  esp_https_ota into the other slot; the image must carry
  *                 the project's signature (SECURE_SIGNED_ON_UPDATE, verified
  *                 against the running image's own key) or it is refused
@@ -199,7 +199,7 @@ static void do_connect(void) { do_connect_n(s_attempts, s_wait_ms); }
 /* provisioning at install (update_mode.c): the page waits 45 s for an answer */
 void net_port_esp_connect_budget(int attempts, int wait_ms) { s_attempts = attempts; s_wait_ms = wait_ms; }
 
-/* ---- the time (net_time.h, 2026-10-03) ----
+/* ---- the time (net_time.h) ----
  * Plain SNTP by hand: ESP-IDF's client waits a random 0-5 s before its first
  * question (LWIP_SNTP_STARTUP_DELAY) and sets the system clock itself - the
  * boot wants neither (the keeper is looking at a dark glass, and the first
@@ -271,7 +271,7 @@ static bool parse_manifest(const char *json, update_manifest_t *m) {
         if (cJSON_IsString(v = cJSON_GetObjectItem(model, "version"))) snprintf(m->model_version, sizeof m->model_version, "%s", v->valuestring);
         if (cJSON_IsNumber(v = cJSON_GetObjectItem(model, "size"))) m->model_size = (uint32_t)v->valuedouble;
         m->model_offered = cJSON_IsString(cJSON_GetObjectItem(model, "url"));
-        /* phase one cannot fetch a model: a release that needs a different one takes the cable */
+        /* a tank cannot fetch a model: a release that needs a different one takes the cable */
         if (m->model_version[0] && strcmp(m->model_version, PT_MODEL_TAG) != 0) m->needs_cable = true;
     }
     cJSON_Delete(root);
@@ -288,10 +288,8 @@ static void do_check(void) {
     int err = NET_ERR_NO_NET, n = 0;
     /* GitHub answers a release asset's address with a redirect, twice (releases/latest/download ->
      * releases/download/<tag> -> the asset host, a 900-byte signed address). The open / fetch_headers
-     * pair used here does NOT follow redirects by itself (only esp_http_client_perform does): 0.3.0's
-     * first build read the 302 as the answer and said NO ANSWER to every check against the real
-     * release - a tank that could never see an update (2026-10-04; the rehearsal's files sat on a
-     * host that answers directly). Follow them by hand, a few hops at most. */
+     * pair used here does NOT follow redirects by itself (only esp_http_client_perform does), so they
+     * are followed by hand, a few hops at most. */
     int status = 0;
     for (int hop = 0; buf && hop < 6; hop++) {
         if (esp_http_client_open(c, 0) != ESP_OK) { status = 0; break; }

@@ -3,11 +3,11 @@
  * Reads the "version 3" 4-bit export (model/export_q4.py) straight from a
  * memory-mapped flash partition: weights are never copied to RAM. Forward pass
  * follows llama2.c (runq.c): int8 activation groups x 4-bit weight groups,
- * fp16 weight scales, fp32 norms, RoPE, KV cache. Single-threaded reference
- * kernels first; ESP-DSP / dual-core matmul split is an optimization pass.
+ * fp16 weight scales, fp32 norms, RoPE, KV cache. Single-threaded; on the
+ * ESP32-S3 the group dot product runs on the PIE unit (q4_model.c).
  *
- * Sizes for the shipped 14.3M model: weights 7.6 MB (flash), KV cache 1.5 MB
- * (PSRAM, seq 64), activations < 64 KB. */
+ * Sizes for the shipped 14.2M model: weights 7.6 MB (flash), KV cache 1.5 MB
+ * (PSRAM, seq 64), hot activation buffers ~70 KB (internal SRAM). */
 #ifndef Q4_MODEL_H
 #define Q4_MODEL_H
 #include <stdint.h>

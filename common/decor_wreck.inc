@@ -1,4 +1,4 @@
-/* ---- the shipwreck (2026-10-10, item 7) ---- a small boat lying on the sand, its deck tilted
+/* ---- the shipwreck (item 7) ---- a small boat lying on the sand, its deck tilted
  * up toward the bow on the right: planked hull with two big holes, a gunwale and rail posts,
  * a stub of a cabin with a porthole, a broken mast with a yard and a rag of sail, an anchor
  * on the sand before the bow with its chain up to the prow. Geometry in local coordinates:
@@ -54,7 +54,7 @@ static void draw_wreck_original(ctx_t *c, int cx, bool final, int layer) {
             bool post = x > -44 && x < 44 && ((x + 40) % 16 == 0 || (x + 40) % 16 == 1) && h >= deck && h < deck + 7;
             bool rail = x > -45 && x < 45 && h >= deck + 6 && h < deck + 8;
             if (post || rail) { on = true; rgb = 0x4a3524; }
-            /* the cabin, aft of the mast, with a porthole */
+            /* the cabin, forward of the mast, with a porthole */
             bool cabin = x >= 8 && x <= 30 && h >= deck && h < deck + 11;
             if (cabin) { on = true; int px = x - 19, ph = (int)(h - deck) - 5;
                 rgb = px * px + ph * ph < 7 ? 0x9fd8e2 : px * px + ph * ph < 12 ? 0x3e2d1e : (((int)(h - deck)) % 5 == 0 ? 0x3e2d1e : 0x6a4d35); }
@@ -84,5 +84,5 @@ static void draw_wreck_original(ctx_t *c, int cx, bool final, int layer) {
     draw_floor_mound(c, cx, WRECK_HALF_W - 8, 5, final);
 }
 static void draw_wreck(ctx_t *c, int cx, bool final, int layer) {
-    draw_wreck_original(c, cx, final, layer);   /* (each theme had its own boat: git tag multi-board-multi-theme) */
+    draw_wreck_original(c, cx, final, layer);   /* the Original theme's boat (THEMES.md: a theme may bring its own) */
 }

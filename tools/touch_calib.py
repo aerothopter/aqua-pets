@@ -1,4 +1,4 @@
-#!/Users/strato/.espressif/python_env/idf5.4_py3.13_env/bin/python
+#!/usr/bin/env python3
 """touch_calib.py - run the nine-crosshair touch calibration on a board and
 fit the map from its log (firmware: director `ota calib`, update mode).
 
@@ -8,8 +8,8 @@ mode), then `ota calib` once per pass: nine crosses, a press each. The log's
 "calib N: target X,Y press at X,Y" lines are collected and fitted per axis,
 press = gain * target + offset, with the residuals.
 
-  tools/touch_calib.py <usb serial>                         # the round board, two passes
-  tools/touch_calib.py <usb serial> --passes 3  # the watch
+  tools/touch_calib.py <usb serial>                         # two passes
+  tools/touch_calib.py <usb serial> --passes 3              # three
   tools/touch_calib.py <serial> --flip               # the picture turned over: the board held the other way up
   tools/touch_calib.py <serial> --bias 0             # the y bias inside the log's press (director `touch` says)
 

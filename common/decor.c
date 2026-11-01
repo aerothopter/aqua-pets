@@ -30,7 +30,7 @@ static uint32_t camo_castle(const tank_t *t, const decor_t *d)  { (void)t; (void
 static uint32_t camo_coral(const tank_t *t, const decor_t *d)   { (void)d; return tank_coral_rgb(t); }
 static uint32_t camo_cluster(const tank_t *t, const decor_t *d) { (void)d; return CLUSTER_SCHEMES[tank_cluster_scheme(t)].coral; }
 /* the reef cluster's rock: a low dome of stones with the brain coral's hump on
- * top (render.c CL_ROCKS and CL_BRAIN: ~20 px of rock over 128 px, the brain
+ * top (decor_cluster.inc CL_ROCKS and CL_BRAIN: ~20 px of rock over 128 px, the brain
  * 16 more over its middle 36, at the cluster's size). The castle and the coral
  * fan are walls and a fan - a walker goes round their feet, on the floor. */
 static float ground_cluster(const tank_t *t, const decor_t *d, float x, float g) {
@@ -51,9 +51,8 @@ static float ground_cluster(const tank_t *t, const decor_t *d, float x, float g)
 #define SUNK(h) (14 - DECOR_SINK + (h))
 const decor_def_t DECOR[DK_COUNT] = {
     [DK_SEAGRASS0] = SEAGRASS(0), [DK_SEAGRASS1] = SEAGRASS(1), [DK_SEAGRASS2] = SEAGRASS(2),
-    /* only the plant weaves AMONG the fish; the castle and both corals are
-       BEHIND or IN FRONT (Strato, 2026-09-24: "remove the among option for
-       corals, it doesn't really make as much sense") */
+    /* of the shop's pieces only the plant weaves AMONG the fish; the castle,
+       both corals and the wreck are BEHIND or IN FRONT */
     [DK_PLANT]   = { .name = "SWORD PLANT", .shop_bit = SD_ITEM_PLANT, .shop_item = 0, .where = DPLACE_FLOOR,
                      .z_mask = ALL_Z, .z_default = DECOR_Z_MIDDLE, .flags = DF_SELLABLE | DF_MOVABLE, .veg_bed = 3,
                      .x_default = PLANT_X_DEFAULT, .half_w = PLANT_HALF_W, .hit_rank = 2,

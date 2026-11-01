@@ -1,6 +1,5 @@
 /* The helpers: each one's rules, the table, and the one path every helper
- * takes (see helper.h). The rules moved here from tank.c unchanged
- * (2026-10-22); the tank's RNG is drawn in the same order. */
+ * takes (see helper.h). The tank's RNG is drawn in the table's order. */
 #include "tank.h"
 #include <math.h>
 #include <stddef.h>
@@ -10,28 +9,27 @@ static float clampf(float v, float lo, float hi) {
     return v < lo ? lo : v > hi ? hi : v;
 }
 
-/* ---- the snail (2026-09-15, the shop's algae control) ----
- * A rule-based creature on the GLASS: it crawls toward the nearest film cell
+/* ---- the snail, the shop's algae control ----
+ * A rule-based helper on the GLASS: it crawls toward the nearest film cell
  * and grazes it thin, cell by cell; with the glass clean it ambles along the
- * edge. The model never sees it (schema v4 is frozen) - it reaches the fish
+ * edge. The model never sees it (the schema is frozen) - it reaches the fish
  * the way the film does, through cover and calm. Its grazing is not the
  * keeper's chore: cells_cleaned and the colonies never count it. */
-#define SNAIL_PX_S        4.0f     /* crawl toward a patch (6 was "a bit fast" - Strato) */
+#define SNAIL_PX_S        4.0f     /* crawl toward a patch */
 #define SNAIL_AMBLE_PX_S  3.0f     /* nothing to eat: the edge walk */
 #define SNAIL_GRAZE_PER_S 45.0f    /* film units per second on a cell (a fresh 90 cell in 2 s) */
 #define SNAIL_SLEEP_FRAC_H 0.12f   /* the night shift (tank_tick_sleep): this share of the film's cells
                                     * an hour - the more film, the less it crawls between meals - so a
                                     * night ends cleaner than it would and a long absence settles under
                                     * the cap instead of on it, and there is still film to wipe (tuned
-                                    * in selftest-sleep; 20 cells an hour flat was a spotless glass) */
+                                    * in selftest-sleep) */
 #define SNAIL_MARGIN      30.0f    /* it keeps inside the visible window: the panel's corners are
-                                    * rounded and the bezel curve hides the outer ~24 px (Strato,
-                                    * 2026-09-15: "stuck in the bottom left corner, I can barely
-                                    * see it" - the film seeds from the corners and it went there) */
+                                    * rounded and the bezel curve hides the outer ~24 px, and the film
+                                    * seeds from the corners */
 #define SNAIL_REACH       16.0f    /* it grazes a cell from this close (one cell): a corner cell
                                     * under the bezel is eaten from the visible edge */
-/* where the snail may stand: SNAIL_MARGIN inside the rectangle's frame; on the
- * bowl, whose glass hides nothing, 16 px inside the circle */
+/* where the snail may stand: SNAIL_MARGIN inside the rectangle's frame; on a
+ * curved glass, which hides nothing, 16 px inside it */
 static void snail_clamp(float *x, float *y, float ymax) {
 #if GLASS_CURVED
     tank_glass_clamp(x, y, 16);
@@ -51,10 +49,9 @@ static int snail_nearest_cell(const tank_t *t) {
     return best;
 }
 bool tank_snail_upright(const tank_t *t) { return t->snail.cell < 0 && t->snail.y >= SNAIL_FLOOR_Y - 1; }
-#define SNAIL_TAP_RADIUS 48.0f     /* generous round the 32 px sprite: a fingertip on this 322 ppi
+#define SNAIL_TAP_RADIUS 48.0f     /* generous round the 32 px body: a fingertip on this 322 ppi
                                     * panel covers ~60 px, and the snail is small and low on the glass
-                                    * (Strato, 2026-09-16: "challenging to tap the little guy" at 30;
-                                    * the fish take 38 and are tested first) */
+                                    * (the fish take 38 and are tested first) */
 bool tank_snail_hit(const tank_t *t, float x, float y) {
     if (!(t->sd_unlocks & SD_ITEM_SNAIL) || t->snail.x < 0) return false;
     return tank_dist(t->snail.x, t->snail.y, x, y) <= SNAIL_TAP_RADIUS;
@@ -104,10 +101,7 @@ static void snail_tick(tank_t *t, float dt) {
 /* asleep: the snail keeps working, coarsely - the nearest cells go, one by
  * one. tank_tick_sleep hands it the night a slice at a time, AFTER the
  * slice's film has grown, so it eats the night's film as it comes; the
- * part-cell carries over, so a nap's few minutes count too (2026-10-02: it
- * used to run once, before the night's film, on the film the keeper had
- * already left - from a clean glass a snail's tank woke exactly as dirty as
- * one without, and (int) of a short nap was no cells at all). */
+ * part-cell carries over, so a nap's few minutes count too. */
 static void snail_sleep(tank_t *t, float seconds) {
     if (!(t->sd_unlocks & SD_ITEM_SNAIL)) return;
     if (t->snail.x < 0) tank_snail_place(t);
@@ -131,7 +125,7 @@ void tank_snail_place(tank_t *t) {
     t->snail.heading = 0; t->snail.cell = -1; t->snail.graze = 0; t->snail.front = true;
 }
 
-/* ---- the urchin (2026-10-02, SD_ITEM_URCHIN; helper.h has the rules) ----
+/* ---- the urchin (SD_ITEM_URCHIN; helper.h has the rules) ----
  * The grass's snail. Awake its appetite fills slowly (URCHIN_AWAKE_PER_H of
  * frond height an hour, for the whole tank: the grass grows ~0.75 an hour
  * awake across its ~30 fronds, so it takes the edge off and the scissors
@@ -263,14 +257,12 @@ void tank_urchin_place(tank_t *t) {
 /* ---- the shrimp school (SD_ITEM_SHRIMP; helper.h has the rules) ----
  * A loose school steering to one goal - a spot at the foot of the grass most
  * of the time, now and then out on the sand or up in open water - each shrimp
- * at its own offset from it, keeping about a body length from its neighbours
- * (Strato: "space them out a bit more so they overlap a tad less"). A pellet
- * resting on the floor becomes the goal and they crowd in to peck it. They
- * turn like the fish: a committed turn, then a settle. Tuned against the
- * 2026-09-29 mockup Strato approved. */
+ * at its own offset from it, keeping about a body length from its neighbours.
+ * A pellet resting on the floor becomes the goal and they crowd in to peck it.
+ * They turn like the fish: a committed turn, then a settle. */
 #define SHRIMP_CRUISE    12.0f        /* px/s */
 #define SHRIMP_SEP_X     18.0f        /* personal space, side to side (a body and a bit) ... */
-#define SHRIMP_SEP_Y     11.0f        /* ... and up and down (7 stacked them in towers on the glass) */
+#define SHRIMP_SEP_Y     11.0f        /* ... and up and down */
 #define SHRIMP_TAP_R     30.0f        /* a fingertip on a shrimp: its card */
 #define SHRIMP_HEAD      7.0f         /* the head's offset from the body's centre, along the facing */
 static float shrimp_hash(int i, int k) {  /* a fixed 0..1 per shrimp: its place in the school (no RNG draw) */
@@ -300,11 +292,9 @@ void tank_shrimp_place(tank_t *t, int n) {
 /* the school's next goal. Mostly the foot of the grass; now and then out on
  * the sand; and now and then a slow DRIFT UP a bed to the top of its canopy
  * (or at least SHRIMP_RISE_MIN above the floor when the grass is cut short),
- * a while up there, then back down - Strato, 2026-09-29: "you dont get to see
- * them much ... i dont want them swimming all over the tank all the time but a
- * chance for them to randomly drift up to at least the top of the sea grass".
- * About a quarter of their time goes on these trips. Never while refusing food. */
-#define SHRIMP_RISE_P    0.06f         /* of the goals picked (0.10: up off the bottom ~45% of the time) */
+ * a while up there, then back down, so they are seen without swimming all
+ * over the tank. About a quarter of their time goes on these trips. Never while refusing food. */
+#define SHRIMP_RISE_P    0.06f         /* of the goals picked */
 #define SHRIMP_RISE_MIN  60.0f         /* px above the floor, at the least */
 static void shrimp_goal(tank_t *t, bool refusing) {
     int beds = tank_veg_beds(t);
@@ -328,8 +318,7 @@ static void shrimp_goal(tank_t *t, bool refusing) {
 }
 /* the grass's top over x: the bed under it, or the beds' average over open
  * sand. A pellet that has sunk below it is the shrimp's to take, still falling
- * or resting on the floor (Strato, 2026-09-29: "if food falls below the
- * seagrass canopy its fair game for shrimp even as its still floating downward") */
+ * or resting on the floor. */
 static float shrimp_canopy_y(const tank_t *t, float x) {
     float sum = 0; int nb = tank_veg_beds(t);
     for (int b = 0; b < nb; b++) {
@@ -411,7 +400,7 @@ static void shrimp_tick(tank_t *t, float dt) {
         q->x = clampf(q->x, TANK_FX0 + 12, TANK_FX1 - 12);
         q->y = clampf(q->y, 40, FOOD_FLOOR_Y - 1);
 #if GLASS_CURVED
-        tank_glass_clamp(&q->x, &q->y, 10);          /* up a tall frond by the wall, the bowl closes in */
+        tank_glass_clamp(&q->x, &q->y, 10);          /* up a tall frond by the wall, a curved glass closes in */
 #endif
         {   /* the committed turn */
             int8_t want = q->vx > 1.5f ? 1 : q->vx < -1.5f ? -1 : q->facing;
@@ -443,7 +432,7 @@ bool tank_sub_hit(const tank_t *t, float x, float y) {
     float dx = x - t->sub.x, dy = y - t->sub.y;
     return dx * dx / (30.0f * 30.0f) + dy * dy / (16.0f * 16.0f) < 1;
 }
-/* the drifters share the water (2026-10-10 night, the frogman and the sub): a lane picked within
+/* the drifters share the water (the frogman and the sub): a lane picked within
  * PASS_DY of another's is pushed PASS_DY + 6 away (the side with room), and when two close within
  * PASS_DX nearly level, each eases off to the far side of the other - they pass, never collide */
 #define PASS_DX 110.0f
@@ -470,12 +459,12 @@ static const drift_t *drift_near(tank_t *t, int self) {
     }
     return NULL;
 }
-/* the submarine's cruise (2026-10-10 night): the frogman's drift at SUB_SPEED, easing to a halt for
+/* the submarine's cruise: the frogman's drift at SUB_SPEED, easing to a halt for
  * a stop every SUB_CRUISE_LO..HI s - the periscope rises over the first second, scans (the renderer
  * turns it on sub.look), and sinks over the last - then on again; a new lane now and then */
 static void sub_tick(tank_t *t, float dt) {
     if (!(t->sd_unlocks & SD_ITEM_SUB)) return;
-    float lo = tank_glass_x0(t->sub.y) + SUB_MARGIN, hi = tank_glass_x1(t->sub.y) - SUB_MARGIN;   /* the glass at its height: the bowl narrows toward the top and the sand */
+    float lo = tank_glass_x0(t->sub.y) + SUB_MARGIN, hi = tank_glass_x1(t->sub.y) - SUB_MARGIN;   /* the glass at its height (a curved glass narrows toward the top and the sand) */
     if (t->sub.stop > 0) {
         t->sub.stop -= dt;
         float into = SUB_STOP_S - t->sub.stop, want = into < 1 ? into : t->sub.stop < 1 ? t->sub.stop : 1;
@@ -510,13 +499,13 @@ bool tank_frogman_hit(const tank_t *t, float x, float y) {
     float dx = x - t->frogman.x, dy = y - t->frogman.y;
     return dx * dx / (22.0f * 22.0f) + dy * dy / (14.0f * 14.0f) < 1;
 }
-/* the frogman's drift (2026-10-10): sideways across the water at FROG_SPEED, a turn at
+/* the frogman's drift: sideways across the water at FROG_SPEED, a turn at
  * either margin (his yaw eases over ~0.8 s, so he thins and comes back facing the other
  * way), a slow ease to a new lane every 20-40 s. The bob and the wave are the renderer's,
  * off the clock. */
 static void frogman_tick(tank_t *t, float dt) {
     if (!(t->sd_unlocks & SD_ITEM_FROGMAN)) return;
-    float lo = tank_glass_x0(t->frogman.y) + FROG_MARGIN, hi = tank_glass_x1(t->frogman.y) - FROG_MARGIN;   /* the glass at his height (the whole column is his since 2026-10-10 night) */
+    float lo = tank_glass_x0(t->frogman.y) + FROG_MARGIN, hi = tank_glass_x1(t->frogman.y) - FROG_MARGIN;   /* the glass at his height (the whole column is his) */
     if (t->frogman.dir >= 0 && t->frogman.x >= hi) t->frogman.dir = -1;
     if (t->frogman.dir < 0 && t->frogman.x <= lo) t->frogman.dir = 1;
     float want = (float)t->frogman.dir, d = want - t->frogman.yaw, step = 2.5f * dt;
@@ -529,9 +518,9 @@ static void frogman_tick(tank_t *t, float dt) {
         t->frogman.lane = tank_randf(t, fmaxf(FROG_LANE_LO, tank_glass_top(t->frogman.x) + 26), FROG_LANE_HI);
         t->frogman.lane = lane_clear(t, HK_FROGMAN, t->frogman.lane, FROG_LANE_LO, FROG_LANE_HI);
     }
-    /* the sub coming (2026-10-10 night, Alvin: "make sure the submarine and frogman don't crash into
-       each other's path"): within PASS_DX of it and nearly level, he eases off to a lane PASS_DY
-       clear of it - quickly - and the sub does the same the other way, so they pass */
+    /* the sub coming, so the two never cross each other's path: within PASS_DX of it and nearly
+       level, he eases off to a lane PASS_DY clear of it - quickly - and the sub does the same the
+       other way, so they pass */
     const drift_t *o = drift_near(t, HK_FROGMAN); bool dodge = o != NULL;
     if (dodge) t->frogman.lane = clampf(o->y + (t->frogman.y >= o->y ? PASS_DY + 6 : -(PASS_DY + 6)), FROG_LANE_LO, FROG_LANE_HI);
     t->frogman.y += (t->frogman.lane - t->frogman.y) * fminf(1, (dodge ? 0.9f : 0.15f) * dt);
@@ -573,7 +562,7 @@ static void urchin_load(tank_t *t, const helper_rec_t *r) {
         t->urchin.grazed_px = r->amount > 0 ? r->amount : 0;
     } else { t->urchin.x = -1; t->urchin.grazed_px = 0; }
 }
-static void shrimp_init(tank_t *t) { memset(&t->school, 0, sizeof t->school); }   /* (2026-10-22: tank_init left the last tank's school, its tally on its card) */
+static void shrimp_init(tank_t *t) { memset(&t->school, 0, sizeof t->school); }   /* (tank_init: a new tank's school starts with no tally) */
 static void shrimp_arrive(tank_t *t) { tank_shrimp_place(t, SHRIMP_START); t->school.food = 0; t->school.cool = 0; }
 /* their number (n), the pellets toward the next one (m), the cooldown (amount)
    and the pellets eaten (count) */
@@ -611,7 +600,7 @@ const helper_def_t HELPER[HK_COUNT] = {
                      .init = shrimp_init, .arrive = shrimp_arrive, .tick = shrimp_tick, .sleep = shrimp_sleep,
                      .hit = tank_shrimp_hit, .body = shrimp_body,
                      .save = shrimp_save, .load = shrimp_load },
-    /* the drifters: no card yet - a tap on one goes through to the water */
+    /* the drifters have no card: a tap on one goes through to the water */
     [HK_FROGMAN] = { .name = "FROGMAN", .shop_bit = SD_ITEM_FROGMAN, .shop_item = SD_ITEM_FROGMAN_IDX, .habitat = HAB_WATER,
                      .init = tank_frogman_place, .arrive = tank_frogman_place, .tick = frogman_tick,
                      .body = frogman_body, .drift = frogman_drift },

@@ -1,5 +1,5 @@
 /* advisor_core.h — the platform-agnostic half of the LLM advisor: state
- * encoding (schema v2, and v3 once a v3 tokenizer is loaded), inference with
+ * encoding (the schema the loaded tokenizer speaks, v2..v5), inference with
  * the shipped 4-bit engine, and the distribution layer (sampled goal token,
  * confidence, runner-up). sim/advisor_llm.c and firmware/main/advisor_llm_esp.c
  * only add threading around this. One copy of the encoder = one place for the

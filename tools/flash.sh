@@ -3,7 +3,7 @@
 # tank state first (tools/preflight.py -> docs/batlog/), then builds and
 # flashes the app; `--model` also writes the model partition. Refuses to run
 # without a preflight archive: battery measurements run in parallel with
-# feature work, and a reflash used to wipe the night's log (2026-09-15).
+# feature work, and a reflash could otherwise lose the night's log.
 #
 #   tools/flash.sh              # preflight, build, flash app
 #   tools/flash.sh --model      # ... and model/out/model_q4.bin at 0x290000

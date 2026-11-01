@@ -1,4 +1,4 @@
-/* scroll.c - one list's scroll (scroll.h, 2026-10-28) */
+/* scroll.c - one list's scroll (scroll.h) */
 #include "scroll.h"
 #include <math.h>
 #include <string.h>

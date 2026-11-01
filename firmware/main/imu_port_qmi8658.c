@@ -1,7 +1,7 @@
 /* imu_port_qmi8658.c — QMI8658 6-axis IMU (I2C 0x6B, alt 0x6A) as an
  * orientation sensor: accel only at 31.25 Hz, gyro off. Polled ~4x/s from the
  * tank task; the inverted flag flips only after the gravity component along
- * the panel's landscape-vertical axis has clearly (>0.5 g) pointed the other
+ * the panel's landscape-vertical axis has clearly (FLIP_THRESH) pointed the other
  * way for 3 consecutive polls, and holds its last state while the device lies
  * flat (no axis dominant), so the screen never flaps on a table. */
 #include "imu_port.h"
@@ -14,8 +14,8 @@
 /* which accel axis is "up" when the tank is held right side up. The boot log
  * prints the live vector ("imu: g=[x y z]") — if the flip is wrong or dead,
  * hold the device upright, read which axis carries ~1 g, and fix these two. */
-static int s_up_axis = 1;    /* 0=X 1=Y 2=Z; the 1.8, calibrated 2026-08-28: upright-in-hand = -Y ~16k */
-static int s_up_sign = -1;   /* the round 1.75C, 2026-10-01 (Strato holding it upright, USB down): +X ~16.8k (imu_port_init) */
+static int s_up_axis = 1;    /* 0=X 1=Y 2=Z; the 1.8: upright-in-hand = -Y ~16k */
+static int s_up_sign = -1;   /* the round 1.75C (held upright, USB down): +X ~16.8k (imu_port_init) */
 #define IMU_UP_AXIS s_up_axis
 #define IMU_UP_SIGN s_up_sign
 
@@ -30,10 +30,9 @@ static int s_up_sign = -1;   /* the round 1.75C, 2026-10-01 (Strato holding it u
 #define WHO_AM_I_VAL       0x05
 
 #define POLL_INTERVAL_US   250000
-/* 2026-08-31: was 8192 (0.5 g) - that only fired within ~60 deg of vertical,
- * so a device reclined on its back (bench pose: up-axis carries ~0.25 g)
- * never flipped. Now ~0.21 g, but the up-axis must also DOMINATE the other
- * in-screen axis, so lying flat or held sideways still holds last state. */
+/* Low enough that a device reclined on its back (up-axis carrying ~0.25 g)
+ * still flips, but the up-axis must also DOMINATE the other in-screen axis,
+ * so lying flat or held sideways holds last state. */
 #define FLIP_THRESH        3500   /* ~0.21 g at +-2g full scale (16384 counts/g) */
 #define FLIP_HOLD_POLLS    3      /* ~750 ms the other way up before flipping */
 /* motion = the sum over healthy axes of |a - a_prev| between two polls
@@ -60,10 +59,9 @@ static bool rdn(uint8_t reg, uint8_t *val, size_t n) {
 }
 
 /* soft reset + full config. The chip sits on an always-on rail, so it keeps
- * whatever state it fell into across reboots and reflashes - 2026-08-31 it
- * was found latched with two axes railed at full scale (garbage that only a
- * reset clears; only a full PMIC power-off ever power-cycles it). Never
- * trust its power-on state. */
+ * whatever state it fell into across reboots and reflashes, axes railed at
+ * full scale included (only a full PMIC power-off ever power-cycles it).
+ * Never trust its power-on state. */
 static bool imu_reset_config_once(void);
 static bool imu_reset_config(void) {
     if (imu_reset_config_once()) return true;
@@ -102,9 +100,8 @@ bool imu_port_init(i2c_master_bus_handle_t bus) {
     }
     if (!imu_reset_config()) { ESP_LOGW(TAG, "QMI8658 config failed"); s_dev = NULL; return false; }
     if (board_is_round()) { s_up_axis = 0; s_up_sign = 1; }
-    /* the watch, 2026-10-02 (propped on the desk, the tank right side up): g = [13100 900 -9400] -
-       the panel's long axis is X, its foot +X. Nothing reads it: on a wrist the live flip never
-       runs (main.c), the way up is settings SCREEN (tank.h) */
+    /* the watch (propped on the desk, the tank right side up): g = [13100 900 -9400] -
+       the panel's long axis is X, its foot +X */
     else if (board_is_watch()) { s_up_axis = 0; s_up_sign = 1; }
     ESP_LOGI(TAG, "QMI8658 up at 0x%02x: orientation axis %c%s", addr,
              IMU_UP_SIGN > 0 ? '+' : '-', IMU_UP_AXIS == 0 ? "X" : IMU_UP_AXIS == 1 ? "Y" : "Z");
@@ -136,10 +133,9 @@ void imu_port_poll(int64_t now_us) {
     }
     for (int i = 0; i < 3; i++) { s_prev[i] = a[i]; s_last[i] = a[i]; }
     s_have_prev = true;
-    /* railed axis = a channel latched at full scale. Found 2026-08-31: X and
-     * Z pegged at +-32767 while Y tracked reality, with clean comms, clean
-     * config readback, soft reset no help - damaged channels on the MEMS die.
-     * Work with what's healthy: the flip only needs the UP axis. A railed
+    /* railed axis = a channel latched at full scale, pegged at +-32767 with
+     * clean comms and clean config readback - a damaged channel on the MEMS
+     * die. Work with what's healthy: the flip only needs the UP axis. A railed
      * other axis just skips the dominance guard; only a railed UP axis
      * disables the flip (and we keep nudging the chip with soft resets in
      * case it is recoverable stiction rather than damage). */
@@ -179,7 +175,7 @@ bool imu_port_handled(void) { return s_handled_us && esp_timer_get_time() - s_ha
 bool imu_port_moving(void) { return s_moved_us && esp_timer_get_time() - s_moved_us < IMU_MOTION_HOLD_US; }
 int  imu_port_motion(void) { return s_motion; }
 
-/* drowse bracket (see imu_port.h). Sleep: sensors off, chip quiesced while
+/* sleep bracket (see imu_port.h). Sleep: sensors off, chip quiesced while
  * the neighbouring rails cycle. Wake: never trust what the chip did in the
  * dark - full soft reset + reconfigure. */
 void imu_port_sleep(void) {

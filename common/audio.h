@@ -1,4 +1,4 @@
-/* audio.h - the sound mixer (docs/AUDIO.md section 5), pure C, shared by
+/* audio.h - the sound mixer (docs/AUDIO.md, The mixer's rules), pure C, shared by
  * the device (I2S -> ES8311 -> NS4150B -> the 12 mm speaker) and the sim
  * (SDL). Plays cues from the bank tools/make_sounds.py builds
  * (assets/sounds/sounds.bin: 16 kHz mono s16 clips; common/sounds.h says
@@ -43,7 +43,7 @@ void audio_stop_all(void);
  * this block (0 = silence: the platform may power the codec down). */
 int  audio_render(int16_t *out, int n);
 bool audio_active(void);
-/* the about page's jingle (2026-10-10): a 30 s underwater loop SYNTHESISED here
+/* the about page's jingle: a 30 s underwater loop SYNTHESISED here
  * (12 bars at 96 BPM - an arpeggio, a hummed melody, a soft pad and bubble
  * chirps - nothing in the bank: a 30 s clip would be 960 KB of flash). It
  * loops seamlessly (the sequencer wraps, the ringing notes carry over), fades

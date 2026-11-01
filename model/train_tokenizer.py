@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Word-level tokenizer for the Aqua Pets advisor. Stdlib only.
 
-The schema (schema.md, FROZEN v2) is a closed vocabulary of whitespace-delimited
+The schema (schema.md) is a closed vocabulary of whitespace-delimited
 words, so one token per word is the natural encoding: a v2 state line is ~44
 tokens instead of ~190 char-level tokens - a ~4x cut in per-decision latency,
 which is what makes the ESP32's 1-3s advisor cadence feasible.

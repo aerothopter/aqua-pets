@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Re-encode the v2 and v3 datasets as v4 lines (schema.md v4). Stdlib only.
+"""Re-encode the v2 and v3 datasets as v4 lines. Stdlib only.
 
 Old datasets don't expire with a schema change (the v3m lesson, docs/stats.md):
 the personality cliffs the shipped model has come from the v2 labels. v4 drops

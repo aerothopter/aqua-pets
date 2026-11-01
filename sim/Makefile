@@ -13,9 +13,8 @@ ARCH    ?=
 SDL_CFLAGS := $(shell sdl2-config --cflags)
 SDL_LIBS   := $(shell sdl2-config --libs)
 
-# One board for now (2026-10-26): the 1.8 rectangle. The round bowl's and the
-# watch's builds (`make ROUND=1` / `make WATCH=1`, a BOARDF of -DTANK_ROUND /
-# -DTANK_WATCH, each in its own build dir) are at git tag multi-board-multi-theme.
+# One board for now, the 1.8 rectangle (docs/BOARDS.md). A board brought back
+# sets BOARDF to its selector flag and builds in its own dir.
 BUILD   := build
 OUT     := fishsim
 BOARDF  :=

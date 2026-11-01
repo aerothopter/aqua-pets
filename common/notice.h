@@ -1,5 +1,6 @@
-/* notice.h - the announcement modals (docs/AUDIO.md section 4a, 2026-09-15):
- * a milestone the moment it is earned, a stage reached, low battery.
+/* notice.h - the announcement modals (docs/AUDIO.md, Notices): a
+ * milestone the moment it is earned, a stage reached, low battery, the first
+ * boot of a new release.
  *
  * Milestones are set in several places (progression.c, tank.c), so the
  * queue does not need hooks: notice_tick diffs each fish's ms_bits, the
@@ -13,14 +14,11 @@
  * waits NOTICE_GAP_S. Nothing shows while `blocked` (setup / birth flow /
  * reset prompt up, or a fry's welcome due - setup_birth_due):
  * the queue holds, and a notice already up steps aside and comes back after
- * (without its cue again). 2026-09-29, Strato: "the milestone achievement
- * notification and the new fry welcome message overlap. the milestone should
- * wait until the 'meet it' sequence is done" - the fry is born mid-frame and
- * its population badge came up the frame before the flow opened.
+ * (without its cue again). So a fry's population badge waits until its
+ * "meet it" welcome is done, though the fry is born the frame before the
+ * flow opens.
  * Each notice carries the cue to play when it comes up; the platform takes
- * it with notice_take_cue.
- * (NOTICE_LIGHTS_OUT, the first double-tap's word, went with the double-tap,
- * 2026-10-28.) */
+ * it with notice_take_cue. */
 #ifndef NOTICE_H
 #define NOTICE_H
 #include <stdbool.h>

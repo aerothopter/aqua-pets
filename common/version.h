@@ -1,14 +1,9 @@
-/* version.h - the tank's release number, the one place it lives (2026-09-29).
- *
- * Strato: "officially the tank should have a true version number so people
- * can easily understand what version they are on ... I would still consider
- * this alpha, pre 1.0". Everything shipped from the 09-11 launch to 09-29 is
- * the 0.1 series (the changelog keeps its git ids); 0.2.0 is the first
- * release under the batched schedule.
+/* version.h - the tank's release number, the one place it lives. Alpha,
+ * pre 1.0:
  *
  *   0.MINOR.0   a batched release (the number people talk about)
  *   0.x.PATCH   a fix that has to ship between releases
- *   1.0         Strato's call: stable saves, the core loop settled
+ *   1.0         stable saves, the core loop settled
  *
  * Bump it in the release commit, and write the changelog entry
  * (site/changelog.json) with the same number. The build id - the git
@@ -28,15 +23,15 @@
 /* the model this build ships with (model/out/model_q4.bin): its tag, byte
  * length and sha256. The tank's model trailer (firmware/main/model_trailer.c)
  * is healed from these at boot when a cable install left none, and an
- * update manifest naming another model tag says "needs the cable" until the
- * model path lands (docs/OTA.md, phase two). tools/model_trailer.py --check
+ * update manifest naming another model tag says "needs the cable" (OTA does
+ * not carry the model: docs/OTA.md). tools/model_trailer.py --check
  * refuses a release whose model file disagrees with these. */
 #define PT_MODEL_TAG     "v5j"
 #define PT_MODEL_LEN     7560088u
 #define PT_MODEL_SHA256  "55533ac56a65b6cf0494d4aecc9dde31f0a6116b454b6aab5867ca588a1e5e28"
 
-/* the board this build is for (2026-10-02: 0.3.0 ships three - docs/BOARDS.md).
- * One source tree, one release number, but an image per board: a tank fetches
+/* the board this build is for (docs/BOARDS.md). One source tree, one release
+ * number, but an image per board: a tank fetches
  * its own board's update manifest (latest-<PT_BOARD>.json), refuses a manifest
  * that names another board, and refuses an image whose board marker
  * (firmware/main/net_port_esp.c, right after the app descriptor) is not its

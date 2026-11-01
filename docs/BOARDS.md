@@ -1,137 +1,85 @@
-# Boards, one tank: how a change reaches all of them
+# Boards: how a change reaches them
 
-From 2026-10-01 the tank ran on three boards. This file is the rule for
-changing anything they share - read it before a feature, the way DEVICE.md is
-read before a flash.
+The rule for changing anything boards share. Read it before a feature, the way DEVICE.md is read before a
+flash.
 
-**One board for now (2026-10-26).** The keeper took the round and watch
-boards out while features are built: one board to check, picture, build and
-flash. Everything they needed is at git tag `multi-board-multi-theme`: their
-device and layout headers, the bowl's and the watch's glass bodies in
-glass.c, the ports' `#ifdef TANK_ROUND` / `TANK_WATCH` branches, the Kconfig
-options, `sdkconfig.round` / `sdkconfig.watch`, `flash_round.sh` /
-`flash_watch.sh`, and the CI builds. The seams stay: device.h's selector, the
-layout header, `DEVICE_GLASS` and `GLASS_CURVED`, `DEVICE_WORN`, the
-`BOARDS` lists in tools/pt_boards.py and tools/board_sheet.py, and the rules
-below. The 1.8 image still knows the 1.75C and 2.06 panels at runtime (it
-fits or centres its frame on them), as before. To bring a board back, restore
-its files from the tag, then put back its row in each list and its build in
-the Makefile and the workflows.
-
-## The boards
-
-| board | glass | build | simulator | firmware | finds the board by |
-|---|---|---|---|---|---|
-| Waveshare 1.8 AMOLED (the tank, the reference) | 448 x 368, round corners | default | `make` -> `fishsim` | `tools/flash.sh` (preflight; build dir `fw-build`) | port, `TANK_PORT=` with several on USB |
-| *(at the tag)* Waveshare 1.75C (the bowl) | 466 circle | `TANK_ROUND` | `make ROUND=1` -> `fishsim-round` | `tools/flash_round.sh` (`fw-build-175c`) | its USB serial (`ROUND_SERIAL`, tools/boards.local.sh) |
-| *(at the tag)* Waveshare 2.06 (the watch) | 410 x 502 portrait, 100 px corners | `TANK_WATCH` | `make WATCH=1` -> `fishsim-watch` | `tools/flash_watch.sh` (`fw-build-206`) | its USB serial (`WATCH_SERIAL`, tools/boards.local.sh) |
-
-Each board's own traps are in its doc (board-amoled-1.75c.md,
-board-amoled-2.06-watch.md; kept for the hardware notes).
+**There is one board for now: the Waveshare ESP32-S3-Touch-AMOLED-1.8**, 448 x 368 with round corners, the
+reference. `make` in `sim/` builds its simulator and `tools/flash.sh` flashes it. The seams for others stay, so
+features are written against the device's names, never against the 1.8's pixels.
 
 ## What is shared, and where a board may differ
 
 One source tree, one save layout, one model. A board is a compile-time world:
 
-- **The world** (`common/devices/<board>.h`, picked by `common/device.h`;
-  since 2026-10-23): `TANK_W` / `TANK_H`, the glass's shape
-  (`DEVICE_GLASS`), the floor `TANK_BOT`, the walls `TANK_FX0` / `TANK_FX1`,
-  the film grid, the grass beds, the board's id and its flag `DEVICE_WORN`.
-  The game is written against these names. A new board is a new header and
-  its layout header.
-- **The page** (`common/render.h`): every page is laid out in a 448 x 368
-  PAGE space that sits centered on the glass at `PAGE_X` / `PAGE_Y`. The fish
-  live in TANK coordinates, the pages draw in PAGE coordinates: anything that
-  crosses over subtracts `PAGE_X` / `PAGE_Y` (a tap coming in, a ring round a
-  fish going out). Every page number that differs between boards is in the
-  board's layout header (`common/devices/<board>_layout.h`, which the device
-  header names `DEVICE_LAYOUT`); render.h and update.h hold the shared ones.
+- **The world** (`common/devices/<board>.h`, picked by `common/device.h`): `TANK_W` / `TANK_H`, the glass's shape
+  (`DEVICE_GLASS`), the floor `TANK_BOT`, the walls `TANK_FX0` / `TANK_FX1`, the film grid, the grass beds, the board's
+  id and its flag `DEVICE_WORN`. The game is written against these names.
+- **The page** (`common/render.h`): every page is laid out in a 448 x 368 PAGE space that sits centered on the glass at
+  `PAGE_X` / `PAGE_Y`. The creatures live in TANK coordinates and the pages draw in PAGE coordinates, so anything that
+  crosses over subtracts `PAGE_X` / `PAGE_Y` (a tap coming in, a ring round a fish going out). Every page number that
+  differs between boards is in the board's layout header (`common/devices/<board>_layout.h`, named `DEVICE_LAYOUT`);
+  `render.h` and `update.h` hold the shared ones.
 - **The ports** (`firmware/main/*_port_*`, `board_pins.h`): the chips.
 
-A board `#ifdef` belongs in those places only: device.h's selector and a
-port. The glass's shapes are `common/glass.c`'s, picked by `DEVICE_GLASS`;
-code that needs only to know the glass curves asks `GLASS_CURVED`. If a
-feature's LOGIC needs `#ifdef TANK_ROUND`, the feature is written against a
-pixel instead of a name - ask the device's names and flags instead.
+A board `#ifdef` belongs in those places only: `device.h`'s selector and a port. The glass's shapes are `common/glass.c`'s,
+picked by `DEVICE_GLASS`, and code that only needs to know the glass curves asks `GLASS_CURVED`. If a feature's LOGIC needs a
+board's name, it was written against a pixel instead of a name.
 
 ## The rules for a feature
 
-1. **Write it once, in `common/`.** The platforms only route: the page
-   returns what was tapped (`MS_TAP_*`, `SHOP_TAP_*`, ...), the sim's loop and
-   the firmware's touch port do the same few lines with it. The route is
-   written twice (sim/main.c and touch_port_ft3168.c + main.c - the three
-   boards share the firmware's), so keep it to a call or two and put the
-   behavior behind it. Sounds go through `tank_emit`, not through the
-   platform.
-2. **Lay new page elements out in the box every glass shows whole:** PAGE
-   x 56..392, y 60..300 (the modal's box). The watch shows PAGE x 19..428, the
-   bowl's circle is at least that wide between those rows; the corners of the
-   page belong to the bezel on two boards out of three. A page that must use
-   the corners gets a named number in each board's layout header (the
-   milestones page's `MSP_*`), not scattered conditions.
-3. **Give the layout a voice.** A test, the director or a tool that needs to
-   tap something asks the page where it is (`render_milestones_card`,
-   `render_milestones_row`, `render_milestones_arrow`) or uses the layout's
-   named constants with `PAGE_X` / `PAGE_Y`. A literal pixel in a test is a
-   test for one board.
-4. **A save field only ever appends** (progression.c's SAVE LAYOUT LOCK; save
-   layout 3 since 2026-10-21, PTK2 saves before it start fresh), and the save
-   means the same on every board.
-5. **Nothing is done until every board says so** (one for now: the 1.8):
+1. **Write it once, in `common/`.** The platforms only route: the page returns what was tapped (`MS_TAP_*`, `SHOP_TAP_*`,
+   ...), and the sim's loop and the firmware's touch port do the same few lines with it. The route is written twice
+   (`sim/main.c`, and `touch_port_ft3168.c` + `main.c`), so keep it to a call or two and put the behavior behind it. Sounds
+   go through `tank_emit`, not through the platform.
+2. **Lay new page elements out in the box every glass shows whole:** PAGE x 56..392, y 60..300 (the modal's box). A page that
+   must use the corners gets a named number in the board's layout header (the milestones page's `MSP_*`), not scattered
+   conditions.
+3. **Give the layout a voice.** A test, the director or a tool that needs to tap something asks the page where it is
+   (`render_milestones_card`, `render_milestones_row`, `render_shop_row`) or uses the layout's named constants with `PAGE_X` /
+   `PAGE_Y`. A literal pixel in a test is a test for one board.
+4. **A save field only ever appends** (`SAVE LAYOUT LOCK` in `common/progression.c`, save layout 3), and the save means the
+   same on every board. A decor kind or a helper is a record, not a field.
+5. **Nothing is done until every board says so:**
 
    | step | command (from the project root) | what it proves |
    |---|---|---|
    | the checks | `make -C sim check-all` | every selftest on every board's world |
-   | the pictures | `tools/board_sheet.py --selftest-card` (or `--snapshot 20`) | the same page on each glass, side by side, cut to each glass |
-   | the firmware | `tools/flash.sh` builds the 1.8 (each other board: its `flash_<board>.sh --build-only`) | it compiles for each board; compare `.bss` with the last flashed build (internal RAM is ~23 KB) |
-   | the glass | flash the 1.8 first (it is the reference and has the preflight), then any other | the keeper's finger |
+   | the pictures | `tools/board_sheet.py --selftest-card` (or `--snapshot 20`) | the page on each glass, cut to the glass |
+   | the firmware | `tools/flash.sh` | it builds; compare `.bss` with the last flashed build (internal RAM has ~23 KB of headroom) |
+   | the glass | flash it (it has the preflight: [DEVICE.md](DEVICE.md)) | the keeper's finger |
 
-   The handoff entry for a feature says where each board stands: checked /
-   pictured / built / flashed / tried on the glass. "Not flashed" is a fine
-   state; "unknown" is not.
+   The handoff entry for a feature says where each board stands: checked / pictured / built / flashed / tried on the glass.
+   "Not flashed" is a fine state; "unknown" is not.
 
 ## Releases
 
-One image per board, one release number. Built 2026-10-02 for 0.3.0 (Strato:
-the bowl and the watch ship in 0.3.0; nothing public until the release). Since
-2026-10-26 the workflows build and publish the 1.8 alone; the machinery below
-is unchanged and takes a board back as a row in `pt_boards.py` and a build in
-each workflow. A 1.75C or 2.06 tank on its own image gets no newer release
-until then:
+One image per board, one release number. The machinery takes a board as a row in `tools/pt_boards.py` and a build in each
+workflow:
 
 | piece | how a board is kept to its own image |
 |---|---|
-| the board's id | `PT_BOARD`, in the board's header (`common/devices/<board>.h`, read through version.h): `amoled18`, `round175c`, `watch206` (picked by `TANK_ROUND` / `TANK_WATCH`) |
-| the image | a board marker right after the app descriptor (`net_port_esp.c` `pt_board_marker`, at `PT_BOARD_MARKER_OFFSET` 0x120; kept by `-u pt_board_marker` in firmware/main/CMakeLists.txt). `tools/pt_boards.py` reads it back from a `.bin` |
-| over the air | each board fetches `latest-<PT_BOARD>.json`; `common/update.c` refuses a manifest whose `board` is another (WRONG BOARD, never offered); the download reads the marker back from the slot at its first 4 KB and aborts on another board's (`NET_ERR_BOARD`) - all three share the signing key, so the signature alone would let a bowl install the 1.8's image |
-| the release | `.github/workflows/release.yml` builds `firmware/build`, `build-round`, `build-watch`; `make_ota_manifest.py` names both files from the image's marker (`latest-<board>.json`, `aqua_pets-v<rel>-<board>.bin`) |
-| the installer | `installer.yml` builds the three; `make_installer.py --build-dir <1.8> --board-build <round> --board-build <watch>`: the 1.8 keeps `manifest.json` / `manifest-erase.json`, the others `manifest-<board>[-erase].json`; a board's file that differs from the 1.8's is `<name>-<board>.bin`. The page shows a "Pick your board" step when it carries more than one |
-| the public installer page | `tools/build_site.py` offers a board only once its manifest is LIVE on GitHub Pages - the public resync is the release, so a site publish before it shows the 1.8 alone |
+| the board's id | `PT_BOARD`, in the board's header, read through `version.h` |
+| the image | a board marker right after the app descriptor (`net_port_esp.c` `pt_board_marker`, at `PT_BOARD_MARKER_OFFSET` 0x120; kept by `-u pt_board_marker` in `firmware/main/CMakeLists.txt`). `tools/pt_boards.py` reads it back from a `.bin` |
+| over the air | a tank fetches `latest-<PT_BOARD>.json`; `common/update.c` refuses a manifest for another board (WRONG BOARD, never offered); the download reads the marker back from the slot at its first 4 KB and aborts on another board's (`NET_ERR_BOARD`). Boards share the signing key, so the signature alone would let one install another's image |
+| the release | `.github/workflows/release.yml` builds the image; `make_ota_manifest.py` names both files from the image's marker (`latest-<board>.json`, `aqua_pets-v<rel>-<board>.bin`) |
+| the installer | `installer.yml` builds it; `make_installer.py --build-dir <1.8> [--board-build <other>]`: the 1.8 keeps `manifest.json` / `manifest-erase.json`, another `manifest-<board>[-erase].json`, and a board's file that differs from the 1.8's is `<name>-<board>.bin`. The page shows a "Pick your board" step when it carries more than one |
+| the public installer page | `tools/build_site.py` offers a board only once its manifest is LIVE on GitHub Pages |
 
-Nothing reaches the public before the release: the dev repo is private, the
-workflows publish only from `fiatminimalist/aqua-pets`, the site gates on the
-live manifests, and the 0.3.0 changelog entry is a `"draft"`. The resync must
-carry `tools/pt_boards.py`. A cable install of the wrong board's image is not
-caught on the board (the page's picker is the guard); it boots blank and the
-right install puts it back, the save untouched.
+The workflows publish only from `fiatminimalist/aqua-pets`, and the site gates on the live manifests. A cable install of the
+wrong board's image is not caught on the board (the page's picker is the guard); it boots blank and the right install puts it
+back, the save untouched.
 
-## What the first feature under these rules found (2026-10-01)
+## Bringing another board back
 
-The fish card's RENAME and SELL were built this way. Two things turned up
-that only the other boards could show:
+The Waveshare 1.75C (a 466 px circle) and 2.06 watch (410 x 502 portrait, 100 px corners) are at git tag
+`multi-board-multi-theme`. Their hardware notes are there too:
 
-- The ring round the fish being named (the first run, the color page, the
-  birth announcement) was drawn at the fish's TANK position in PAGE space:
-  right on the 1.8, 9 px right and 49 px low on the bowl, 19 px left and
-  67 px low on the watch. Seen on the first three-board sheet; fixed in
-  setup.c (`fish_ring`).
-- Only the 1.8's simulator was ever checked: `make check` built and ran
-  `fishsim` alone, and the selftests tapped the rectangle's pixels - 5 of 10
-  failed on the bowl, 6 on the watch. Every one was the test, none the game;
-  they ask the layout now (the pages' `MSP_*` / `SHP_*` / `SET_*` / `UPD_*`
-  numbers live in render.h / update.h and, since 2026-10-23, in each board's
-  layout header for that), and `make check-all` and CI
-  run all of them in all three worlds.
-- Still literal: the `--snapshot` mode's own taps (on the bowl its fry_modal
-  picture opens another modal). A picture, not a check - repoint it when it
-  is next touched.
+```bash
+git show multi-board-multi-theme:docs/board-amoled-1.75c.md
+git show multi-board-multi-theme:docs/board-amoled-2.06-watch.md
+```
+
+Restore from the tag: the device and layout headers, the shape's bodies in `glass.c`, the ports' `TANK_ROUND` / `TANK_WATCH`
+branches, the Kconfig options, `sdkconfig.round` / `.watch`, `flash_round.sh` / `flash_watch.sh`. Then put back the board's row in
+`tools/pt_boards.py` and `tools/board_sheet.py`, its build in `sim/Makefile`, and its builds in the workflows. The 1.8's image still
+knows those panels at runtime (it fits or centres its frame on them).

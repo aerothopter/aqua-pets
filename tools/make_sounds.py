@@ -3,7 +3,7 @@
 
 Two steps, both repo-relative to this file:
 
-  import <dir>   Strato's exports (any WAV: float/int, stereo, any rate) ->
+  import <dir>   the exported sounds (any WAV: float/int, stereo, any rate) ->
                  assets/sounds/<cue>[-<n>].wav, the canonical 16 kHz mono
                  s16 files. Per file: fold to mono, 600 Hz high-pass (the
                  12 mm speaker's floor; below it only headroom is spent),
@@ -12,7 +12,7 @@ Two steps, both repo-relative to this file:
                  cue gets a 20 ms equal-power crossfade across the seam
                  instead of trim + fades. gains.csv gets a row per new cue
                  seeded with the export's own speaker-band level, so the
-                 first bank plays at the relative loudness Strato exported.
+                 first bank plays at the relative loudness they were exported at.
   build          assets/sounds/*.wav + gains.csv -> assets/sounds/sounds.bin
                  (the bank: every clip's s16 samples back to back) and
                  common/sounds.h + sounds.c (ids, clip table, cue table).
@@ -26,9 +26,8 @@ are skipped with a note. CUES below is the enum order and the contract
 with the firmware; a cue with no file (deferred) keeps its id and plays
 nothing.
 
-    ~/.venvs/aquapets/bin/python tools/make_sounds.py import \\
-        "/Volumes/Local-1/Projects/LLM Fish Tank/working-assets/sounds/exports"
-    ~/.venvs/aquapets/bin/python tools/make_sounds.py build
+    python3 tools/make_sounds.py import <exports dir>
+    python3 tools/make_sounds.py build
 """
 import csv, math, os, re, struct, subprocess, sys, wave
 
@@ -46,7 +45,7 @@ HP_HZ, LP_HZ = 600, 7000
 TRIM_DB, FADE_MS, XFADE_MS = -60.0, 5, 20
 NORM_DB = -1.0
 
-# enum order (docs/AUDIO.md section 4). (id, loop?)
+# enum order (docs/AUDIO.md, "Cues"). (id, loop?)
 CUES = [
     ("tap", 0), ("feed", 0), ("light_on", 0), ("light_off", 0), ("wipe", 0),
     ("snip", 0), ("card_open", 0), ("card_close", 0), ("wheel_tick", 0),
@@ -61,7 +60,7 @@ LOOPS = {c for c, l in CUES if l}
 ALIASES = {"bubble_cluster": "bubbles", "fry_arrival": "arrival",
            "plant_snip": "snip", "spook_dash": "spook"}
 IGNORE = {"confusion"}
-DEFERRED = {"beg", "bubbles"}   # cues kept in the enum, files present but not shipped (Strato 2026-09-15: beg on the fence; bubbles too frequent to be worth hearing)
+DEFERRED = {"beg", "bubbles"}   # cues kept in the enum, files present but not shipped (bubbles: too frequent to be worth hearing)
 
 
 def db(x):

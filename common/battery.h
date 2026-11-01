@@ -1,6 +1,5 @@
-/* battery.h — the keeper's view of the battery (2026-09-24, Strato: "i cant
- * really tell [when it is charging] at the moment, perhaps its my color
- * blindness" + a page behind a tap on the pill).
+/* battery.h — the keeper's view of the battery: the pill and the page behind
+ * a tap on it.
  *
  * The pill's four states (render_battery draws them apart by SHAPE and
  * MOTION, never by hue alone), and the history behind the info page:
@@ -21,9 +20,9 @@ enum { BAT_ON_BATTERY = 0,      /* no cable */
        BAT_PLUGGED    = 3 };    /* cable in, the charger resting short of full */
 #define BAT_ON_POWER(s) ((s) != BAT_ON_BATTERY)
 
-/* until this cell has been measured: the 2026-09-14 batlog (4 fish, 60%
- * brightness, awake: 96% -> 52% in an hour) and the 09-11 charge at 100 mA
- * (17% -> 100% in under an hour) */
+/* until this cell has been measured: a measured tank's numbers (4 fish, 60%
+ * brightness, awake: 96% -> 52% in an hour; a charge at 100 mA: 17% -> 100%
+ * in under an hour) */
 #define BAT_DRAIN_DEFAULT  44.0f        /* gauge % per hour, screen on */
 #define BAT_CHARGE_DEFAULT 80.0f        /* gauge % per hour on the cable */
 #define BAT_POPUP_S        6            /* the pill shows itself this long when the cable goes in */

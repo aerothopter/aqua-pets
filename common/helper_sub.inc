@@ -1,9 +1,8 @@
-/* ---- the submarine (2026-10-10 night, item 9) ---- a little sub cruising the water: a hull with a
+/* ---- the submarine (item 9) ---- a little sub cruising the water: a hull with a
  * conning tower, dive planes, a rudder, portholes, a two-blade propeller spinning behind it while it
  * moves, a stream of bubbles from the stern; at a stop (helper.c sub.stop) the propeller idles and a
- * periscope rises from the tower, its head turning to look both ways before it sinks again. The
- * yellow sub with black trim (each theme had its own hull: git tag multi-board-multi-theme).
- * Live every frame; the rect it and its bubbles cover comes back. */
+ * periscope rises from the tower, its head turning to look both ways before it sinks again. A
+ * yellow sub with black trim. Live every frame; the rect it and its bubbles cover comes back. */
 static void draw_submarine(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *bx1, int *by1) {
     float clock = t->clock;
     float fx = t->sub.x, fy = t->sub.y + sinf(clock * 0.9f) * 1.5f;
@@ -57,5 +56,5 @@ static void draw_submarine(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *b
         px_blend(c, (int)(px + look * 4.8f), (int)(top), 0xffffff, 200);                               /* its glint */
     }
 #undef FX
-    *bx0 = (int)fx - 70; *bx1 = (int)fx + 70; *by0 = (int)fy - 62; *by1 = (int)fy + 14;   /* 70: room Blackwater's headlight needed (66), kept */
+    *bx0 = (int)fx - 70; *bx1 = (int)fx + 70; *by0 = (int)fy - 62; *by1 = (int)fy + 14;   /* wider than it is: room for a theme's art */
 }

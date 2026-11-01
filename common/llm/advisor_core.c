@@ -47,9 +47,9 @@ void advisor_core_encode(const tank_t *t, int idx, char *out, size_t n) {
     char food_s[24], shadow_s[24], friend_s[40], bubble_s[24], reef_s[24], wall_s[24], frs[24];
     float fd; int fi = tank_nearest_food(t, f, &fd);
     sighting(f, fi >= 0 ? t->food[fi].x : 0, fi >= 0 ? t->food[fi].y : 0, fi >= 0, food_s, sizeof food_s);
-    /* the shadow was removed from the game (2026-09-13); the field stays in
-     * the frozen schema and always reads `none` (the model was trained on
-     * plenty of shadow-none states) */
+    /* there is no shadow in the game; the field stays in the frozen schema
+     * and always reads `none` (the model was trained on plenty of
+     * shadow-none states) */
     snprintf(shadow_s, sizeof shadow_s, "none");
     int fr = tank_nearest_friend(t, idx, NULL);
     sighting(f, fr >= 0 ? t->fish[fr].x : 0, fr >= 0 ? t->fish[fr].y : 0, fr >= 0, frs, sizeof frs);
@@ -61,7 +61,7 @@ void advisor_core_encode(const tank_t *t, int idx, char *out, size_t n) {
       sighting(f, rx, ry, true, reef_s, sizeof reef_s); }
 
     /* wall: nearest side, world-frame contact point, heading-relative clock */
-    /* (the glass at the fish's own height and column: the frame's edges in the rectangle, the circle in a bowl) */
+    /* (the glass at the fish's own height and column: glass.h) */
     float gx0 = tank_glass_x0(f->y), gx1 = tank_glass_x1(f->y), gy0 = tank_glass_top(f->x);
     float dists[4] = { gx1 - f->x, f->x - gx0, TANK_BOT - f->y, f->y - gy0 };     /* 3,9,6,12 o'clock sides */
     float wxs[4] = { gx1, gx0, f->x, f->x }, wys[4] = { f->y, f->y, TANK_BOT, gy0 };
@@ -155,9 +155,9 @@ bool advisor_core_init_encoder(const uint8_t *tok_bin, size_t tok_len) {
 }
 
 /* the species word the loaded vocab can hear: a species added after the
- * model's vocabulary (the jellyfish, 2026-10-09, is id 65 of a 66-word
- * tokenizer; v5m's has 65) is sent as the classic fish - its traits still
- * shape the decision, and the reflex layer still moves it its own way */
+ * model's vocabulary (the swordfish and the turtle, for the shipped 66-word
+ * tokenizer) is sent as the classic fish - its traits still shape the
+ * decision, and the reflex layer still moves it its own way */
 const char *advisor_core_species_word(const fish_t *f) {
     int s = f->species < SP_COUNT ? f->species : SP_FISH;
     return g_sp_known[s] ? SPECIES[s].token : SPECIES[SP_FISH].token;

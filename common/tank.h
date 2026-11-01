@@ -1,15 +1,15 @@
-/* tank.h — platform-agnostic reflex layer for the pocket fish tank.
+/* tank.h — the reflex layer: the tank, its creatures' bodies and drives, and
+ * the keeper's touch. It runs every frame and never waits on the model.
  *
- * Ported from the browser prototype (llm-fishtank-v0_2.html); same fish,
- * same goals, same drive dynamics, rescaled to the 448x368 landscape tank.
- * World geometry (bubble column, reef, zones) matches model/gen_traces.py so
- * the advisor model sees the world it was trained on.
+ * World geometry (the bubble column, the reef, the zones) matches
+ * model/gen_traces.py, so the advisor's model sees the world it was trained
+ * on.
  *
- * Population (docs/progression-next.md): the tank holds up to N_FISH_MAX fish
- * but only fish[0..n_fish-1] are alive/active. A new tank starts with two
- * adults of contrasting personality; the rest arrive later as fry (the
- * progression layer decides when). Every loop in this file, the renderer and
- * the advisors iterates n_fish, never N_FISH_MAX.
+ * Population (docs/progression.md): the tank holds up to N_FISH_MAX
+ * creatures, but only fish[0..n_fish-1] are alive. A new tank starts with two
+ * fry of contrasting personality; the rest arrive later (the progression
+ * layer decides when). Every loop in this file, the renderer and the advisors
+ * runs to n_fish, never N_FISH_MAX.
  *
  * No I/O, no floats-to-strings, no OS calls: this file and tank.c compile
  * unchanged for the LVGL PC sim and the ESP32-S3 firmware.
@@ -23,46 +23,40 @@
 #include "helper.h"
 #include "device.h"             /* the board: its frame, glass, floor, film grid and flags (the devices/ headers) */
 
-/* ---- the glass (2026-10-01). In the rectangle the side walls are x = 0 and
- * TANK_W and the bottom is TANK_H; everything on the floor measures from
- * them. The bowl's floor is the chord at TANK_BOT - 16 (the sand line, what
- * TANK_H - 16 is in the rectangle) from TANK_FX0 to TANK_FX1. Floor things
- * (the beds, a resting pellet, the snail's walk, the decor) measure from
- * TANK_BOT / TANK_FX0 / TANK_FX1 on every board - in the rectangle those ARE
- * TANK_H / 0 / TANK_W. Swimmers meet the glass itself: tank_glass_* (glass.c). */
+/* ---- the floor. TANK_BOT is the bottom (the sand line stands 16 px above
+ * it) and TANK_FX0..TANK_FX1 is the floor's span, both the board's (on the
+ * 1.8 they are TANK_H, 0 and TANK_W). Floor things (the beds, a resting
+ * pellet, the snail's walk, the decor) measure from them, so they hold on
+ * any glass. Swimmers meet the glass itself: tank_glass_* (glass.c). */
 #define TANK_FW   (TANK_FX1 - TANK_FX0)
-/* a floor x given as the rectangle's (0..448), on this build's floor */
+/* a floor x given as the 1.8's (0..448), on this build's floor */
 #define TANK_FLOOR_X(x448) (TANK_FX0 + (x448) * TANK_FW / 448.0f)
 #include "glass.h"          /* tank_glass_*: the glass at a height, above a point, a point brought inside */
 
-#define N_FISH_MAX 25           /* array bound; the live count is tank_t.n_fish (6 until the species,
-                                 * 2026-10-05, then 10; 25 since 2026-10-07: fish 7..N_FISH_MAX save in
-                                 * their own tail, progression.c - the tail grows with this number) */
-#define N_FISH_START 2          /* a new tank: two contrasting adults */
-#define N_TRAINED_NAMES 4       /* name tokens the v2 model was trained on */
-#define FISH_NAME_MAX 7         /* the keeper's name for a fish (first-run setup) */
+#define N_FISH_MAX 25           /* array bound; the live count is tank_t.n_fish (the save holds all 25) */
+#define N_FISH_START 2          /* a new tank: two contrasting fry */
+#define N_TRAINED_NAMES 4       /* the name tokens schema v2 knows (later schemas send no names) */
+#define FISH_NAME_MAX 7         /* the keeper's name for a creature (setup, the birth flow) */
 #define LOOK_N 8                /* body / accent swatches the keeper can pick from */
-#define MAX_FOOD   16           /* 2026-10-10: five portions at a time (five surface taps of three pellets), a slot to spare for the trickle; 8 before (two and a half taps) */
+#define MAX_FOOD   16           /* five portions at a time (three pellets each), and a slot to spare for the trickle */
 #define MAX_BUBBLE 24
 
-/* upkeep: the vegetation beds keep growing - up toward the surface and out,
- * wider - and algae films the glass with time (both faster while the device
- * drowses); the keeper's thumb is the cure. Every frond has its own height
- * (2026-09-04, Strato: trimming was a chunk at a time): a sideways stroke
- * through a canopy cuts exactly the fronds it crosses, at the height where
- * it crosses them (never below nubs - little bits of green always remain);
- * a drag elsewhere wipes algae.
- * Vegetation is a comfort system (2026-09-04 rework): growth IS height - a
- * bed at growth g stands g of the way from the floor to the surface, so only
- * the tank ceiling limits it. Fish like cover: any canopy calms them (more
- * inside it), and NO cover anywhere
- * (every bed scalped) is a mild unease. Only a tank being truly smothered
- * presses back: two or more beds past VEG_SMOTHER height. Stress is already
- * in the advisor's schema, so the model reacts without any schema change. */
+/* upkeep: the beds keep growing up toward the surface, and algae films the
+ * glass with time (both faster while the device sleeps); the keeper's tools
+ * are the cure. Every frond has its own height: the SCISSORS cut exactly the
+ * fronds a stroke crosses, at the height it crosses them (never below nubs -
+ * a little green always remains), and the SPONGE wipes the film.
+ * Vegetation is a comfort system, and growth IS height: a bed at growth g
+ * stands g of the way from the floor to the surface, so only the fronds'
+ * ceilings limit it. The creatures like cover: any canopy calms them (more
+ * inside it), and NO cover anywhere (every bed scalped) is a mild unease.
+ * Only a smothered tank presses back: two or more beds past VEG_SMOTHER.
+ * Stress is already in the advisor's schema, so the model reacts without any
+ * schema change. */
 #define VEG_BEDS   3                           /* reef bed + two decor beds (the SAVE's
                                                 * bed count: baked into save_t's arrays) */
-#define VEG_BEDS_MAX 4                         /* + the shop's sword plant, bed 3 (2026-09-15:
-                                                * live only once bought; tank_veg_beds) */
+#define VEG_BEDS_MAX 4                         /* + the shop's sword plant, bed 3 (live
+                                                * only once bought; tank_veg_beds) */
 typedef enum { VEG_KIND_GRASS, VEG_KIND_SWORD } veg_kind_t;
 #define VEG_START  0.35f                       /* a fresh tank (and a bought plant): comfortable cover */
 #define VEG_NUB    0.03f                       /* trim floor: ~13 px green stubble */
@@ -72,29 +66,30 @@ typedef enum { VEG_KIND_GRASS, VEG_KIND_SWORD } veg_kind_t;
 #define VEG_NURSERY 0.12f                      /* a bed this tall (~47 px, hides an adult
                                                 * body) is a NURSERY: courtship happens
                                                 * low in it and a fry is only born with
-                                                * one somewhere (2026-09-04) */
+                                                * one somewhere */
 #define VEG_SMOTHER 0.85f                      /* the SECOND-tallest bed past this much
                                                 * of its OWN ceiling (tank_veg_cap) =
                                                 * smothered: real stress, trim it back.
                                                 * One bed at the ceiling is just a
                                                 * good place to hide. */
-/* Every frond has its own ceiling (2026-09-23): a hashed height in
- * VEG_CAP_LO..VEG_CAP_HI it grows toward and never passes, so a grown bed is
- * a ragged skyline in the top third of the glass instead of a wall touching
- * the surface. Growth also eases off over the last VEG_CAP_TAPER of the way
- * up, so the fronds settle one by one. Fixed per slot (bed, frond): nothing
- * to save. The keeper (director `veg`, staging) may still set a frond
- * higher; growth never pulls it back down. Height 1 = the surface. */
+/* Every frond has its own ceiling: a hashed height in VEG_CAP_LO..VEG_CAP_HI
+ * it grows toward and never passes, so a grown bed is a ragged skyline in the
+ * top third of the glass instead of a wall touching the surface. Growth also
+ * eases off over the last VEG_CAP_TAPER of the way up, so the fronds settle
+ * one by one. Fixed per slot (bed, frond): nothing to save. The director
+ * (`veg`) or a test may still set a frond higher; growth never pulls it back
+ * down. Height 1 = the surface. */
 #define VEG_CAP_LO  0.72f
 #define VEG_CAP_HI  0.95f
 #define VEG_CAP_TAPER 0.12f
-#define VEG_GLASS_GAP 12                       /* px a ceiling keeps under the glass, where the glass closes in over a frond
-                                                * (the bowl, the watch's upper corners: tank_veg_cap) */
+#define VEG_GLASS_GAP 12                       /* px a frond's ceiling keeps under a curved glass
+                                                * (GLASS_CURVED: tank_veg_cap) */
 #define VEG_FRONDS_MAX 16                      /* per-bed frond slots (reef bed: 11-15) */
-#define VEG_SEGS_FULL 107                      /* frond segments at growth 1: the tip
-                                                * of the tallest frond touches y~10,
-                                                * just under the surface (render.c
-                                                * VEG_SEG_DY 3.2 px pitch from y=352) */
+#define VEG_SEGS_FULL 107                      /* frond segments at growth 1: on the 1.8
+                                                * the tip of the tallest frond touches
+                                                * y~10, just under the surface
+                                                * (VEG_SEG_PX a segment up from the
+                                                * sand line) */
 /* the film grid (ALGAE_CELL / _COLS / _ROWS) is the board's (the devices/ headers) */
 #define ALGAE_CELLS (ALGAE_COLS * ALGAE_ROWS)
 /* a frond segment's height, VEG_SEG_PX, is the board's: 3.2 px on the 1.8
@@ -103,15 +98,14 @@ typedef enum { VEG_KIND_GRASS, VEG_KIND_SWORD } veg_kind_t;
  * What a trim PAYS is counted at the 1.8's pitch on every build (VEG_PAY_PX):
  * the same cut, the same sand dollars. */
 #define VEG_PAY_PX 3.2f
-int tank_algae_cells(void);                    /* the cells that are on the glass: all of them in the rectangle, the circle's in the bowl */
+int tank_algae_cells(void);                    /* the cells that are on the glass (all of them in the rectangle) */
 #define ALGAE_DIRTY 0.15f                      /* film on more of the glass than this =
                                                 * a DIRTY tank: no fry is conceived in
                                                 * it until it is wiped back under (a
-                                                * fry gate, 2026-09-16). Some film is
-                                                * fine; growth stops claiming cells at
+                                                * fry gate). Some film is fine; growth
+                                                * stops claiming cells at
                                                 * ALGAE_COVER_CAP (tank.c, 0.30), and one
-                                                * night's sleep films ~17% (selftest-tend;
-                                                * ~25% before 2026-09-23) */
+                                                * night's sleep films ~17% (selftest-tend) */
 
 typedef enum {
     GOAL_SEEK_FOOD, GOAL_FLEE_SHADOW, GOAL_VISIT_BUBBLES, GOAL_FOLLOW_FRIEND,
@@ -122,7 +116,7 @@ typedef enum {
 extern const char *const GOAL_NAMES[GOAL_COUNT];   /* schema.md lowercase names */
 
 typedef enum { STAGE_FRY, STAGE_JUV, STAGE_ADULT, STAGE_ELDER } stage_t;
-extern const char *const STAGE_NAMES[4];           /* schema.md v2 stage tokens */
+extern const char *const STAGE_NAMES[4];           /* schema.md stage tokens */
 extern const char *const TRAINED_NAMES[N_TRAINED_NAMES]; /* mira bolt kelp nori */
 
 #include "creature.h"            /* the species: SPECIES[], a row a kind (creature.c) */
@@ -143,38 +137,33 @@ typedef struct {
 enum {
     MS_ARRIVED = 1u << 0,  MS_FIRST_MEAL_FROM_YOU = 1u << 1, MS_FIRST_HOLD_APPROACH = 1u << 2,
     MS_FIRST_DART = 1u << 3, MS_FIRST_BUBBLES = 1u << 4,
-    /* bit 5 was the badge "first reef" until 0.3.0 (2026-10-02): the "reef" was
-     * only ever the grass corner. It is no badge now - the reef is the reef
-     * cluster and a TANK milestone (TMS_FIRST_REEF), the fish's badge in its
-     * place is MS_FIRST_GRASS - but the bit is still set, silently, the first
-     * time a fish pokes around its landmark: the card's curiosity slider is
-     * revealed by it, as ever */
+    /* bit 5 has no badge: it is set, silently, the first time a creature
+     * pokes around its landmark, and it reveals the card's curiosity slider.
+     * (The reef cluster is a TANK milestone, TMS_FIRST_REEF.) */
     MS_INSPECTED = 1u << 5,
-    /* bits 6 and 7 were the shadow milestones (survived / shrugged off);
-     * the shadow was removed 2026-09-13 and the bits stay reserved so old
-     * saves keep their layout - cleared on load, never set, never shown */
+    /* bits 6 and 7 are retired: cleared on load, never set, never shown */
     MS_RETIRED_6 = 1u << 6, MS_RETIRED_7 = 1u << 7, MS_FIRST_FOLLOW = 1u << 8,
     MS_REACHED_JUV = 1u << 9, MS_REACHED_ADULT = 1u << 10, MS_REACHED_ELDER = 1u << 11,
-    MS_FIRST_GRASS = 1u << 12,                               /* rested (or hid) inside a seagrass canopy (2026-10-02) */
+    MS_FIRST_GRASS = 1u << 12,                               /* rested (or hid) inside a seagrass canopy */
     MS_FISH_COUNT = 13
 };
 #define MS_RETIRED_MASK (MS_RETIRED_6 | MS_RETIRED_7)
 /* tank-level milestone bits */
 enum {
     TMS_PAIR = 1u << 0, TMS_TRIO = 1u << 1, TMS_QUARTET = 1u << 2, TMS_QUINTET = 1u << 3,
-    TMS_SEXTET = 1u << 4, TMS_FIRST_FULL_NIGHT = 1u << 5,   /* the device slept a full night (was: quiet night, until 2026-09-15) */
+    TMS_SEXTET = 1u << 4, TMS_FIRST_FULL_NIGHT = 1u << 5,   /* the device slept a full night */
     TMS_FIRST_PLAY_SESSION = 1u << 6,
     TMS_CHANGED_SOMEONE = 1u << 7, TMS_FIRST_FEEDING = 1u << 8,
     TMS_FIRST_TRIM = 1u << 9, TMS_FIRST_CLEANING = 1u << 10,
-    TMS_FULL_SCHOOL = 1u << 11,                              /* the shrimp school reached SHRIMP_MAX (2026-09-30) */
-    TMS_FIRST_REEF = 1u << 12,                               /* a fish went to look at the reef cluster (2026-10-02) */
+    TMS_FULL_SCHOOL = 1u << 11,                              /* the shrimp school reached SHRIMP_MAX */
+    TMS_FIRST_REEF = 1u << 12,                               /* a creature went to look at the reef cluster */
     TMS_COUNT = 13
 };
 
 typedef struct fish {
     char   name[FISH_NAME_MAX + 1]; /* display name: the roster preset's until the
                                      * keeper renames it (setup.c); saved per fish */
-    const char *model_name; /* one of TRAINED_NAMES: the token the v2 model sees */
+    const char *model_name; /* one of TRAINED_NAMES: its name token in schema v2 */
     int    preset;          /* roster index (colors, base size, temperament) */
     float x, y;
     float heading;          /* radians */
@@ -182,7 +171,7 @@ typedef struct fish {
                              * from the side: a U-turn swings it through 0 (the
                              * fish head-on) and the swim follows it. Not saved. */
     float yaw_tail;         /* the tail's yaw, a beat behind the head's: mid-turn
-                             * the body bends (render.c draws both) */
+                             * the body bends (creatures.inc draws both) */
     int8_t facing;          /* the side it swims on, +1 right / -1 left: changes only
                              * by a committed turn (or the glass). Not saved. */
     float behind;           /* seconds its way has lain behind it (a turn commits
@@ -192,9 +181,9 @@ typedef struct fish {
     float size;             /* ~1.0 */
     float base_size;        /* preset size; progression scales by stage/meals */
     float turn_rate;        /* rad/s */
-    /* drives, 0..10 as in the prototype (schema encoding clamps to 0..9) */
+    /* drives, 0..10 (the schema encoding clamps to 0..9) */
     float hunger, energy, stress, curiosity;
-    /* personality 0..1 (schema v2 encodes bold/sociable as 0-9) */
+    /* personality 0..1 (the schema encodes bold/sociable as 0-9) */
     float sociable, bold, lazy;
     float bold0, sociable0; /* values at creation: drift is measured from here */
     stage_t stage;
@@ -204,14 +193,13 @@ typedef struct fish {
     float  dart_timer;      /* DART_PLAY burst countdown */
     float  dart_x, dart_y;
     float  hesitate;        /* seconds of visible deliberation left (0 = none) */
-    /* boredom (2026-09-14): how stale the current pastime is, 0..10 (schema
-     * v4 sends it to the model as `bored 0-9`). Rises while the fish keeps
-     * the same leisure goal, relieved by a genuinely new goal or by entering a
-     * zone it has not seen for a while; eating and night rest never bore.
-     * Not saved: a boot starts fresh. Strato (2026-09-14): "the fish often
-     * seem to get stuck in loops following_friend or playing in the bubble
-     * column ... a boredom component where a fish will be somewhat pushed to
-     * do something new". */
+    /* boredom: how stale the current pastime is, 0..10 (schema v4 and later
+     * send it to the model as `bored 0-9`). It rises while the creature keeps
+     * the same leisure goal and is relieved by a genuinely new goal or by
+     * entering a zone it has not seen for a while; eating and night rest
+     * never bore. It nudges a creature stuck in a loop (following a friend,
+     * playing in the bubble column) toward something new. Not saved: a boot
+     * starts fresh. */
     float  bored;
     goal_id_t goal_prev;    /* the goal before the current one: returning to it is no relief */
     int8_t zone_last;       /* schema zone 0..5 the fish was in last frame; -1 = none yet */
@@ -235,16 +223,15 @@ typedef struct fish {
     /* colors as 0xRRGGBB, used by render only: the preset's, or the keeper's
      * picks from LOOK_BODY / LOOK_ACCENT (setup.c); saved per fish */
     uint32_t color, fin, accent;
-    /* family (2026-09-14, the birth flow): the slots of the two fish it
-     * inherited from - its body colour is parent_a's, its markings (accent)
-     * parent_b's, bold / sociable the pair's average with a nudge. -1 = one
-     * of the founding pair (or an older save). Saved per fish. */
+    /* family: the slots of the two fish it inherited from - its body colour
+     * is parent_a's, its markings (accent) parent_b's, bold / sociable the
+     * pair's average with a nudge. -1 = one of the founding pair. Saved per
+     * fish. */
     int8_t parent_a, parent_b;
-    /* species (2026-10-05): what it is and which of the species' designs
-     * (saved, in fish_save_t's spare bytes); the rest is live state for the
-     * species' own motion and looks, not saved.
+    /* species: what it is and which of the species' designs (saved); the
+     * rest is live state for the species' own motion and looks, not saved.
      *
-     * THE CONVENTION (2026-10-05, the motion pass), for every species:
+     * THE CONVENTION, for every species:
      *  - (x, y) is the middle of the body; heading is the direction of
      *    TRAVEL, always (atan2 of the velocity on the glass).
      *  - facing / yaw say which way the HEAD points (+1 right), and may
@@ -269,7 +256,7 @@ typedef struct fish {
      *    tail-flip (sp_mode SPM_FLIP): each stroke runs 0..1, the abdomen
      *    curled under while > 0.5, 0 when it walks.
      *  - puff: the pufferfish's inflation; the CRAB's claws-up threat (0..1).
-     *    (The flip and the claws were a startle's; a poke's since 2026-10-28.) */
+     *    The flip and the claws are double-tap tricks (tank_poke). */
     uint8_t species;        /* species_t */
     uint8_t variant;        /* 0..SP_VARIANTS-1 */
     float  puff;            /* pufferfish: 0 flat .. 1 a spiny ball; crab: its claws raised 0..1 */
@@ -288,21 +275,21 @@ typedef struct fish {
     float flourish_wait, surface_s; /* transient: idle event countdown; positive rise/float, negative return */
     uint16_t flourish_cycle;       /* staggered events; never persisted */
     float  sp_x;            /* the anglerfish's home spot along the floor (-1 = not yet) */
-    float  flee_x, flee_y;  /* a poke's getaway (2026-10-28): where the finger landed ... */
+    float  flee_x, flee_y;  /* a poke's getaway: where the finger landed ... */
     float  flee_t;          /* ... and the seconds it keeps getting away from it (its row's flee); not saved */
 } fish_t;
 /* fish_t.sp_mode (not saved) */
 enum { SPM_NONE, SPM_JET, SPM_CLING, SPM_RISE, SPM_GULP, SPM_SINK, SPM_CLAWS, SPM_SCUTTLE, SPM_FLIP, SPM_LUNGE };   /* (CLING, CLAWS,
-                                                                            SCUTTLE, FLIP: a startle's, a poke's since 2026-10-28) */
+                                                                            SCUTTLE, FLIP: a poke's tricks) */
 
 /* a pellet: it sinks ~43 s from the surface to the floor, then RESTS there
- * FOOD_FLOOR_S before it dissolves (2026-09-29, for the shrimp school - every
- * tank alike; measured: the fish's hunger is unchanged). floor_s = seconds on
- * the floor so far, nibbled = seconds of shrimp pecking (SHRIMP_PECK_S eats it). */
+ * FOOD_FLOOR_S before it dissolves (the shrimp school grazes it; every tank
+ * alike). floor_s = seconds on the floor so far, nibbled = seconds of shrimp
+ * pecking (SHRIMP_PECK_S eats it). */
 typedef struct { float x, y, age; bool alive, from_player; float floor_s, nibbled; } food_t;
 #define FOOD_LIFE_S   45.0f          /* in the water: gone at this age if it never reached the floor */
 #define FOOD_FLOOR_Y  (TANK_BOT - 14)  /* where a pellet comes to rest */
-#define FOOD_FLOOR_S  15.0f          /* ... and how long it rests there (Strato, 2026-09-29) */
+#define FOOD_FLOOR_S  15.0f          /* ... and how long it rests there */
 typedef struct { float x, y, vy, wobble; bool column; } bubble_t;
 
 typedef struct tank {
@@ -315,59 +302,55 @@ typedef struct tank {
     float    clock;                /* seconds since start */
     bool     night;                /* the tank light is off: fish rest, the palette dims */
     float    idle_s;               /* seconds since the device was last HANDLED - moved
-                                    * (IMU) or touched. The light goes off once this
-                                    * passes LIGHT_IDLE_S (2026-09-15: the 240 s day/night
-                                    * cycle is gone; a tank left on the desk goes dark and
-                                    * the fish sleep, a pick-up or a touch wakes it). */
-    int      light_idle_s;         /* the keeper's idle time (settings page): seconds still
+                                    * (IMU) or touched. With LIGHTS OUT on AUTO the light
+                                    * goes off once this passes light_idle_s: a tank left
+                                    * on the desk goes dark and the creatures sleep, and a
+                                    * pick-up or a touch wakes it. */
+    int      light_idle_s;         /* the keeper's idle time (settings LIGHTS OUT): seconds still
                                     * before lights-out; LIGHT_IDLE_S by default, saved */
-    bool     light_auto;           /* settings LIGHTS OUT = a time: the idle rule turns the light
-                                    * off by itself. Off by default = NEVER, the light stays on
-                                    * (2026-10-28; MANUAL, the keeper's double-tap, before) */
-    uint8_t  theme;                /* theme_id_t: presentation only; persisted in an append-only tail */
+    bool     light_auto;           /* settings LIGHTS OUT = AUTO: the idle rule turns the light off
+                                    * by itself. false = NEVER (the default): the light stays on */
+    uint8_t  theme;                /* theme_id_t: presentation only; saved */
     bool     screen_turned;        /* a worn tank (DEVICE_WORN): settings SCREEN = TURNED (saved) */
-    bool     orient_lock;          /* settings ROTATION = locked (0.3.2, saved): the picture keeps the way up it
+    bool     orient_lock;          /* settings ROTATION = locked (saved): the picture keeps the way up it
                                     * had when the keeper locked it, however the tank is turned (tank_orient) */
     bool     orient_inv;           /* the picture's way up now, true = turned over: the platform's live flip,
                                     * or what the lock froze (saved with the lock) */
-    bool     autofeed_off;         /* settings AUTO FEED = OFF (0.3.2, saved): the tank's own trickle never
+    bool     autofeed_off;         /* settings AUTO FEED = OFF (saved): the tank's own trickle never
                                     * drops a pellet - feeding is the keeper's alone. Nobody dies of it; a
                                     * fish left starving in a lit tank slowly loses trust (progression.c) */
     bool     light_override;       /* director / sim took manual control of the light.
-                                    * Not saved (a saved override once froze a tank in
-                                    * permanent day and starved a milestone). */
+                                    * Not saved, so an override can never freeze a
+                                    * real tank in permanent day. */
     bool     light_on;
     /* touch (docs/progression.md). Reflex-layer only: the advisor never sees
-     * a finger, only what the hold does to trust. (Taps on the water flipped
-     * the light and startled the fish until 2026-10-28.) */
+     * a finger, only what the hold does to trust. */
     bool     hold_active;          /* finger held on the glass this frame */
     float    hold_x, hold_y;
     float    hold_time;            /* seconds the current hold has lasted */
     bool     hold_approached;      /* this hold already counted (hold_approaches); the
                                     * per-fish milestone is NOT gated on it */
-    /* glass wipe (algae cleaning) + canopy slash (vegetation trim): platform
+    /* the SPONGE's wipe (algae) and the SCISSORS' cut (fronds): the platform
      * re-asserts drag_active every frame a finger is on the glass; tank.c
      * consumes it like hold_active */
     bool     drag_active;
     bool     drag_has_prev;
     float    drag_px, drag_py;     /* previous drag point */
     float    drag_dist;            /* travel in this stroke; wiping engages past a threshold */
-    bool     slash_armed;          /* the stroke STARTED on a bed's canopy */
-    int8_t   slash_wall;           /* ... on no frond, but beside a wall frond: -1 left wall, +1 right (it runs on into that wall) */
-    bool     slash_engaged;        /* ... and has travelled sideways enough to be scissors */
+    bool     slash_armed;          /* the stroke is the SCISSORS' (set at its start) */
+    int8_t   slash_wall;           /* ... begun on no frond, but beside a wall frond: -1 left wall, +1 right (it runs on into that wall) */
+    bool     slash_engaged;        /* ... and has travelled sideways enough to cut */
     bool     wipe_sounded;         /* this stroke's wipe cue has fired */
     bool     slash_cut;            /* ... and has cut at least one frond (trims++ once) */
     float    slash_x0, slash_y0;   /* stroke start (the pre-engage travel is cut retroactively) */
     float    slash_h, slash_v;     /* travel this stroke: horizontal / vertical */
-    /* the tool in hand (2026-10-01; the main menu's tiles since 2026-10-21):
-     * TOOL_HAND = bare hands, which since 2026-10-28 only reach the creatures
-     * (a stroke guessed a wipe or a slash before); TOOL_SPONGE = a stroke
-     * wipes, TOOL_SCISSORS = it cuts, TOOL_FEED = a tap drops food. Not
-     * saved; it goes back in the box after TOOL_IDLE_S without a touch. A tool in hand owns the glass (2026-10-04,
-     * Strato: "it should prevent all other taps and interactions until the
-     * done button is pressed"): tank_touch_tap and tank_touch_hold do nothing,
-     * and the touch ports answer only the chip's DONE - no card, no feed, no
-     * light, no placement page. */
+    /* the tool in hand (the main menu's tiles): TOOL_HAND = bare hands, which
+     * only reach the creatures; TOOL_SPONGE = a stroke wipes, TOOL_SCISSORS =
+     * it cuts, TOOL_FEED = a tap drops food. Not saved; it goes back in the
+     * box after TOOL_IDLE_S without a touch. A tool in hand owns the glass:
+     * tank_touch_hold does nothing, tank_touch_tap does only the tool's work,
+     * and the touch ports answer nothing else but the chip's DONE - no card,
+     * no light, no placement page. */
     uint8_t  tool;
     float    tool_idle;            /* seconds since the tool last touched the glass */
     /* upkeep state (persisted by progression.c) */
@@ -380,17 +363,17 @@ typedef struct tank {
     float    algae_acc;            /* seconds toward the next algae growth step */
     int32_t  trims;                /* lifetime bed trims (milestone + save) */
     int32_t  cells_cleaned;        /* lifetime algae cells wiped (milestone + save) */
-    /* the chore counters behind the sand dollars (2026-09-15): a COLONY is a
-     * connected patch of film the keeper's wipe took the last cell of (the
-     * snail's grazing never counts); trim_px is frond length actually cut,
-     * PX_PER_CM to the centimeter. Both saved. */
+    /* the chore counters behind the sand dollars: a COLONY is a connected
+     * patch of film the keeper's wipe took the last cell of (the snail's
+     * grazing never counts); trim_px is frond length actually cut, PX_PER_CM
+     * to the centimeter. Both saved. */
     int32_t  algae_colonies;
     float    trim_px;
     /* sand dollars (progression.c owns the economy; tank.c reads the unlocks):
      * the balance, the lifetime total, what the shop has sold (SD_ITEM_*),
      * and the ledger that keeps an award from paying twice - per fish (bits
-     * SD_PAID_*), and how many payouts of colonies / grass have been made
-     * (sd_inches_paid: named for the inches it counted until 2026-09-29).
+     * SD_PAID_*), and how many payouts of colonies and of grass have been made
+     * (sd_inches_paid counts the grass's, a payout per SD_TRIM_CM cut).
      * All saved. */
     int32_t  sd_balance, sd_earned;
     uint32_t sd_unlocks;
@@ -410,10 +393,10 @@ typedef struct tank {
     decor_t  decor[DK_COUNT];
     /* keeper habits the tank remembers (persisted by progression.c) */
     float    feed_spot_x;          /* where the keeper usually feeds (EMA); <0 = unknown */
-    int      player_feedings;      /* MEALS: feedings the fish ate from (2026-09-14, Strato: a tap
-                                    * nobody eats from is not a meal) - a feed gesture opens one,
-                                    * the first player pellet eaten after it counts it */
-    bool     feed_open;            /* a feed gesture not yet eaten from (transient, not saved) */
+    int      player_feedings;      /* MEALS: feedings the fish ate from (a feed nobody eats
+                                    * from is not a meal) - a feed opens one, the first
+                                    * player pellet eaten after it counts it */
+    bool     feed_open;            /* a feed not yet eaten from (transient, not saved) */
     int      hold_approaches;      /* calm holds that drew a fish all the way in */
     float    greet_timer;          /* light-on greeting: trusting fish come up front */
     /* courtship tell (progression.c decides, tank.c performs): when the tank
@@ -424,13 +407,13 @@ typedef struct tank {
     int8_t   court_a, court_b;     /* the parents-to-be (-1 = fewer than 2 grown fish) */
     float    court_cool;           /* seconds until the next courtship episode */
     float    court_active;         /* seconds left of the current episode */
-    /* the spawning (2026-09-24): a staged arrival is born in front of the
-     * keeper, not at a light-on. progression.c waits a few awake seconds,
-     * then sets `spawning`: the courting pair dives into the nursery grass
-     * and circles there with no episode clock; tank.c counts `spawn_danced`,
-     * the seconds both have spent circling in the fronds, and progression.c
-     * delivers the fry at SPAWN_DANCE_S. Not saved (a staged arrival is; a
-     * wake delivers it at once). */
+    /* the spawning: a staged arrival is born in front of the keeper, not at a
+     * light-on. progression.c waits a few awake seconds, then sets
+     * `spawning`: the courting pair dives into the nursery grass and circles
+     * there with no episode clock; tank.c counts `spawn_danced`, the seconds
+     * both have spent circling in the fronds, and progression.c delivers the
+     * fry at SPAWN_DANCE_S. Not saved (a staged arrival is; a wake delivers
+     * it at once). */
     bool     spawning;
     float    spawn_danced;
     bool     ravenous;             /* starving tank: with empty water the fish
@@ -440,20 +423,20 @@ typedef struct tank {
                                     * owns entry/exit; tank.c renders both
                                     * phases; ends when everyone has eaten. */
     bool     hold_light;           /* platform: a setup page or a prompt is up - the
-                                    * light stays on however still the device is
-                                    * (2026-09-13, Strato: the tank went dark mid-name).
-                                    * Not saved; a light override still wins. */
+                                    * light stays on however still the device is, so it
+                                    * never goes dark mid-name. Not saved; a light
+                                    * override still wins. */
     bool     ui_cover;             /* platform: a page covers the tank (setup, a prompt,
                                     * milestones, settings, the shop) - a fry's spawning
-                                    * waits, so the keeper never misses it (2026-09-24).
+                                    * waits, so the keeper never misses it.
                                     * Set every frame; not saved. */
     uint8_t  roster_gen;           /* ticks when a fish leaves and the slots shift (tank_remove_fish):
                                     * the advisors drop what they were asked about the old slots.
                                     * Not saved. */
     int8_t   stage_fish;          /* setup: this fish is being named / coloured - it swims
                                     * a slow loop at (stage_x, stage_y), the clear spot the
-                                    * page leaves for it, so it is never behind the UI
-                                    * (2026-09-13). -1 = nobody. Not saved. */
+                                    * page leaves for it, so it is never behind the UI.
+                                    * -1 = nobody. Not saved. */
     float    stage_x, stage_y;
     bool     trickle_off;          /* director/test knob: the tank's own trickle
                                     * holds off entirely (staged hunger for a
@@ -471,7 +454,7 @@ typedef struct tank {
     uint32_t rng;                  /* xorshift state, deterministic */
 } tank_t;
 
-/* Advisor interface (Track 1 model, rule stub, or firmware LLM core).
+/* Advisor interface (the rules stub or the LLM advisor).
  * Called EVERY frame for every live fish. `request` is true when the tank
  * wants a (re)decision: the fish's coarse state signature changed and the
  * minimum interval passed, it hit the idle ceiling, or something urgent
@@ -481,12 +464,12 @@ typedef struct tank {
 typedef goal_t (*advisor_fn)(const tank_t *t, int fish_idx, bool request);
 
 #define ADVISOR_MIN_INTERVAL 2.0f   /* s between asks for one fish (signature changed) */
-/* s: re-ask even if nothing changed. 9 s kept the device's LLM core saturated
- * (a decision every 3.65 s back to back, even with two fish) for answers that
- * repeat the standing goal ~90% of the time; 45 s (with the calmer signature
- * in state_signature) leaves the core idle most of the time on battery.
- * Reactions still come through the 2 s change path - hunger band, food
- * appearing, night - and the urgent path (2026-09-11). */
+/* s: re-ask even if nothing changed. Answers repeat the standing goal ~90% of
+ * the time, so a short ceiling only keeps the device's LLM core busy: at 9 s
+ * it would decide back to back (a decision every 3.65 s, even with two fish).
+ * 45 s, with the calm signature in state_signature, leaves the core idle most
+ * of the time on battery. Reactions still come through the 2 s change path -
+ * hunger band, food appearing, night - and the urgent path. */
 #define ADVISOR_IDLE_CEILING 45.0f   /* 5 fish x 3.65 s per decision at 25 s would still be 70% busy */
 
 /* boredom (fish_t.bored; the same numbers live in model/gen_traces.py) */
@@ -500,20 +483,20 @@ void  tank_init(tank_t *t, uint32_t seed);
 /* Population. tank_init leaves the tank empty (n_fish = 0); the progression
  * layer either restores a save or calls tank_new_population for a fresh tank:
  * two random roster presets, personalities rolled with a guaranteed contrast,
- * adults. tank_add_fish appends the next unused preset (name, temperament)
+ * fry. tank_add_fish appends the next unused preset (name, temperament)
  * as a fry whose bold/social are inherited from two live fish (+ noise) and
  * whose look is theirs too - body from one, markings from the other (the
  * fish records which in parent_a / parent_b); returns the index or -1 if
  * the tank is full. */
 void  tank_new_population(tank_t *t);
 int   tank_add_fish(tank_t *t, int parent_a, int parent_b);
-/* a fish leaves the tank (2026-10-01, the milestones card's SELL): the fish
- * after it move down a slot - the order stays the order of arrival, so the
- * last fish is still the youngest - and everything the tank keeps by slot
- * moves with them (the sand dollar ledger, the others' parent slots: a child
- * of the fish that left reads "none", their spots by the reef). The courtship
- * and a spawning under way are dropped; roster_gen ticks so an advisor can
- * drop a decision asked for the old slots. false = no such fish. The caller
+/* a fish leaves the tank (the milestones card's SELL): the fish after it
+ * move down a slot - the order stays the order of arrival, so the last fish
+ * is still the youngest - and everything the tank keeps by slot moves with
+ * them (the sand dollar ledger, the others' parent slots: a child of the fish
+ * that left reads "none", their spots by the reef). The courtship and a
+ * spawning under way are dropped; roster_gen ticks so an advisor can drop a
+ * decision asked for the old slots. false = no such fish. The caller
  * (progression_sell_fish) keeps the rules: who may leave, and its own
  * per-slot state. */
 bool  tank_remove_fish(tank_t *t, int idx);
@@ -523,32 +506,27 @@ void  tank_make_fish(tank_t *t, int slot, int preset, float sociable, float bold
  * code that places a fish by hand - the sim's scenes, the wake restore */
 void  tank_fish_face(fish_t *f);
 void  tank_tick(tank_t *t, float dt, advisor_fn advise);
-/* Sleep metabolism (device drowse mode: screen dark, fish asleep). Advances
+/* Sleep metabolism (the device's sleep: screen dark, fish asleep). Advances
  * ONLY slow physiology - hunger up, energy recovered, stress gone - at
  * real-hours scale; no movement, no goals, no eating, no trickle. Sleeping
  * fish make no decisions, so the advisor contract is untouched. Safe to call
  * with hours at a time. */
 void  tank_tick_sleep(tank_t *t, float seconds);
-/* Tank light (2026-09-15). It is on while the device is being handled and
- * goes off LIGHT_IDLE_S after the last handling - the tank sitting still on
- * a desk is night: the fish rest, the palette dims, the panel dims. The
- * platform calls tank_handled whenever the device moves (the IMU's motion
- * detector) - a touch counts by itself (every tank_touch_* / tank_feed call
- * is handling) - and a setup page or prompt holds the light (hold_light).
- * tank_toggle_light / tank_light_auto are the director's and the sim's
- * manual override (b-roll, tests); never saved. */
-/* Settings' LIGHTS OUT = NEVER (light_auto false, the default) turns the
- * idle rule off: the light stays on (2026-10-28; MANUAL and its double-tap
- * on the glass before). */
+/* The tank light. With settings' LIGHTS OUT on AUTO it is on while the
+ * device is being handled and goes off light_idle_s after the last handling -
+ * the tank sitting still on a desk is night: the fish rest, the palette dims,
+ * the panel dims. On NEVER (light_auto false, the default) the light stays
+ * on. The platform calls tank_handled whenever the device moves (the IMU's
+ * motion detector) - a touch counts by itself (every tank_touch_* /
+ * tank_feed call is handling) - and a setup page or prompt holds the light
+ * (hold_light). tank_toggle_light / tank_light_auto are the director's and
+ * the sim's manual override (b-roll, tests); never saved. */
 #define LIGHT_IDLE_S     15        /* the default, seconds (tank_t.light_idle_s) */
 #define LIGHT_IDLE_MIN_S 5
-#define LIGHT_IDLE_MAX_S 1800      /* the settings page's longest choice, 30 min (0.3.2: its choices are
-                                      LIGHT_IDLE_CHOICES; until then a wheel of 5..999 s) */
-/* the settings page's LIGHTS OUT choices (0.3.2): AUTO after one of these
- * many seconds still, or NEVER (the default; 2026-10-28, the double-tap's
- * MANUAL before). A save from the wheel's days holds any 5..999: it is
- * honoured as it is and shown as the nearest choice until the keeper steps
- * the row. */
+#define LIGHT_IDLE_MAX_S 1800      /* the settings page's longest choice, 30 min */
+/* the settings page's LIGHTS OUT choices: AUTO after one of these many
+ * seconds still, or NEVER. Any other saved time is honoured as it is and
+ * shown as the nearest choice until the keeper steps the row. */
 #define LIGHT_IDLE_N 8
 extern const int LIGHT_IDLE_CHOICES[LIGHT_IDLE_N];
 int   tank_light_choice(const tank_t *t);            /* 0..LIGHT_IDLE_N - 1 = AUTO after LIGHT_IDLE_CHOICES[n], LIGHT_IDLE_N = NEVER */
@@ -557,24 +535,22 @@ void  tank_handled(tank_t *t);
 void  tank_toggle_light(tank_t *t);
 void  tank_light_auto(tank_t *t);
 
-/* The picture's way up on a WORN tank (DEVICE_WORN, 2026-10-02). A watch can
- * go on either wrist, buttons toward the hand or the elbow: the second way
+/* The picture's way up on a WORN tank (DEVICE_WORN). A watch can go on
+ * either wrist, buttons toward the hand or the elbow, and the second way
  * shows the tank upside down. Which way it is worn does not change through
  * the day, so it is the keeper's setting - settings SCREEN: NORMAL / TURNED -
- * not the live IMU flip the desk tanks run. (An AUTO that learned it from the
- * IMU at each tap was built and dropped the same day: the tilt of a wrist
- * raised to read it depends on the arm, not on the way the watch is strapped
- * on - Strato's own wrist read "top down" both ways round.)
+ * not the live IMU flip the desk tanks run (the tilt of a raised wrist
+ * depends on the arm, not on which way the watch is strapped on).
  * tank_screen_set: the settings page's choice (save it:
  * progression_settings_changed). Every other build: never turned. */
 bool  tank_screen_turned(const tank_t *t);
 void  tank_screen_set(tank_t *t, bool turned);
-/* The way up on a desk tank or the pendant (0.3.2, @brandonn5371's ask): the
- * picture follows the IMU's 180-degree flip unless settings' ROTATION is
- * locked. The platform hands tank_orient its live reading every frame and
- * shows what comes back: the reading itself, or - locked - the way up the
- * picture had at the lock (saved, so a locked tank boots the same way up).
- * tank_orient_lock is the settings page's toggle. */
+/* The way up on a desk tank: the picture follows the IMU's 180-degree flip
+ * unless settings' ROTATION is locked. The platform hands tank_orient its
+ * live reading every frame and shows what comes back: the reading itself,
+ * or - locked - the way up the picture had at the lock (saved, so a locked
+ * tank boots the same way up). tank_orient_lock is the settings page's
+ * toggle. */
 bool  tank_orient(tank_t *t, bool live_inverted);
 void  tank_orient_lock(tank_t *t, bool lock);
 
@@ -582,37 +558,32 @@ void  tank_orient_lock(tank_t *t, bool lock);
  *  tank_touch_hold: call EVERY FRAME while a finger rests on the glass at x,y.
  *    After ~3 s of contact, high-trust fish drift over to investigate (the
  *    delay keeps taps from twitching the school); low-trust or
- *    strongly hungry fish keep to their own business.
+ *    strongly hungry fish keep to their own business. Calm holds earn trust.
  *  tank_touch_tap:  call once per tap on the water. With the FEED tool in
- *    hand it drops a portion at the surface over it (2026-10-28; a tap at
- *    the surface with bare hands before); otherwise only the knock's cue.
- *    (Until 2026-10-28 two quick taps flipped the light and three startled
- *    the fish: the keeper took both out.) Calm holds earn trust.
+ *    hand it drops a portion at the surface over it; with bare hands it is
+ *    only the knock's cue.
  *  tank_feed: the keeper drops n pellets at x (surface). Player feeding is what
  *    progression counts; the tank's own trickle feed is not. */
 void  tank_touch_hold(tank_t *t, float x, float y);
 void  tank_touch_tap(tank_t *t, float x, float y);
 /* tank_touch_drag: call EVERY FRAME while a finger is down at x,y (moving or
- * not; tank.c tracks travel). With bare hands a stroke touches nothing
- * (2026-10-28: it guessed a wipe or a slash before). With the SPONGE, once a
- * stroke has moved far enough it WIPES: algae cells along the path are
- * squeegeed clean. With the SCISSORS a stroke more sideways than not CUTS:
- * every frond it crosses is cut to the height where the stroke crosses it (a
- * lower pass cuts again; nothing ever cuts below nubs) - a short sideways
- * flick takes one or two fronds, a sweep along the floor mows the bed. The
- * finger is a pad: the stroke reaches a few px past where it lands and where
- * it lifts, so the outer frond of a bed by the glass falls to a sweep that
- * stops just short of its spine (2026-09-14), and one begun on no frond
+ * not; tank.c tracks travel). With bare hands a stroke touches nothing. With
+ * the SPONGE, once a stroke has moved far enough it WIPES: algae cells along
+ * the path are squeegeed clean. With the SCISSORS a stroke more sideways than
+ * not CUTS: every frond it crosses is cut to the height where the stroke
+ * crosses it (a lower pass cuts again; nothing ever cuts below nubs) - a
+ * short sideways flick takes one or two fronds, a sweep along the floor mows
+ * the bed. The finger is a pad: the stroke reaches a few px past where it
+ * lands and where it lifts, so the outer frond of a bed by the glass falls to
+ * a sweep that stops just short of its spine, and one begun on no frond
  * beside a wall frond runs on into the wall. */
 void  tank_touch_drag(tank_t *t, float x, float y);
-/* the tools (2026-10-01; folks found it too hard to scrub algae without
- * shearing the grass; the main menu's bottom row since 2026-10-21): SPONGE,
- * a stroke wipes and never cuts; SCISSORS, any mostly-sideways stroke cuts
- * every frond it crosses, at the height it crosses it, and never wipes; FEED
- * (2026-10-28), a tap drops a portion of food at the surface over it. Bare
- * hands do none of it since 2026-10-28 (the keeper: touching the tank only
- * reaches the creatures): a tap selects, a hold draws the trusting over. A
- * tool in hand owns the glass: only its chip's DONE puts it back. */
+/* the tools (the main menu's tiles): SPONGE, a stroke wipes and never cuts;
+ * SCISSORS, any mostly-sideways stroke cuts every frond it crosses, at the
+ * height it crosses it, and never wipes; FEED, a tap drops a portion of food
+ * at the surface over it. Bare hands only reach the creatures: a tap
+ * selects, a hold draws the trusting over. A tool in hand owns the glass:
+ * only its chip's DONE puts it back. */
 enum { TOOL_HAND = 0, TOOL_SPONGE, TOOL_SCISSORS, TOOL_FEED };
 #define TOOL_IDLE_S 120.0f
 void  tank_set_tool(tank_t *t, int tool);
@@ -627,8 +598,8 @@ void  tank_scatter_food(tank_t *t, int n);      /* the tank's own trickle (rando
  * and segment count, shared by render (what you see) and tank.c physics
  * (slow swimming inside, the cut test), so they can't drift apart.
  * tank_veg_set puts every frond of a bed at height g (tests, the sim's demo
- * key, old saves). tank_grow_algae runs n growth steps now (the same steps
- * time runs on its own; tests and the sim's demo key use it directly). */
+ * key). tank_grow_algae runs n growth steps now (the same steps time runs
+ * on its own; tests and the sim's demo key use it directly). */
 void  tank_veg_bed(const tank_t *t, int b, float *x0, float *x1, float *top_y, int *fronds);
 int   tank_veg_frond(const tank_t *t, int b, int i, float *x);
 void  tank_veg_set(tank_t *t, int b, float g);
@@ -640,9 +611,9 @@ int   tank_nursery_bed(const tank_t *t);
 bool  tank_in_grass(const tank_t *t, float x, float y);
 /* the fish's "reef" (the model's `reef` sighting, the inspect_reef goal): the
  * reef cluster once the keeper owns one - the point a fish circles, by its
- * upper half - and until then the old spot over the grass corner
- * (reef_x, reef_y), which is still where the fish rest and the left bed
- * stands. The fish circle REEF_ORBIT_UP above the point. */
+ * upper half - and until then the spot over the grass corner (reef_x,
+ * reef_y), which is still where the fish rest and the left bed stands. The
+ * fish circle REEF_ORBIT_UP above the point. */
 #define REEF_ORBIT_UP 35.0f
 void  tank_reef_spot(const tank_t *t, float *x, float *y);
 /* a flirt of n bubbles rising from where the pair courts (the nursery) */
@@ -660,19 +631,19 @@ float tank_dist(float ax, float ay, float bx, float by);
 int   tank_nearest_food(const tank_t *t, const fish_t *f, float *dist_out);
 int   tank_nearest_friend(const tank_t *t, int fish_idx, float *dist_out);
 float tank_randf(tank_t *t, float lo, float hi);
-/* roster preset count (6) and a preset's display name, for UI */
+/* roster preset count and a preset's display name, for UI */
 int   tank_roster_count(void);
 const char *tank_roster_name(int preset);
 /* species (docs/species.md). tank_make_fish is the classic fish;
  * tank_set_species turns slot into a species' creature in place - its
  * design, size range, temperament constants and default name - keeping the
  * bold / sociable it has (a load re-applies it). tank_add_species_pair
- * brings two juveniles of a species (the shop), -1 when there is no room
- * for both. tank_species_n counts a species' living members. */
+ * brings two juveniles of a species, -1 when there is no room for both.
+ * tank_species_n counts a species' living members. */
 const species_def_t *tank_species(const fish_t *f);
 void  tank_set_species(tank_t *t, int slot, int species, int variant);
 int   tank_add_species_pair(tank_t *t, int species);
-int   tank_add_species_n(tank_t *t, int species, int n);   /* n juveniles of a species (the shop sells one, 2026-10-07); the first's slot or -1 */
+int   tank_add_species_n(tank_t *t, int species, int n);   /* n juveniles of a species (the shop sells one); the first's slot or -1 */
 int   tank_species_n(const tank_t *t, int species);
 /* a tap's reach around a creature (the touch ports, the sim): its species'
  * hit_r at its size, never under a fingertip's TANK_HIT_MIN_R */
@@ -692,9 +663,9 @@ bool  tank_fish_backward(const fish_t *f);
 bool  tank_fish_jetting(const fish_t *f);
 float tank_ground_y(const tank_t *t, float x);
 float tank_walk_off(const fish_t *f);
-/* the keeper's say over a fish's identity (first-run setup, 2026-09-13; the
- * birth flow names an arrival, 2026-09-14). tank_set_name copies up to FISH_NAME_MAX
- * chars (empty = back to the preset's name); tank_set_look sets the body and
+/* the keeper's say over a creature's identity (first-run setup; the birth
+ * flow names an arrival). tank_set_name copies up to FISH_NAME_MAX chars
+ * (empty = back to the preset's name); tank_set_look sets the body and
  * accent colours - the fin follows the body (the preset's own fin when the
  * body is a roster colour, a darkened body otherwise). The swatch palettes
  * hold every roster colour, so an untouched fish always sits on a swatch. */
@@ -702,34 +673,34 @@ extern const uint32_t LOOK_BODY[LOOK_N];
 extern const uint32_t LOOK_ACCENT[LOOK_N];
 void  tank_set_name(tank_t *t, int slot, const char *name);
 void  tank_set_look(tank_t *t, int slot, uint32_t body, uint32_t accent);
-/* the bubble column is the keeper's to place (first-run setup, 2026-09-13):
- * x is clamped clear of the grass corner (the fish's resting spot) and the glass (grass is fine), the
- * column's live bubbles shift with it, and everything that knows the column
- * - the play loop, the advisor's sighting, the milestone, the airstone -
- * reads tank_t.bubble_x. Saved per tank; the model only ever sees the
- * column as a distance bucket and a bearing, never a position. */
+/* the bubble column is the keeper's to place (first-run setup): x is clamped
+ * clear of the grass corner (the fish's resting spot) and the glass (grass is
+ * fine), the column's live bubbles shift with it, and everything that knows
+ * the column - the play loop, the advisor's sighting, the milestone, the
+ * airstone - reads tank_bubble_x. Saved per tank; the model only ever sees
+ * the column as a distance bucket and a bearing, never a position. */
 #define BUBBLE_X_DEFAULT (TANK_FX0 + TANK_FW * 0.8f)
 void  tank_set_bubble_x(tank_t *t, float x);
 static inline float tank_bubble_x(const tank_t *t) { return t->decor[DK_AIRSTONE].x; }
 
-/* ---- the shop (2026-09-15): sand dollars buy things for the tank ----
+/* ---- the shop: sand dollars buy things for the tank ----
  * The items are bits in tank_t.sd_unlocks; progression.c sells them
  * (progression_buy) and the decor and the helpers give them their place. A
  * bought thing stays until it is sold back (progression_sell). */
 enum { SD_ITEM_PLANT = 1u << 0, SD_ITEM_SNAIL = 1u << 1, SD_ITEM_CASTLE = 1u << 2, SD_ITEM_CORAL = 1u << 3, SD_ITEM_CLUSTER = 1u << 4, SD_ITEM_SHRIMP = 1u << 5,
        SD_ITEM_URCHIN = 1u << 6,
-       /* the species (2026-10-05, docs/species.md): one juvenile a purchase (2026-10-07;
-          a pair before), in species order (item SD_ITEM_SP_FIRST + species - 1). The
-          bit means the species is in the tank (progression_species_sync); it never
-          locks the item - a creature sells whenever there is a free place. */
+       /* the species (docs/species.md): one juvenile a purchase, in species
+          order (item SD_ITEM_SP_FIRST + species - 1). The bit means the
+          species is in the tank (progression_species_sync); it never locks
+          the item - a creature sells whenever there is a free place. */
        SD_ITEM_SP_SEAHORSE = 1u << 7, SD_ITEM_SP_OCTOPUS = 1u << 8, SD_ITEM_SP_PUFFER = 1u << 9, SD_ITEM_SP_ANGLER = 1u << 10,
        SD_ITEM_SP_EEL = 1u << 11, SD_ITEM_SP_SHARK = 1u << 12, SD_ITEM_SP_SQUID = 1u << 13, SD_ITEM_SP_CRAB = 1u << 14,
        SD_ITEM_SP_LOBSTER = 1u << 15, SD_ITEM_SP_JELLYFISH = 1u << 16,
-       SD_ITEM_WRECK = 1u << 17,   /* the shipwreck (2026-10-10): item index 7, after the urchin - a thing, before the species */
-       SD_ITEM_FROGMAN = 1u << 18, /* the frogman (2026-10-10, later that day): item index 8, a resident like the snail */
-       SD_ITEM_SUB = 1u << 19,     /* the submarine (2026-10-10, that night): item index 9, a resident that cruises the water */
-       SD_ITEM_SP_SWORDFISH = 1u << 20,   /* the swordfish (2026-10-10 night) */
-       SD_ITEM_SP_TURTLE = 1u << 21,      /* the turtle (2026-10-11): the last species item */
+       SD_ITEM_WRECK = 1u << 17,   /* the shipwreck: item index 7, after the urchin - a thing, before the species */
+       SD_ITEM_FROGMAN = 1u << 18, /* the frogman: item index 8, a helper */
+       SD_ITEM_SUB = 1u << 19,     /* the submarine: item index 9, a helper that cruises the water */
+       SD_ITEM_SP_SWORDFISH = 1u << 20,
+       SD_ITEM_SP_TURTLE = 1u << 21,      /* the last species item */
        SD_ITEM_COUNT = 22 };
 #define SD_ITEM_SP_FIRST 10        /* the item index of the first species (the seahorse) */
 #define SD_ITEM_WRECK_IDX 7        /* the shipwreck's item index */
@@ -748,63 +719,57 @@ void  tank_plant_place(tank_t *t);
 void  tank_castle_place(tank_t *t);
 void  tank_coral_place(tank_t *t);
 void  tank_cluster_place(tank_t *t);
-/* placing the decor (2026-09-16, Strato: a bought piece "should allow the
- * player to place the piece wherever they like", with a depth choice): a
- * movable piece (decor.h DF_MOVABLE) has a centre x along the floor - clamped
- * inside the visible window, DECOR_MARGIN from the glass - and a depth
- * (DECOR_Z_*, the ones its row offers). setup.c's placement page and the
- * shop's MOVE button drive these by shop item (tank_decor_*); the save keeps
- * them. The geometry each piece's row uses (DECOR_MARGIN and PLANT_X_DEFAULT
- * are the board's, the devices/ headers): */
+/* placing the decor: a movable piece (decor.h DF_MOVABLE) has a centre x
+ * along the floor - clamped inside the visible window, DECOR_MARGIN from the
+ * glass - and a depth (DECOR_Z_*, the ones its row offers). setup.c's
+ * placement page and the shop's MOVE button drive these by shop item
+ * (tank_decor_*); the save keeps them. The geometry each piece's row uses
+ * (DECOR_MARGIN and PLANT_X_DEFAULT are the board's, the devices/ headers): */
 #define PLANT_HALF_W    21                 /* four leaves at a 14 px pitch: centre to the outer leaf */
-/* the castle (2026-09-16, Strato's castle-v2 mockup, drawn procedurally in
- * render.c): ~184 px wide on the floor, a swim-through arch. Its depths are
- * BEHIND and IN FRONT only (Strato: "no among"), and they mean the PLANT
- * LAYER: BACK = behind the grass and the fish, a backdrop the fish pass in
- * front of; FRONT = in front of the grass, and the fish swim THROUGH the arch
- * (the keep behind them, the gate wall and the front towers over them). */
+/* the castle (drawn procedurally, decor_castle.inc): ~184 px wide on the
+ * floor, a swim-through arch. Its depths are BEHIND and IN FRONT only, and
+ * they mean the PLANT LAYER: BACK = behind the grass and the fish, a backdrop
+ * the fish pass in front of; FRONT = in front of the grass, and the fish swim
+ * THROUGH the arch (the keep behind them, the gate wall and the front towers
+ * over them). */
 #define CASTLE_HALF_W   92
 #define CASTLE_X_DEFAULT TANK_FLOOR_X(300.0f)
-/* the shipwreck (2026-10-10): ~128 px wide, ~80 tall at the mast, item 7; BEHIND or IN
+/* the shipwreck: ~128 px wide, ~80 tall at the mast, item 7; BEHIND or IN
  * FRONT like the castle; the holes in its hull are see-through, the fish pass behind them */
 #define WRECK_HALF_W    64
 #define WRECK_X_DEFAULT TANK_FLOOR_X(130.0f)
-/* the coral (2026-09-23, Strato's coral-single.png, drawn procedurally in
- * render.c): a branching fan ~60 px wide and ~90 tall on the floor, item 3.
- * All three depths; the default is AMONG - nestled in the reef bed's grass,
- * the fish in front of it. Its colour is the keeper's: CORAL_PAL is the
- * swatch row on its placement page (the fish colour page's idiom), the
- * pick saved as RGB so a palette change never recolours a tank. */
+/* the coral (drawn procedurally, decor_coral.inc): a branching fan ~60 px
+ * wide and ~90 tall on the floor, item 3. Its colour is the keeper's:
+ * CORAL_PAL is the swatch row on its placement page (the fish colour page's
+ * idiom), the pick saved as RGB so a palette change never recolours a tank. */
 #define CORAL_HALF_W    30
 #define CORAL_X_DEFAULT TANK_FLOOR_X(150.0f)
 /* both corals stand BEHIND or IN FRONT of the grass (no AMONG, like the
  * castle) and are anchored: their base sits DECOR_SINK px down into the
  * pebbles and a low mound of floor stones is drawn round it (render.c
- * draw_floor_mound) - Strato, 2026-09-24: "it actually looks like they are
- * hovering / pasted onto the [floor]" */
+ * draw_floor_mound), so they stand on the floor instead of hovering over it */
 #define DECOR_SINK      4
 #define CORAL_N         8
-#define CORAL_START     0.45f              /* a bought coral is young but ESTABLISHED: the trunk and the two
-                                            * low branches (Strato, 2026-09-23: a nub "is not satisfying ...
-                                            * some higher level of instant gratification"); ~17 days to the
-                                            * fan from here, the crown a week after */
+#define CORAL_START     0.45f              /* a bought coral is young but ESTABLISHED: the trunk and the
+                                            * two low branches, some instant gratification; ~17 days to
+                                            * the fan from here, the crown a week after */
 #define CORAL_FULL      1.25f              /* growth runs past the fan: 1.0 = the fan complete, then a
                                             * ring of delicate tentacles sprouts from the top and reaches
-                                            * its full spread at CORAL_FULL (Strato, 2026-09-23) */
+                                            * its full spread at CORAL_FULL */
 #define CORAL_GROW_S    (30.0f * 86400.0f) /* stub -> the full fan in ~30 days of real time, the crown
-                                            * ~a week more; the branches come in one by one (render.c
-                                            * CORAL_SEGS' growth windows), a slow arc next to the grass's
-                                            * day. The fan tops out ~76 px up the glass, a quarter of the
-                                            * grass's ceilings - a modest thing, never a wall. */
+                                            * ~a week more; the branches come in one by one
+                                            * (decor_coral.inc CORAL_SEGS' growth windows), a slow arc
+                                            * next to the grass's day. The fan tops out ~76 px up the
+                                            * glass, a quarter of the grass's ceilings - a modest thing,
+                                            * never a wall. */
 float    tank_coral_growth(const tank_t *t);      /* CORAL_START..CORAL_FULL (CORAL_FULL when unset) */
-/* the reef cluster (2026-09-24): item 4, the dearest thing in the shop. ~144
- * x 120 px on the floor, all three depths, AMONG by default. It arrives
- * MATURE (Strato: "the initial stage needs to look somewhat impressive and
- * large") at CLUSTER_SIZE_MIN of its full size and fills out to full over
- * the first CLUSTER_GROW_S, then from 1 to CLUSTER_FULL more and more
- * tentacles sway from the tube mouths, the coral's tips and the brain. Three
- * preset LOOKS (CLUSTER_SCHEMES: the coral / the tubes / the brain each), the
- * placement page's row of three tiles picks one. */
+/* the reef cluster: item 4, the dearest thing in the shop. ~144 x 120 px on
+ * the floor, BEHIND or IN FRONT. It arrives MATURE, at CLUSTER_SIZE_MIN of
+ * its full size (it should look impressive from the first day), fills out
+ * to full over the first CLUSTER_GROW_S, then from 1 to CLUSTER_FULL more and
+ * more tentacles sway from the tube mouths, the coral's tips and the brain.
+ * Three preset LOOKS (CLUSTER_SCHEMES: the coral / the tubes / the brain
+ * each); the placement page's row of three tiles picks one. */
 #define CLUSTER_HALF_W    72
 #define CLUSTER_X_DEFAULT TANK_FLOOR_X(330.0f)
 #define CLUSTER_START     0.0f
@@ -829,9 +794,9 @@ float tank_decor_x(const tank_t *t, int item);   /* the centre, default when unp
 int   tank_decor_z(const tank_t *t, int item);
 float tank_decor_half_w(int item);         /* half the footprint, for the page's clamp / highlight */
 /* the owned, placeable piece under (x, y) - its footprint box on the floor -
- * or -1 (2026-09-24: a tap-and-hold on a piece opens its page); the smaller
- * pieces win a tie. tank_decor_reset puts a SOLD piece back to its factory
- * state so a later purchase starts fresh. */
+ * or -1; the smaller pieces win a tie (the director and the tests ask it).
+ * tank_decor_reset puts a SOLD piece back to its factory state so a later
+ * purchase starts fresh. */
 int   tank_decor_hit(const tank_t *t, float x, float y);
 void  tank_decor_reset(tank_t *t, int item);
 

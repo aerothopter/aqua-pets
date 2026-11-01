@@ -1,8 +1,7 @@
-/* model_trailer.h - the model partition's validity marker (docs/OTA.md,
- * "Model updates", 2026-09-30).
+/* model_trailer.h - the model partition's validity marker (docs/OTA.md).
  *
- * A 7.5 MB model cannot be double-buffered in 16 MB, so an over-the-air
- * model write is in place. The LAST sector of the model partition (the body
+ * A 7.5 MB model cannot be double-buffered in 16 MB, so a model write is in
+ * place. The LAST sector of the model partition (the body
  * stays at offset 0, nothing moves) holds this trailer: written LAST by a
  * model write, erased FIRST, so a half-written model is never mistaken for
  * a good one. The cable installer writes it as a 4 KB part
@@ -10,8 +9,7 @@
  * but no trailer (a cable install that skipped it, QEMU) hashes the body
  * once at boot: the hash the build shipped with (PT_MODEL_SHA256) matches ->
  * the trailer is written; anything else runs as it is (a keeper's own model)
- * and says so in the log. Phase two (the model download) adds the "dirty"
- * flag: a write that began and never finished. */
+ * and says so in the log. */
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
@@ -24,7 +22,7 @@ typedef struct {
     uint32_t version;                          /* the trailer's layout: 1 */
     uint32_t model_len;                        /* bytes of body */
     uint8_t  sha256[32];                       /* of the body */
-    char     tag[16];                          /* the model's name ("v3m") */
+    char     tag[16];                          /* the model's name (PT_MODEL_TAG) */
     uint32_t crc;                              /* FNV-1a over everything above */
 } model_trailer_t;
 

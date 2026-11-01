@@ -1,14 +1,12 @@
-/* ---- every creature's art (2026-10-23, the creatures refactor: one file,
- * not one a species) ----
+/* ---- every creature's art, in one file ----
  * Included by render.c where the creatures are drawn, after the raster kit
  * (fill_ellipse, fill_poly, mix, ...). In order: the classic fish's body
  * (the turn, draw_fish_core), the species' sketch kit (sk_*), each
- * species' Original look (draw_seahorse ... draw_lobster, the jellyfish; the
- * other themes' looks are at git tag multi-board-multi-theme), then draw_creature, which picks a species'
- * drawer, and draw_fish, the tank's way in. The model never sees any of it. */
+ * species' look (draw_seahorse ... draw_lobster, the jellyfish), then
+ * draw_creature, which picks a species' drawer, and draw_fish, the tank's way
+ * in. The model never sees any of it. */
 
-/* the turn (2026-09-29, was a roll that flattened the fish to a line): the
- * fish's yaw (tank.c) FORESHORTENS it along its length - side-on at +-1,
+/* the turn: the fish's yaw (creature.c) FORESHORTENS it along its length - side-on at +-1,
  * head-on at 0 - and the sign mirrors it, so its back stays up. The head's
  * yaw leads and the tail's follows, blended along the body, so mid-turn it
  * bends. Eased here so the swing starts and lands softly. */
@@ -26,7 +24,7 @@ static float yaw_at(float yh, float yt, float lx) {
     return s;
 }
 
-/* The fish's body is a ledger of its life: stage sets size (tank.c) and fin
+/* The fish's body is a ledger of its life: stage sets size (progression.c) and fin
  * elaboration, hunger drains saturation, and earned markings stay:
  *   elder -> a longer tail and a dorsal crest. All procedural, zero flash. */
 /* `mark` scales the accent stripes: 1 in the tank (every stage wears the
@@ -34,7 +32,7 @@ static float yaw_at(float yh, float yt, float lx) {
 static void draw_creature(ctx_t *c, const fish_t *f, float clock, bool asleep);   /* the species, below */
 static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, float mark) {
     if (f->species != SP_FISH) { draw_creature(c, f, clock, asleep); return; }
-    float tail = sinf(f->jet * TAU + f->wander) *                      /* the beat's phase: tank.c integrates it (2026-10-12) */
+    float tail = sinf(f->jet * TAU + f->wander) *                      /* the beat's phase: creature.c integrates it */
                  (0.32f + f->speed * 0.007f);
     float stress = f->stress / 10.0f;
     float pale = f->hunger > 7 ? (f->hunger - 7) / 3.0f * 0.35f : 0;   /* hungry = washed out */
@@ -42,8 +40,7 @@ static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, 
      * yaw scales x: X = s(lx) * (lx cos p - ly sin p), Y = lx sin p + ly cos p.
      * The BODY tilts less than the path: a fish rises and sinks on its fins
      * with its back near level, so the travel angle is eased toward a cap of
-     * ~35 deg (~55 at a dash) - never nose-straight-up (Strato 09-29: "too
-     * much time in a vertical position") */
+     * ~35 deg (~55 at a dash) - never nose-straight-up */
     float pmax = 0.61f + 0.35f * fminf(fmaxf((f->speed - 35) * (1 / 40.0f), 0), 1);
     float p = pmax * tanhf(0.8f * atan2f(sinf(f->heading), fabsf(cosf(f->heading))) / pmax);
     float cp = cosf(p), sp = sinf(p);
@@ -70,7 +67,7 @@ static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, 
         for (int i = 0; i < 3; i++) { xs[i] = TX(lx[i], ly[i]); ys[i] = TY(lx[i], ly[i]); }
         fill_poly(c, xs, ys, 3, fin);
     }
-    /* body: sampled outline of the prototype's quadratic silhouette */
+    /* body: sampled outline of a quadratic silhouette */
     {
         static const float blx[10] = { 16, 10, 2, -8, -15, -18, -15, -8, 2, 10 };
         static const float bly[10] = { 0, -7, -10, -9, -6, 0, 6, 9, 10, 7 };
@@ -103,8 +100,8 @@ static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, 
 #undef TY
 }
 
-/* ---- the species (2026-10-05, docs/species.md) ----
- * Nine creatures besides the classic fish, each procedural like it and
+/* ---- the species (docs/species.md) ----
+ * Twelve creatures besides the classic fish, each procedural like it and
  * drawn through the same span / poly / ellipse calls, so the dirty mask and
  * the fish's bounding box (render_tank's DYN_RECT) take in every pixel - an
  * eel's whole length, a lure's halo, an ink cloud. Local coordinates as the
@@ -115,10 +112,10 @@ static void draw_fish_core(ctx_t *c, const fish_t *f, float clock, bool asleep, 
  * - and swings into x as the creature turns head-on.
  * The colours are the fish's own (f->color / fin / accent: a design's, or
  * a parent's), the design's PATTERN is f->variant. The live state (puff,
- * ink, jet, camo, lure, spark) is drawn as tank.c leaves it; only the clock
- * animates here. Cost: no per-pixel trig - the sines come from fast_sin's
- * table, once per part (the urchin and the snail measured per-pixel trig at
- * 1.8-4.5 ms a frame on the ESP32-S3). */
+ * ink, jet, camo, lure, spark) is drawn as creature.c leaves it; only the
+ * clock animates here. Cost: no per-pixel trig - the sines come from
+ * fast_sin's table, once per part (per-pixel trig measures 1.8-4.5 ms a frame
+ * on the ESP32-S3). */
 typedef struct {
     ctx_t *c; const fish_t *f;
     float x, y, s;                /* where, and its size */
@@ -187,8 +184,8 @@ static void sk_mark(const sk_t *k, float lx, float ly, float rx, float ry, uint3
     if (k->marked) sk_dot(k, lx, ly, rx, ry, rgb, (int)(a * k->fade), true);
 }
 /* a tube through screen points (arms, tails, an eel's body): a quad a
-   segment, mitred at the joints so neighbours share an edge (no disc a
-   joint to fill the wedges - those were most of an eel's cost), round caps
+   segment, mitred at the joints so neighbours share an edge (a disc a
+   joint to fill the wedges would be most of an eel's cost), round caps
    at the ends; a sharp joint (a crab's knee) gets its own disc instead.
    Two sqrts a point, nothing per pixel. Radii in px. */
 #define SK_TUBE_MAX 20
@@ -281,7 +278,7 @@ static int g_sp_slot = -1;                     /* the tank slot being drawn (-1:
 typedef struct { float x, y, ink0, last; float pose, clock; } ink_mem_t;
 static ink_mem_t g_ink[N_FISH_MAX];
 /* a pose eased toward its target over ~1/8 s (the octopus's crawl -> jet,
-   the squid's): tank.c says WHETHER it jets, the look slides into it. A
+   the squid's): creature.c says WHETHER it jets, the look slides into it. A
    preview takes the target as it is. */
 static float sk_pose(float target, float clock) {
     if (g_sp_slot < 0 || g_sp_slot >= N_FISH_MAX) return target;
@@ -306,14 +303,14 @@ static void draw_ink(const sk_t *k) {
         ox = f->x + dir * 14 * k->s; oy = f->y; ink0 = 4.5f;   /* a preview: behind the mantle, a squirt (INK_SQUIRT_S) part spent */
     }
     float u = clamp01(1 - f->ink / (ink0 > 2.5f ? ink0 : 2.5f));
-    /* a squirt lasts INK_SQUIRT_S (4.5 s; a startle's 2.5 s puff until 2026-10-28) */
+    /* a squirt lasts INK_SQUIRT_S (4.5 s) */
     float big = clamp01((ink0 - 2.5f) / 2.0f);
     /* the cloud grows from a puff to a billow; it stays dense through the first part of its life
-       and only then thins (before 2026-10-10 it was most opaque at 8 px and faded as it grew: a smudge) */
+       and only then thins */
     float fade = u < 0.4f ? 1 : 1 - (u - 0.4f) / 0.6f;
     float R = (10 + 26 * u) * (1 + 0.45f * big) * k->s, a = 20 + 215 * fade;
     oy -= 5 * u * k->s;                         /* it rises a little as it spreads */
-    uint32_t dark=0x0a0710, middle=0x1e1622;      /* black ink (2026-10-10) */
+    uint32_t dark=0x0a0710, middle=0x1e1622;      /* black ink */
     src_t dk = src_color(dark, k->c->dim), mid = src_color(middle, k->c->dim);
     static const float BX[5] = { 0, -0.5f, 0.55f, -0.2f, 0.3f }, BY[5] = { 0, -0.35f, -0.25f, 0.4f, 0.3f }, BR[5] = { 0.75f, 0.55f, 0.6f, 0.5f, 0.45f };
     fill_ellipse_s(k->c, ox, oy, R, R * 0.8f, &mid, (int)(a * 0.55f));
@@ -321,10 +318,7 @@ static void draw_ink(const sk_t *k) {
         fill_ellipse_s(k->c, ox + BX[i] * R, oy + BY[i] * R, BR[i] * R, BR[i] * R * 0.85f, &dk, (int)(a * .85f));
 }
 
-/* ---- seahorse: upright, the snout a tube, the coronet, a pot belly
-   ringed with plates, a prehensile tail curled under, and the little dorsal
-   fan that is its whole engine. Leans into its slow swim. ---- */
-/* the turtle's shared pieces (2026-10-11): */
+/* the turtle's shared pieces: */
 static const float TURTLE_CX[10] = { 11, 8, 2, -5, -11, -15, -15, -11, -3, 7 };
 static const float TURTLE_CY[10] = { -1, -5.5f, -8, -8.2f, -6.5f, -3, 1, 2.6f, 3, 2 };
 static void turtle_flipper(const sk_t *k, float bx, float by, float st, float dir, uint32_t rgb, int a) {
@@ -341,7 +335,7 @@ static void turtle_flipper(const sk_t *k, float bx, float by, float st, float di
     src_t sc = src_color(rgb, k->c->dim);
     fill_poly_s(k->c, X, Y, 4, &sc, a);
 }
-/* the shell's volume (2026-10-11, Alvin: "looks flat when it turns around"): a shaded dome
+/* the shell's volume, so it does not look flat as it turns: a shaded dome
    cross-section at the carapace's middle that widens as the turtle turns to the glass, lit from the upper left - a dark rim, the shell, a shine, a shadow
    under the curve - and the plastron's flat slab beneath it; the head gets a round section
    of its own. Side-on (zq ~ 0) it draws nothing. */
@@ -367,6 +361,9 @@ static void turtle_gulp(const sk_t *k, float mx, float my) {
     }
 }
 
+/* ---- seahorse: upright, the snout a tube, the coronet, a pot belly
+   ringed with plates, a prehensile tail curled under, and the little dorsal
+   fan that is its whole engine. Leans into its slow swim. ---- */
 static void draw_seahorse(sk_t *k) {
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     sk_lean(k, 0.24f * clamp01(f->speed / 25));
@@ -456,7 +453,7 @@ static void draw_octopus(sk_t *k) {
     mry *= 1 - 0.12f * pulse * jk;
     float mcx = hx + ax * mrx * 0.85f, mcy = hy + ay * mrx * 0.85f;
     float rx0 = hx + 3.0f * jk, ry0 = hy + 3.2f * (1 - jk) + 0.5f * jk;   /* the arms' root */
-    float floor_y = 9 + 40 * jk;                                 /* crawling, the arms lie along the ground (tank.c: walk_off 9) */
+    float floor_y = 9 + 40 * jk;                                 /* crawling, the arms lie along the ground (creature.c: walk_off 9) */
     /* the arms: [0..3] the near side (drawn in front), [4..7] the far side */
     static const float AC[8] = { 0.15f, 0.95f, 1.75f, 2.65f, 0.55f, 1.35f, 2.2f, 3.0f };
     float AX[8][6], AY[8][6], AR[6];
@@ -679,7 +676,7 @@ static void draw_eel(sk_t *k) {
     float amp = 0.35f + 0.65f * clamp01(f->speed / 35), ph = f->jet * TAU;
     for (int i = 0; i < EEL_N; i++) {
         float u = i * (1.0f / (EEL_N - 1));
-        lx[i] = 32 - 64 * u;                                    /* 1.6 x a fish's length (tank.c's bounds); the mouth at the front */
+        lx[i] = 32 - 64 * u;                                    /* 1.6 x a fish's length (its row's len_k); the mouth at the front */
         ly[i] = (0.4f + 5.5f * u) * amp * fast_sin(ph - u * TAU * 1.25f + TAU * 2);
         r[i] = i == 0 ? 3.3f : u < 0.4f ? 4.8f : 4.8f - (u - 0.4f) * (4.0f / 0.6f);
     }
@@ -792,7 +789,7 @@ static void draw_shark(sk_t *k) {
     }
 }
 
-/* ---- swordfish (2026-10-10 night): a long slim cruiser, the bill a third of it again out
+/* ---- swordfish: a long slim cruiser, the bill a third of it again out
    front, a tall sickle first dorsal, a lunate tail on a narrow keel, a silver belly. Never
    still (LOCO_CRUISE, the hammerhead's way): its tail beats on f->jet as the shark's does. ---- */
 static void draw_swordfish(sk_t *k) {
@@ -822,7 +819,7 @@ static void draw_swordfish(sk_t *k) {
     sk_eye(k, 10.5f, -1.8f, 1.5f, false);
 }
 
-/* ---- turtle (2026-10-11): a sea turtle side-on - a domed carapace over a flat pale
+/* ---- turtle: a sea turtle side-on - a domed carapace over a flat pale
    plastron, the head out on a short neck with a beak, two long front flippers that
    stroke on f->jet (the far one a half-stroke behind, darker), two small rear
    flippers and a stub of tail. The design is the shell: scutes, streaks, ridges or
@@ -935,12 +932,12 @@ static void draw_squid(sk_t *k) {
     sk_eye(k, 7, -0.8f, 2.6f, false);
 }
 
-/* ---- crab (2026-10-05, the scope's late two): seen from the front
+/* ---- crab: seen from the front
    quarter - a wide carapace, eyes on stalks, two claws held up at its
    shoulders, four walking legs a side stepping in a ripple. It walks sideways,
    so it does not turn to face its way: the yaw only slides its face a
-   little toward the side it shows. f->puff is its threat display (a poke's
-   since 2026-10-28; a startle's before): the claws go up and out. No
+   little toward the side it shows. f->puff is its threat display (a poke's):
+   the claws go up and out. No
    pitch - it walks the floor. ---- */
 static void draw_crab(sk_t *k) {
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
@@ -948,7 +945,7 @@ static void draw_crab(sk_t *k) {
     k->yh = k->yt = 1; k->zq = 0;                  /* drawn straight on: no mirroring, no foreshortening */
     sk_lean(k, 0);
     float raise = clamp01(f->puff);
-    float ph = f->jet * TAU;                        /* tank.c runs it by the distance walked */
+    float ph = f->jet * TAU;                        /* creature.c runs it by the distance walked */
     float mv = clamp01(f->speed / 4);              /* stepping only while it walks */
     uint32_t leg = mix(k->body, k->fin, 0.45f);
     /* the legs: four a side, a ripple running down each row */
@@ -1007,8 +1004,8 @@ static void draw_crab(sk_t *k) {
 /* ---- lobster: side-on - the carapace, the six-segment tail and its fan,
    two big claws forward (the spiny lobster has none: long spiny antennae
    instead), the long antennae sweeping, the walking legs stepping. A
-   tail-flip (sp_mode SPM_FLIP, f->jet > 0.5; a poke's since 2026-10-28, a
-   startle's before) curls the tail under it. ---- */
+   tail-flip (sp_mode SPM_FLIP, f->jet > 0.5; a poke's) curls the tail under
+   it. ---- */
 static void draw_lobster(sk_t *k) {
     const fish_t *f = k->f; float t = k->t; int v = f->variant & 3;
     float curl = f->sp_mode == SPM_FLIP && f->jet > 0.5f ? clamp01((f->jet - 0.5f) * 8) : 0;
@@ -1095,13 +1092,11 @@ static void draw_lobster(sk_t *k) {
     sk_eye(k, 14.8f, -6.0f, 1.1f, true);
 }
 
-/* Approved jellyfish study (docs/design/jellyfish): an upright pulsing bell,
- * no bitmap in the live tank. f->jet is shared with the native locomotion so
- * the contraction, the rise and the thrust agree (tank.c, the jellyfish branch).
+/* The jellyfish (the study: docs/design/jellyfish): an upright pulsing bell,
+ * no bitmap in the live tank. f->jet is shared with the locomotion so the
+ * contraction, the rise and the thrust agree (creature.c sp_swim, SPF_PULSES).
  * The creature's own saved colours are the inputs: body = the bell, fin =
- * the arms, accent = the markings. (The themes changed the material - flat /
- * translucent / scalloped - never the design the keeper bought; at git tag
- * multi-board-multi-theme.) */
+ * the arms, accent = the markings. */
 #define JELLY_CENTRE 6.0f   /* bell + arms span ~ -16..+28: drawn about f->y's middle (rings, cards, rows) */
 static void draw_jellyfish(sk_t *source) {
     sk_t local=*source,*k=&local;
@@ -1136,7 +1131,7 @@ static void draw_jellyfish(sk_t *source) {
 }
 
 /* ---- every species but the classic fish (draw_fish_core is its own): a row
- * a species (2026-10-23, the table that was a switch). Its drawer, the body's
+ * a species. Its drawer, the body's
  * span along it for sk_setup (l0..l1, local px) and how far it leans into a
  * climb (pmax) at what level, and whether its look eases into a jet first
  * (sk_pose: the octopus, the squid). A new species is a row here. ---- */
@@ -1170,7 +1165,7 @@ static void draw_creature(ctx_t *c, const fish_t *f, float clock, bool asleep) {
     if (f->species >= SP_COUNT || !CREATURE_DRAW[f->species].draw) return;
     const creature_draw_t *d = &CREATURE_DRAW[f->species];
     sk_t k;
-    float jk = d->posed ? sk_pose(tank_fish_jetting(f) ? 1.0f : 0.0f, clock) : 0;   /* (before sk_setup, as it was) */
+    float jk = d->posed ? sk_pose(tank_fish_jetting(f) ? 1.0f : 0.0f, clock) : 0;   /* (before sk_setup: it keeps state per slot) */
     sk_setup(&k, c, f, clock, asleep, d->l0, d->l1, d->pmax, d->lean(f, jk));
     if (d->posed) k.pose = jk;
     d->draw(&k);

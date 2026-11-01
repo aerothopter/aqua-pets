@@ -4,7 +4,7 @@ Plug the board in, open a page, click Install: the same "flash it from the
 browser" flow ESPHome and Home Assistant use ([ESP Web
 Tools](https://esphome.github.io/esp-web-tools/), Apache-2.0, vendored under
 `vendor/`). Chrome or Edge on a desktop; it uses Web Serial, which Safari
-and Firefox don't have. Chrome on Android works too (2026-10-10): it has WebUSB
+and Firefox don't have. Chrome on Android works too: it has WebUSB
 but no Web Serial, so the page installs Google's web-serial-polyfill (vendored under
 `vendor/web-serial-polyfill/`, Apache-2.0) as `navigator.serial` only when Web Serial
 is missing, and ESP Web Tools runs unchanged over the board's USB CDC interface.
@@ -18,8 +18,8 @@ tools/make_installer.py                            # -> installer/dist/
 python3 -m http.server -d installer/dist 8765      # local check at http://localhost:8765
 ```
 
-The local theme installer uses a cream and lagoon-green layout with previews of
-Original, Quiet Lagoon and Tidepool Club. It requires an explicit board choice
+The local installer uses a cream and lagoon-green layout with previews of the themes
+(only the Original is built for now: docs/THEMES.md). It requires an explicit board choice
 before enabling Install, and validates the selected manifest. ESP Web Tools and
 all artwork are served locally, with no external runtime dependencies.
 
@@ -51,12 +51,11 @@ it the dialog erases the chip first, unconditionally. So:
   glass) is the normal way to start over and needs no page.
 
 The firmware side of the promise: `common/progression.c` writes save layout 3
-(since 2026-10-21) and loads any layout 3 save. Within it a field only ever
-appends, and a NEWER build's longer save loads its head, so rolling back
-keeps the tank. **The one exception is the update that introduced layout 3:**
-a tank saved by an earlier build (PTK2) is not loaded, and the tank starts
-fresh. The keeper chose a clean layout over carrying the old one; the
-release that ships it must say so in its changelog. What guards it:
+and loads any layout 3 save. Within it a field only ever appends, and a NEWER
+build's longer save loads its head, so rolling back keeps the tank. **The one
+exception:** a tank saved by an earlier layout (PTK2) is not loaded, and the
+tank starts fresh; the first release on layout 3 must say so in its changelog.
+What guards it:
 
 - **SAVE LAYOUT LOCK** (progression.c): a compile-time assert on every
   save_t / fish_save_t / decor and helper record offset, the magic, the NVS

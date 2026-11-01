@@ -7,13 +7,12 @@
 #include "esp_attr.h"
 #include "nvs.h"
 
-/* RTC slow memory, NO-INIT section (2026-09-15): the ring lives through
-   deep sleep AND every other reset - a reflash, a software reset, a
-   watchdog - and is discarded only when the magic + checksum say the RAM
-   is garbage (a true power-on, or a PMIC power-off). It was RTC_DATA_ATTR
-   before, which ESP-IDF zeroes on any reset that is not a deep-sleep wake:
-   the first full night of deep sleep on battery (2026-09-14/15) was wiped
-   by the morning's app flash before anyone read it. */
+/* RTC slow memory, NO-INIT section: the ring lives through deep sleep AND
+   every other reset - a reflash, a software reset, a watchdog - and is
+   discarded only when the magic + checksum say the RAM is garbage (a true
+   power-on, or a PMIC power-off). RTC_DATA_ATTR would not do: ESP-IDF zeroes
+   it on any reset that is not a deep-sleep wake, and a morning's flash would
+   wipe the night before anyone read it. */
 #define N 96
 #define BATLOG_MAGIC 0xB47106A1u
 typedef struct { int64_t us; int16_t pct, mv; uint8_t bright, asleep; char why[8]; } sample_t;
@@ -36,11 +35,10 @@ static void seal(void) { s_log.magic = BATLOG_MAGIC; s_log.crc = crc_of(&s_log);
 
 void batlog_clear(void) { s_n = s_head = 0; seal(); }
 
-/* The bedtime row also goes to NVS (2026-09-16): the RTC ring is lost to a
-   power-off, and a cell that dies in the night IS a power-off - the morning
-   of 09-16 found a wiped ring and no idea what SoC the tank went to bed at.
-   An empty ring at boot is seeded from it, once ("bed"), so the printout
-   still derives the night's mA between bedtime and the boot row. */
+/* The bedtime row also goes to NVS: the RTC ring is lost to a power-off, and
+   a cell that dies in the night IS a power-off. An empty ring at boot is
+   seeded from it, once ("bed"), so the printout still derives the night's mA
+   between bedtime and the boot row. */
 static void bed_store(const sample_t *s) {
     nvs_handle_t h; if (nvs_open("tank", NVS_READWRITE, &h) != ESP_OK) return;
     if (nvs_set_blob(h, "bed", s, sizeof *s) == ESP_OK) nvs_commit(h);

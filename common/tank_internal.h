@@ -1,6 +1,6 @@
-/* What tank.c and creature.c share inside the reflex layer (2026-10-23, the
- * creatures' code moved to creature.c): the small maths, the tank's RNG core,
- * the constants both sides read, and the few calls across. Not for the
+/* What tank.c, creature.c and glass.c share inside the reflex layer: the
+ * small maths, the tank's RNG core, the glass's calls for the swimmers, the
+ * constants both sides read, and the few calls across. Not for the
  * platforms - their API is tank.h. */
 #ifndef TANK_INTERNAL_H
 #define TANK_INTERNAL_H
@@ -36,9 +36,8 @@ float veg_cap_mean(const tank_t *t, int b);
 void  court_site(const tank_t *t, float *cx, float *cy, float *rx);
 
 #define HOLD_RADIUS     1000.0f /* a resting finger is seen from anywhere on the
-                                 * glass (2026-09-04, was 160: a fish only came
-                                 * when you held next to it, which hid the
-                                 * trust tell) */
+                                 * glass: a fish that came only to a hold right
+                                 * beside it would hide the trust tell */
 #define HOLD_ATTRACT_S  2.7f    /* hold_time before fish approach; platforms
                                  * report holds ~0.3 s in, so ≈3 s of contact */
 #define HOLD_HUNGER_VETO 7.5f   /* this hungry, a fish ignores the finger */

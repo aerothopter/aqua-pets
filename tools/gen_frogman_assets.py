@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Bake the frogman's shop thumbnails (2026-10-10), one per theme, the wreck's way: a diver
-floating sideways, his suit in the theme's colours (render.c draw_frogman);
+"""Bake the frogman's shop thumbnails, one per theme, the wreck's way: a diver
+floating sideways, his suit in the theme's colours (helper_frogman.inc);
 --check verifies the tracked outputs are what this script makes."""
 from pathlib import Path
 import sys,io

@@ -1,7 +1,7 @@
 /* the coral's drawing (render.c includes this after the decor scratch: CORAL_* and its state live there) */
 typedef struct { float x0, y0, x1, y1, r; uint8_t tip; float g0, g1; } coral_seg_t;
 /* cell coordinates, x from the left edge, y UP from the base row. g0..g1 is
- * the segment's GROWTH window (tank_coral_growth, 2026-09-23): absent below
+ * the segment's GROWTH window (tank_coral_growth): absent below
  * g0, reaching out along its line until g1 - a child branch's window opens
  * where its parent's closes, so the fan comes in trunk first, low branches,
  * then the crown over the month. */
@@ -23,7 +23,7 @@ static const coral_seg_t CORAL_SEGS[] = {
 #define CORAL_NSEG ((int)(sizeof CORAL_SEGS / sizeof CORAL_SEGS[0]))
 /* signed distance to the skeleton AT growth g, in cells; *tip = within a
  * lit cap (a finished tip's, or the reaching end of a branch still growing) */
-#define CORAL_Y_SCALE 0.88f                                  /* the fan tops out ~76 px up (Strato: a modest height, never the grass's) */
+#define CORAL_Y_SCALE 0.88f                                  /* the fan tops out ~76 px up: a modest height, never the grass's */
 #define CORAL_TOP_X   18.0f                                  /* the crown's root: the trunk tip's end, in cells */
 #define CORAL_TOP_Y   (41.0f * CORAL_Y_SCALE)
 static float coral_sd(float px, float py, float g, bool *tip) {
@@ -52,10 +52,8 @@ static float coral_sd(float px, float py, float g, bool *tip) {
     }
     return best;
 }
-/* the distance grids are int8 eighths of a cell (the sign and the few
- * thresholds are all the classing needs): internal RAM is tight on the
- * board - the float grids of 2026-09-24 morning cost the display driver its
- * semaphore and the tank booted black */
+/* the distance grids are int8 eighths of a cell: the sign and the few
+ * thresholds are all the classing needs, at a quarter of a float grid's bytes */
 static inline int8_t sd_q(float d) { d *= 8; return (int8_t)(d < -127 ? -127 : d > 127 ? 127 : d); }
 static void coral_build(float g) {
     int8_t  (*sd)[CORAL_CW] = ds()->co_sd;
@@ -110,8 +108,7 @@ static void coral_tint_fill(uint32_t rgb, float dim) {
     }
     g_coral_rgb = rgb; g_coral_dim = dim;
 }
-/* the crown (2026-09-23, Strato: "after it's fully grown it should sprout a
- * ring of delicate tentacles out of the top"): CORAL_TENT one-pixel
+/* the crown, a ring of delicate tentacles out of the top of a grown coral: CORAL_TENT one-pixel
  * filaments fanning up and out from the trunk's tip once growth passes 1,
  * reaching CORAL_TENT_L px at CORAL_FULL, each swaying on its own phase with
  * the tank clock and ending in a bright bead. Drawn every frame over the
@@ -123,7 +120,7 @@ static void coral_tint_fill(uint32_t rgb, float dim) {
  * radians: -pi/2 is straight up), each `len` px, swaying on the tank clock
  * with its own phase (seed), a bright bead at the end; the bounding box
  * through the pointers (x1 < x0 = nothing drawn). The coral's crown and the
- * cluster's bloom both use it (2026-09-24). */
+ * cluster's bloom both use it. */
 static void draw_crown(ctx_t *c, float ox, float oy, int n_t, float a0, float a1, float len, uint32_t pale,
                        int seed, float clock, int *bx0, int *by0, int *bx1, int *by1) {
     *bx0 = *by0 = 1 << 20; *bx1 = *by1 = -1;
@@ -161,7 +158,7 @@ static void draw_coral_crown(ctx_t *c, int cx, uint32_t rgb, float growth, float
     /* a fan from ~29 deg left of up to 29 deg right, past the horizontal */
     draw_crown(c, ox, oy, CORAL_TENT, -3.14159f * 0.16f, -3.14159f * 0.84f, len, mix(rgb, 0xffffff, 0.55f), 0, clock, bx0, by0, bx1, by1);
 }
-/* a low mound of floor stones round a piece's base (2026-09-24): the same
+/* a low mound of floor stones round a piece's base: the same
  * pebble tones and position hash as the floor, an ellipse half_w wide whose
  * crest sits 6 px above the base line and whose skirt runs 3 px below it,
  * drawn AFTER the piece so its bottom rows are buried - the coral's trunk

@@ -1,4 +1,4 @@
-/* The helpers (2026-10-22): what moves by its own rules - the snail on the
+/* The helpers: what moves by its own rules - the snail on the
  * glass, the urchin in the grass, the shrimp school, the frogman and the sub.
  * Each is a row of HELPER[] and its own state in tank_t (t->snail, t->urchin,
  * t->school, t->frogman, t->sub). A helper is bought as an upgrade; it arrives
@@ -20,18 +20,17 @@ typedef enum {                     /* order fixed: the ticks and the save's reco
 
 enum { HAB_GLASS, HAB_FLOOR, HAB_WATER };   /* where its rules keep it: the drifters in the water share it */
 
-/* the shrimp school (2026-09-29, the shop's sixth item, SD_ITEM_SHRIMP): cherry
- * shrimp that swim as a loose school with a pull toward the grass, swarm the
- * pellets that sink below the grass's top (falling or on the floor), drift up
- * to the canopy now and then.
+/* the shrimp school (the shop's sixth item, SD_ITEM_SHRIMP): cherry shrimp
+ * that swim as a loose school with a pull toward the grass, swarm the pellets
+ * that sink below the grass's top (falling or on the floor), drift up to the
+ * canopy now and then.
  * Bought as SHRIMP_START grown adults; every SHRIMP_PER_JOIN pellets the school
  * eats brings one more, up to SHRIMP_MAX, never two within SHRIMP_COOLDOWN_S
- * (the count stops at SHRIMP_PER_JOIN while it waits - no burst). Over
- * SHRIMP_REFUSE_COVER of the glass fouled they refuse food: they stay in the
- * grass and turn away from pellets, so the school stops growing (never shrinks).
- * Strato's words throughout (2026-09-29): "they should just swarm pellets that
- * hit the ground", "a user cant spam this", "when there is too much algae,
- * shrimp will refuse to eat". Drawn procedurally (render.c draw_shrimp). */
+ * (the count stops at SHRIMP_PER_JOIN while it waits - no burst, so a keeper
+ * can't spam the school bigger). Over SHRIMP_REFUSE_COVER of the glass fouled
+ * they refuse food: they stay in the grass and turn away from pellets, so the
+ * school stops growing (it never shrinks). Drawn procedurally
+ * (helper_shrimp.inc). */
 #define SHRIMP_START        4
 #define SHRIMP_MAX          10
 #define SHRIMP_PER_JOIN     10
@@ -55,16 +54,14 @@ typedef struct {
     int16_t  cell;                 /* the algae cell it is heading for, -1 = wandering */
     float    graze;                /* seconds on the current cell */
     bool     front;                /* walking the floor, it passes IN FRONT of a reef cluster or coral placed
-                                    * IN FRONT (0.3.2, Strato: "it marches to the beat of its own drum" - the
-                                    * big cluster hid it for most of its walk). Its own choice, made again at
-                                    * each end of the floor; off the glass it lands in front, where it was.
-                                    * Not saved. */
-    int32_t  grazed;               /* algae cells it has grazed clean, lifetime (its card,
-                                    * 2026-09-16; saved) */
+                                    * IN FRONT, so the big cluster never hides it for most of its walk.
+                                    * Its own choice, made again at each end of the floor; off the glass
+                                    * it lands in front, where it was. Not saved. */
+    int32_t  grazed;               /* algae cells it has grazed clean, lifetime (its card; saved) */
     float    sleep_acc;            /* the night shift's part-cells: a nap's few minutes still count
                                     * (not saved; a boot lives the whole absence in one call) */
 } snail_t;
-/* the urchin (SD_ITEM_URCHIN, 2026-10-02): grazes the tall GRASS down on
+/* the urchin (SD_ITEM_URCHIN): grazes the tall GRASS down on
  * the floor, as the snail grazes the glass. Its x is saved (the floor is
  * its y); the frond it is after, its appetite and its chewing are not. */
 typedef struct {
@@ -89,14 +86,13 @@ typedef struct {
     shrimp_t q[SHRIMP_MAX];
     float    tx, ty, tt;
 } school_t;
-/* a drifter in open water, glass to glass: the frogman (2026-10-10, item 8; he
- * hung from the wreck's stern before), a little diver who floats SIDEWAYS,
- * turning at each end, easing to a new lane now and then, waving at times; and
- * the submarine (2026-10-10 night, item 9), which cruises the same way,
- * propeller turning, bubbles streaming from the stern - and every
+/* a drifter in open water, glass to glass: the frogman (item 8), a little
+ * diver who floats SIDEWAYS, turning at each end, easing to a new lane now and
+ * then, waving at times; and the submarine (item 9), which cruises the same
+ * way, propeller turning, bubbles streaming from the stern - and every
  * SUB_CRUISE_LO..HI s it stops, a periscope rises, scans, and sinks before it
- * goes on. The suit and the hull are the theme's (render.c). Only their bits
- * are saved: a load puts them mid-tank. */
+ * goes on. Their art: helper_frogman.inc, helper_sub.inc. Only their bits are
+ * saved: a load puts them mid-tank. */
 typedef struct {
     float    x, y;
     float    yaw;                  /* -1 facing left .. 1 facing right; thin through a turn */
@@ -153,25 +149,22 @@ void  helper_sleep_all(tank_t *t, float seconds);
 void  helper_sleep_slice_all(tank_t *t, float seconds);
 
 /* ---- the snail ----
- * It has two poses (Strato's sprites, 2026-09-15): UPRIGHT, walking the tank
- * floor (nothing to graze: it comes down and ambles along the bottom, turning
- * at the ends), and flat ON THE GLASS (crawling to film and grazing it, its
- * underside to the viewer). snail.y is the sprite's centre; on the floor it is
- * SNAIL_FLOOR_Y, the sole (6 px under the centre) on the line the grass is
- * rooted at, TANK_BOT - 14: at - 24 it stood 4 px above the frond roots, and
- * the roots of the fronds BEHIND it showed under its foot - a snail afloat
- * (Strato, 2026-10-02). */
+ * It has two poses: UPRIGHT, walking the tank floor (nothing to graze: it
+ * comes down and ambles along the bottom, turning at the ends), and flat ON
+ * THE GLASS (crawling to film and grazing it, its underside to the viewer).
+ * snail.y is the body's centre; on the floor it is SNAIL_FLOOR_Y, the sole
+ * (6 px under the centre) on the line the grass is rooted at, TANK_BOT - 14,
+ * so the roots of the fronds BEHIND it never show under its foot. */
 #define SNAIL_FLOOR_Y (TANK_BOT - 20.0f)
 void  tank_snail_place(tank_t *t);             /* bought: on the floor, bottom left */
 bool  tank_snail_upright(const tank_t *t);
-/* a tap on the snail (its card, 2026-09-16): placed, and within a fingertip
- * of the sprite's centre. Platforms test the fish first. */
+/* a tap on the snail (its card): placed, and within a fingertip of the
+ * body's centre. Platforms test the creatures first. */
 bool  tank_snail_hit(const tank_t *t, float x, float y);
 
-/* ---- the urchin (2026-10-02, the episode 5 promise: "an urchin that keeps the
- * grass trimmed") ----
- * A rule-based grazer on the floor, drawn by code (render.c draw_urchin, from
- * Strato's sea-urchin-v1). Awake it gets hungry slowly, crawls to the grass
+/* ---- the urchin: it keeps the grass trimmed ----
+ * A rule-based grazer on the floor, drawn by code (helper_urchin.inc). Awake
+ * it gets hungry slowly, crawls to the grass
  * frond standing tallest over URCHIN_KEEP and chews it down a bite, then rests
  * or ambles the sand. Asleep it works the night shift: a share of every grass
  * frond's height over URCHIN_KEEP, so a morning's grass is lower than it would
@@ -187,8 +180,7 @@ bool  tank_urchin_chewing(const tank_t *t);   /* at a frond's foot, eating (rend
 /* ---- the shrimp ----
  * The bought school (SHRIMP_START in the grass), or n of them (a load, the
  * sim's key); refusing = the glass is too fouled for them to eat. A tap on the
- * school brings up its card and the next puts it away (2026-09-29; its third
- * quick tap scared them, and scattered them, until 2026-10-28). Hit: within a
+ * school brings up its card and the next puts it away. Hit: within a
  * fingertip of any shrimp (the platforms test the fish and the snail first). */
 void  tank_shrimp_place(tank_t *t, int n);
 bool  tank_shrimp_refusing(const tank_t *t);
@@ -201,11 +193,11 @@ bool  tank_frogman_hit(const tank_t *t, float x, float y);   /* within a fingert
 bool  tank_sub_hit(const tank_t *t, float x, float y);       /* within a fingertip of the sub */
 #define FROG_SPEED     9.0f                  /* px/s across the tank */
 #define FROG_MARGIN    (DECOR_MARGIN + 24)   /* he turns this far from the glass */
-#define FROG_LANE_LO   (TANK_H * 0.07f)      /* the water he drifts in: all of it (2026-10-10 night, Alvin: "float freely */
-#define FROG_LANE_HI   (TANK_BOT - 46)       /*   anywhere in the tank"; a mid-water band before), the sand and the surface kept */
+#define FROG_LANE_LO   (TANK_H * 0.07f)      /* the water he drifts in: all of it, */
+#define FROG_LANE_HI   (TANK_BOT - 46)       /*   the sand and the surface kept clear */
 #define SUB_SPEED      13.0f                 /* px/s, cruising */
 #define SUB_MARGIN     (DECOR_MARGIN + 30)
-#define SUB_LANE_LO    (TANK_H * 0.07f)      /* the whole water column, like the frogman's (2026-10-10 night) */
+#define SUB_LANE_LO    (TANK_H * 0.07f)      /* the whole water column, like the frogman's */
 #define SUB_LANE_HI    (TANK_BOT - 50)
 #define SUB_STOP_S     8.0f                  /* a stop: the periscope up for the middle six seconds */
 #define SUB_CRUISE_LO  22.0f                 /* seconds of cruising between stops */

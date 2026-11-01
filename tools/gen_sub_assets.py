@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Bake the submarine's shop thumbnails (2026-10-10 night), one per theme, the frogman's way: a
-little sub side-on, tower up, propeller behind, a few bubbles, in the theme's hull colours
-(render.c draw_submarine); --check verifies the tracked outputs are what this script makes."""
+"""Bake the submarine's shop thumbnails, one per theme, the frogman's way: a little sub side-on,
+tower up, propeller behind, a few bubbles, in the theme's hull colours (helper_sub.inc); --check verifies the tracked outputs are what this script makes."""
 from pathlib import Path
 import sys,io
 from gen_theme_assets import raster,array

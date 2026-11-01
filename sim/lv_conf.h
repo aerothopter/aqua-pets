@@ -1,6 +1,6 @@
 /* lv_conf.h — minimal LVGL v9.2 config for the PC simulator.
  * Anything not set here falls back to lv_conf_internal.h defaults.
- * The firmware (Track 3) gets its own lv_conf.h sized for the ESP32-S3. */
+ * The firmware does not use LVGL: its display port takes the frame directly. */
 #if 1
 #ifndef LV_CONF_H
 #define LV_CONF_H

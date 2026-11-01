@@ -185,7 +185,7 @@ int audio_render(int16_t *out, int n) {
     return live;
 }
 
-/* ---- the about page's jingle (2026-10-10) ----
+/* ---- the about page's jingle ----
  * Twelve bars of 4/4 at 96 BPM: a 16th is exactly 2500 samples at 16 kHz, so the
  * 192-step loop is 480000 samples = 30.000 s and wraps on a sample. Everything is
  * pitched above the 12 mm speaker's ~600 Hz floor (octaves 5 and 6). Voices:
@@ -211,11 +211,9 @@ static int32_t  s_jfade, s_jfade_total;            /* > 0: a fade (in while stat
 static bool     s_jfade_in;
 static float    s_jlp;                             /* the low-pass's state */
 static uint32_t s_jlfo;
-/* a tune per theme (2026-10-10 night, Alvin: "different creature, movement and music for each of
-   the theme"): the same four voices, each theme its own tempo (the 16th's samples - an integer,
-   so the loop still wraps on a sample), chords, arpeggio figure, melody, chirps and timbre - a row
-   of J_SONGS. One theme for now (2026-10-26): the Original's kalimba at 96 BPM (30 s). The other
-   themes' tunes are at git tag multi-board-multi-theme. */
+/* a tune per theme: the same four voices, each theme its own tempo (the 16th's samples - an
+   integer, so the loop still wraps on a sample), chords, arpeggio figure, melody, chirps and timbre
+   - a row of J_SONGS. One theme for now: the Original's kalimba at 96 BPM (30 s). */
 typedef struct { uint8_t step; int8_t note; uint8_t len; } jnote_t;
 typedef struct {
     uint16_t step;                 /* samples per 16th */

@@ -1,9 +1,9 @@
-/* The creatures (2026-10-23): every creature's code - the classic fish's
- * roster and the species' table (SPECIES[], a row a kind: what it is, how it
- * moves, its hooks), making, breeding and removing them, and how each one
- * carries out the goal the model picked (update_fish). Moved from tank.c
- * unchanged; tank.c keeps the tank around them (the light, food, bubbles,
- * grass, film, touch) and calls update_fish once a creature a frame. */
+/* The creatures: every creature's code - the classic fish's roster and the
+ * species' table (SPECIES[], a row a kind: what it is, how it moves, its
+ * hooks), making, breeding and removing them, and how each one carries out
+ * the goal the model picked (update_fish). tank.c keeps the tank around them
+ * (the light, food, bubbles, grass, film, touch) and calls update_fish once a
+ * creature a frame. */
 #include "tank.h"
 #include "tank_internal.h"
 #include "tank_events.h"
@@ -12,8 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- roster: six presets (the prototype's four + two), colors chosen for
- * contrast on AMOLED black. A preset is a look + temperament; bold/social are
+/* ---- roster: six presets, colors chosen for contrast on AMOLED black. A preset is a look + temperament; bold/social are
  * rolled per tank (starting pair) or inherited (arrivals). ---- */
 typedef struct {
     const char *name; uint32_t color, fin, accent;
@@ -43,9 +42,8 @@ void tank_set_name(tank_t *t, int slot, const char *name) {
     fish_t *f = &t->fish[slot];
     if (!name || !*name) name = (SPECIES[f->species % SP_COUNT].flags & SPF_ROSTER) ? tank_roster_name(f->preset) : SPECIES[f->species % SP_COUNT].names[slot % 4];
     int n = 0;
-    /* canonical lowercase (2026-09-15): the roster, the director and the
-     * trained names are lowercase, the display uppercases at draw, and the
-     * wheel used to write capitals into the slots it spun ("FeZ", "LArRY") */
+    /* canonical lowercase: the roster, the director and the trained names
+     * are lowercase, and the display uppercases at draw */
     while (name[n] && n < FISH_NAME_MAX) {
         char c = name[n];
         f->name[n] = c >= 'A' && c <= 'Z' ? (char)(c - 'A' + 'a') : c;
@@ -94,17 +92,17 @@ void tank_make_fish(tank_t *t, int slot, int preset, float sociable, float bold,
     f->goal.id = GOAL_EXPLORE; f->goal.urgency = 3; f->goal.confidence = 1; f->goal.runner_up = GOAL_COUNT;
     f->goal_age = 0; f->ask_age = 99; f->dart_timer = 0; f->dart_x = f->x; f->dart_y = f->y; f->hesitate = 0;
     f->bored = 0; f->goal_prev = GOAL_COUNT; f->zone_last = -1; f->explore_set = false;
-    /* its own order of first visits - from the slot, not the tank's RNG, so a
-     * seeded run (the selftests) draws the same numbers it did before */
+    /* its own order of first visits - from the slot, not the tank's RNG, so
+     * making a fish draws nothing from a seeded run (the selftests) */
     for (int z = 0; z < 6; z++) f->zone_seen[z] = -(float)((slot * 37 + z * 13) % 60);
     f->eaten = 0; f->eaten_player = 0; f->at_bubbles = false;
     /* its own spot by the reef: bolder fish rest a little further out */
-    f->rest_dx = 8 + slot * 24 + bold * 14; f->rest_dy = -slot * 9 - tank_randf(t, 0, 10);   /* a body apart (was 9 px per slot) */
+    f->rest_dx = 8 + slot * 24 + bold * 14; f->rest_dy = -slot * 9 - tank_randf(t, 0, 10);   /* a body apart */
     f->sig = 0xffffffffu; f->ms_bits = 0; f->ms_seen = 0;
     f->color = p->color; f->fin = p->fin; f->accent = p->accent;
     f->parent_a = f->parent_b = -1;
     f->species = SP_FISH; f->variant = 0;
-    /* (from the slot, not the tank's RNG: a seeded run stays the run it was) */
+    /* (from the slot, not the tank's RNG, as above) */
     f->puff = 0; f->ink = 0; f->jet = (float)((slot * 29) % 100) / 100.0f; f->camo = 0; f->camo_rgb = 0;
     f->air_s = 60.0f + (float)((slot * 41) % 60); f->spark = 0; f->lure = 0; f->anchor = -1; f->flee_t = 0;
     f->sp_mode = SPM_NONE; f->sp_t = 0; f->sp_x = -1;
@@ -148,8 +146,8 @@ int tank_add_species_n(tank_t *t, int species, int n) {
     if (species <= SP_FISH || species >= SP_COUNT || n < 1 || t->n_fish + n > N_FISH_MAX) return -1;
     const species_def_t *s = &SPECIES[species];
     int first = t->n_fish;
-    /* (2026-10-07: the shop sells one at a time; a newcomer contrasts with the LAST of its kind
-       already here, so the two that breed are a contrasting pair as the founding fish are) */
+    /* (the shop sells one at a time: a newcomer contrasts with the LAST of its kind already
+       here, so the two that breed are a contrasting pair as the founding fish are) */
     int prev = -1; for (int i = 0; i < t->n_fish; i++) if (t->fish[i].species == species) prev = i;
     for (int k = 0; k < n; k++) {
         int slot = t->n_fish;
@@ -179,12 +177,12 @@ void tank_new_population(tank_t *t) {
     int a = (int)tank_randf(t, 0, ROSTER_N - 0.001f);
     int b = (int)tank_randf(t, 0, ROSTER_N - 1.001f); if (b >= a) b++;
     /* personalities rolled with a guaranteed contrast so the pair reads as
-     * two characters at a glance (docs/progression-next.md, Act 1) */
+     * two characters at a glance (docs/progression.md) */
     float ba, bb, sa, sb;
     do { ba = tank_randf(t, 0.1f, 0.9f); bb = tank_randf(t, 0.1f, 0.9f); } while (fabsf(ba - bb) < 0.45f);
     do { sa = tank_randf(t, 0.1f, 0.9f); sb = tank_randf(t, 0.1f, 0.9f); } while (fabsf(sa - sb) < 0.3f);
     /* both start as FRY: the founding pair grows up on the keeper's watch
-     * (progression halved the stage clocks to match - 0.5/3/24 tended hours) */
+     * (the stage clocks: 0.5/3/24 tended hours, progression.h STAGE_*_AGE) */
     tank_make_fish(t, 0, a, sa, ba, STAGE_FRY);
     tank_make_fish(t, 1, b, sb, bb, STAGE_FRY);
     t->n_fish = 2;
@@ -216,7 +214,7 @@ int tank_add_fish(tank_t *t, int parent_a, int parent_b) {
                         : clampf((pa->sociable + pb->sociable) * 0.5f + tank_randf(t, -0.15f, 0.15f), fmaxf(slo, 0.05f), fminf(shi, 0.95f));
     int slot = t->n_fish;
     tank_make_fish(t, slot, preset, soc, bold, STAGE_FRY);
-    /* its look is the family's, not the preset's (2026-09-14): the body from
+    /* its look is the family's, not the preset's: the body from
        one parent, the markings from the other - a coin decides which is
        which; tank_set_look keeps the markings off a matching body */
     if (tank_randf(t, 0, 1) < 0.5f) { int x = ia; ia = ib; ib = x; pa = &t->fish[ia]; pb = &t->fish[ib]; }
@@ -264,8 +262,8 @@ bool tank_remove_fish(tank_t *t, int idx) {
 /* the courtship circle, shared by the tell's episodes and the spawning: the
  * pair weaves a low loop through the nursery on opposite sides - performed
  * rather than printed (reflex presentation; the advisor still owns both
- * goals). Down in the fronds, not mid-water: Strato (2026-09-04) - by the
- * reef it read as two friends at the bubbles. */
+ * goals). Down in the fronds, not mid-water: by the reef it would read as
+ * two friends at the bubbles. */
 static void court_steer(const tank_t *t, const fish_t *f, int idx, float *desired, float *speed) {
     float ph = t->clock * 1.7f + (idx == t->court_b ? 3.14159f : 0);
     float cx, cy, rx; court_site(t, &cx, &cy, &rx);
@@ -282,15 +280,15 @@ static int zone_of(float x, float y) {
     return row * 3 + col;
 }
 
-/* ---- the species' motion (2026-10-05, docs/species.md "How they move") ----
+/* ---- the species' motion (docs/species.md "How they move") ----
  * The model still picks every creature's goal; this is the reflex layer
  * carrying the goal out the way the animal would - its own targets, speeds,
  * posture and way of moving - plus the species' own reflexes (the puff, the
  * ink and the spark, the eel's breath), the way the greeting and the famine
- * override the steering above. Every creature comes through here, the classic
- * fish too (2026-10-23): its row's flee, dance and swim are its own, and the
- * species' hooks are empty for it, so nothing here changes what it does or
- * draws on the tank's RNG for it.
+ * override the steering (update_fish). Every creature comes through here, the
+ * classic fish too: its row's dance and swim are its own, and the species'
+ * hooks are empty for it, so nothing here changes what it does or draws on
+ * the tank's RNG for it.
  * The heading / facing convention is fish_t's (tank.h, THE CONVENTION). */
 static const sp_motion_t *sp_mo(const fish_t *f) { return &SPECIES[f->species < SP_COUNT ? f->species : SP_FISH].mo; }
 static float wrap01(float v) { return v - floorf(v); }
@@ -410,9 +408,10 @@ static int sp_nearest_kin(const tank_t *t, int idx) {
     return best;
 }
 
-#define INK_SQUIRT_S 4.5f   /* seconds a spontaneous ink cloud lasts (render.c scales the cloud to it) */
-/* Small idle displays, independent of the advisor and theme. No save-layout changes.
- * Pause the countdown for care/rest/interaction, and abort a trip for an urgent need. */
+#define INK_SQUIRT_S 4.5f   /* seconds a spontaneous ink cloud lasts (creatures.inc scales the cloud to it) */
+/* Small idle displays (a trip to the surface, a squirt of ink, a spark), independent of the
+ * advisor; nothing of them is saved. The countdown pauses for care, rest and interaction, and
+ * an urgent need cuts a trip short. */
 static void sp_flourish(tank_t *t,int idx,fish_t *f,float dt) {
     uint32_t fl=SPECIES[f->species].flags;
     bool visitor=(fl&SPF_VISITS)!=0;
@@ -428,8 +427,8 @@ static void sp_flourish(tank_t *t,int idx,fish_t *f,float dt) {
     if(f->sp_mode!=SPM_NONE||f->ink>0||f->spark>0)return;
     if((f->flourish_wait-=dt)>0)return;
     bool inker=(fl&SPF_INKS)!=0;
-    /* the inkers squirt more often than the others surface (2026-10-10: every 50-120 s of idle day,
-       was 100-210; the octopus makes every third idle turn (the first of them) a trip to the surface, was every other) */
+    /* the inkers squirt more often than the others surface: every 50-120 s of idle day, against
+       100-210; the octopus makes every third idle turn (the first of them) a trip to the surface */
     f->flourish_wait=(inker?50+70*sp_hash01(idx+f->species*17,++f->flourish_cycle):100+110*sp_hash01(idx+f->species*17,++f->flourish_cycle));
     if(fl&SPF_SPARKS){f->spark=1.3f;return;}
     if((fl&SPF_INKS)&&!((fl&SPF_VISITS)&&f->flourish_cycle%3==1)){   /* an inker that also visits (the octopus): a trip first, then two squirts */
@@ -440,17 +439,16 @@ static void sp_flourish(tank_t *t,int idx,fish_t *f,float dt) {
     if(fl&SPF_PUFFS)f->sp_t=35;
 }
 
-/* a double tap ON a creature (the touch ports, 2026-10-10): its party trick, with no stress or
- * lost trust; (x, y) is where the finger landed, and one that gets away goes from it (fish_t.flee_t:
- * its row's flee steers it). True when the creature has one (the port then keeps its card down); for
- * the rest a double tap is just the card up and down again. The pufferfish puffs up, the squid and the
- * octopus squirt a black cloud and jet off; and since 2026-10-28 (the startle's reactions, its triple
- * tap gone) the seahorse grips the nearest stem, the crab raises its claws and scuttles off sideways,
- * the lobster faces the finger and flips its tail to shoot backward, the jellyfish pulses away, the
- * eel sparks. */
+/* a double tap ON a creature (the touch ports): its party trick, with no stress or lost trust;
+ * (x, y) is where the finger landed, and one that gets away goes from it (fish_t.flee_t: its row's
+ * flee steers it). True when the creature has one (the port then keeps its card down); for the rest
+ * a double tap is just the card up and down again. The pufferfish puffs up, the squid and the
+ * octopus squirt a black cloud and jet off, the seahorse grips the nearest stem, the crab raises its
+ * claws and scuttles off sideways, the lobster faces the finger and flips its tail to shoot
+ * backward, the jellyfish pulses away, the eel sparks. */
 static void puffer_poke(tank_t *t, int idx, fish_t *f, float x, float y) { (void)t; (void)idx; (void)x; (void)y; f->sp_t = 5.0f; }   /* a ball, held ~5 s */
 static void inker_poke(tank_t *t, int idx, fish_t *f, float x, float y)  { (void)t; (void)idx; (void)x; (void)y; f->ink = INK_SQUIRT_S; f->sp_mode = SPM_JET; f->sp_t = 2.5f; f->jet = 0; }
-static void eel_poke(tank_t *t, int idx, fish_t *f, float x, float y)    { (void)t; (void)idx; (void)x; (void)y; f->spark = 1.3f; }   /* harmless, at this size (the flourish's 1.3 s; the startle's was 0.6) */
+static void eel_poke(tank_t *t, int idx, fish_t *f, float x, float y)    { (void)t; (void)idx; (void)x; (void)y; f->spark = 1.3f; }   /* harmless, at this size (as long as its idle flourish) */
 static void seahorse_poke(tank_t *t, int idx, fish_t *f, float x, float y) {   /* grips the nearest stem, if one is near, and holds on a while */
     (void)x; (void)y;
     if (f->anchor < 0) f->anchor = (int8_t)sp_pick_frond(t, idx, 45);
@@ -517,7 +515,7 @@ static void angler_state(tank_t *t, int idx, fish_t *f, float dt) {
     float want = clampf(0.35f + (t->night ? 0.4f : 0) + hunt + 0.12f * sinf(t->clock * 1.7f + f->wander), 0, 1);
     f->lure += (want - f->lure) * clampf(dt * 2, 0, 1);
 }
-static void breather_state(tank_t *t, int idx, fish_t *f, float dt) {   /* air-breathers (the turtle since 2026-10-11): up for a gulp every minute or two, whatever they were doing */
+static void breather_state(tank_t *t, int idx, fish_t *f, float dt) {   /* air-breathers (the eel, the turtle): up for a gulp every minute or two, whatever they were doing */
     if (f->sp_mode < SPM_RISE || f->sp_mode > SPM_SINK) {
         if ((f->air_s -= dt) <= 0) { f->sp_mode = SPM_RISE; f->air_s = 0; }
     } else {
@@ -544,8 +542,8 @@ static void sp_state(tank_t *t, int idx, fish_t *f, float dt) {
     if (f->spark > 0) f->spark = fmaxf(0, f->spark - dt);
     if (SPECIES[f->species].state) SPECIES[f->species].state(t, idx, f, dt);
 }
-/* a poke's getaway (2026-10-28; the startle's, from its tap, before): while flee_t runs, away from
-   where the finger landed - or each one's own way (speeds in its own px/s) */
+/* a poke's getaway: while flee_t runs, away from where the finger landed - or each one's own way
+   (speeds in its own px/s) */
 static void seahorse_flee(const tank_t *t, const fish_t *f, float *away, float *w, float *v) {   /* no bolt: a stem in reach, it goes to cling to it */
     if (f->anchor >= 0) { float fx, fy; if (sp_frond_pt(t, f->anchor, &fx, &fy)) { *away = atan2f(fy - 10 * f->size - f->y, fx - f->facing * 5 * f->size - f->x); *w = 1; *v = 10; return; } }
     *w = 0; *v = 0;
@@ -663,7 +661,7 @@ static void angler_target(tank_t *t, int idx, fish_t *f, goal_id_t goal, bool gl
 }
 static void breather_target(tank_t *t, int idx, fish_t *f, goal_id_t goal, bool glance, target_t *tg, const sp_aim_t *aim) {
     (void)idx; (void)glance; (void)aim;
-    if (goal == GOAL_REST) {                       /* stretched out along the floor (the turtle naps there too, 2026-10-11) */
+    if (goal == GOAL_REST) {                       /* stretched out along the floor (the eel; the turtle naps there too) */
         float lo, hi; sp_floor_span(f, TANK_BOT - 30, &lo, &hi);
         tg->x = clampf(t->reef_x + 70 + f->rest_dx, lo, hi); tg->y = TANK_BOT - 16 - tank_walk_off(f); tg->speed = fmaxf(tg->speed, 5);
     }
@@ -752,7 +750,7 @@ static void sp_walk(tank_t *t, int idx, fish_t *f, float tx, float want, bool us
 /* the lobster's escape: three strokes of the tail, each curling the abdomen
  * under (jet > 0.5: the thrust) and opening it again (the glide), shooting it
  * backward - away from the way it faces - and a little up; then it sinks
- * back to the floor and walks on (a poke's since 2026-10-28; a startle's before) */
+ * back to the floor and walks on (its double-tap trick) */
 #define FLIP_STROKE_S 0.3f
 #define FLIP_STROKES  3
 static void sp_flip(fish_t *f, float dt) {
@@ -810,7 +808,8 @@ static void sp_cruise(fish_t *f, float desired, float want, float dt) {
     f->jet = wrap01(f->jet + dt * (0.5f + f->speed / 40));          /* the tail beat */
 }
 /* everyone else swims free: the seahorse, the puffer, the squid, the eel, the
- * angler off the floor and the octopus off the bottom. No committed U-turn:
+ * jellyfish, the swordfish, the turtle, the angler off the floor and the
+ * octopus off the bottom. No committed U-turn:
  * a turn is a pivot - the head swings round at the species' yaw rate and the
  * swim brakes while it does (the puffer and the seahorse all but stop: a turn
  * on the spot). A goal close behind is backed up to (the eel, the puffer,
@@ -887,15 +886,15 @@ static bool sp_walking(const tank_t *t, const fish_t *f) {
     return SPECIES[f->species].walking && SPECIES[f->species].walking(t, f);
 }
 /* the whole body inside the glass: its head and its tail brought in (a long
- * eel or shark along the side glass, the bowl's curve, the watch's corners),
- * then the middle */
+ * eel or shark along the side glass, or against a curved glass), then the
+ * middle */
 static void sp_clamp_body(fish_t *f) {
     const species_def_t *s = &SPECIES[f->species];
     float hl = tank_body_half_len(f) * 0.9f, th = (s->clamp_th > 0 ? s->clamp_th : 8) * f->size, ax, ay;
     if (s->flags & (SPF_UPRIGHT | SPF_PULSES)) { ax = 0; ay = 1; }     /* upright, or a bell: its length is up and down */
     else if (s->flags & SPF_SIDEWAYS) { ax = 1; ay = 0; }
     else { float a = body_axis(f); ax = cosf(a); ay = sinf(a); }
-    for (int pass = 0; pass < 2; pass++) {             /* twice: in the bowl, bringing one end in can take the other out */
+    for (int pass = 0; pass < 2; pass++) {             /* twice: on a curved glass, bringing one end in can take the other out */
         for (int k = -1; k <= 1; k += 2) {
             float px = f->x + ax * hl * k, py = f->y + ay * hl * k, qx = px, qy = py;
             tank_glass_clamp(&qx, &qy, th);
@@ -941,9 +940,9 @@ static void sp_move(tank_t *t, int idx, fish_t *f, const target_t *tg, float des
 
 
 
-/* ---- the creatures' own ways where the classic fish and the species part
- * (2026-10-23: the classic fish is a row too). A species' row leaves these
- * empty and gets the species' way; the fish's row brings its own. ---- */
+/* ---- the creatures' own ways where the classic fish and the species part.
+ * A species' row leaves these empty and gets the species' way; the fish's
+ * row brings its own. ---- */
 /* the courtship's steering: the fish's circle (court_steer), or a species' place in the dance (sp_court) */
 static void fish_dance(const tank_t *t, fish_t *f, int idx, float vk, target_t *tg, float *desired, float *speed) {
     (void)vk; (void)tg; court_steer(t, f, idx, desired, speed);
@@ -965,19 +964,16 @@ static void fish_swim(tank_t *t, int idx, fish_t *f, const target_t *tg, float d
     (void)idx; (void)sp_units;
     /* urgency scales cruise speed a touch (0..9 → 0.8..1.25) */
     float ugain = 0.8f + f->goal.urgency * 0.05f;
-    /* a U-turn is a YAW (2026-09-29): a fish whose way lies behind it no longer
-     * loops over through vertical and rolls flat - it turns round where it is,
-     * toward the glass. (A YouTube viewer on the old roll: "that looks bad".)
+    /* a U-turn is a YAW: a fish whose way lies behind it turns round where it
+     * is, toward the glass, rather than looping over through vertical.
      * It swims on one SIDE (facing) and changes side only by a committed turn:
      * the way must stay behind it for a moment - ~2 s hovering (3 at its
      * spot), a third of a second cruising, at once when it matters (a dash,
      * darting play) - and a turn is followed by ~1.3 s of settling. Until it commits
      * it glances back (a part turn) and eases off, steering on its own side:
-     * the way mirrored across vertical, its climb or dive kept. Strato, the
-     * same night, on the first cut (a turn the moment the way fell behind):
-     * "too much time in a vertical position or flip flopping back and forth" -
-     * 21 flips a fish-minute, 34 at the bubble column, where the lane swings
-     * side to side every ~5 s. */
+     * the way mirrored across vertical, its climb or dive kept. A turn the
+     * moment the way fell behind would flip a fish ~21 times a minute (34 at
+     * the bubble column, where the lane swings side to side every ~5 s). */
     const float BEHIND_BAND  = 0.15f;    /* |cos| past vertical before the way is "behind" */
     const float TURN_SETTLE  = 1.3f;     /* s after a turn before the next can begin */
     if (!f->facing) f->facing = cosf(f->heading) < 0 ? -1 : 1;
@@ -1014,10 +1010,8 @@ static void fish_swim(tank_t *t, int idx, fish_t *f, const target_t *tg, float d
         for (int b = 0; b < tank_veg_beds(t); b++)
             if (veg_inside(t, b, f->x, f->y)) { f->target_speed *= VEG_SLOW; break; }
     f->speed = lerpf(f->speed, f->target_speed, clampf(dt * 2.6f, 0, 1));
-    /* the tail beat's phase (2026-10-12, Alvin: the Blackwater creatures' movement "not smooth"): it used to be
-       clock x (8 + speed x .055) in the drawer, so every change of speed JUMPED the phase by clock x .055 x the
-       change - a random tail flick on every acceleration, worse the longer the tank had run. Integrated here
-       instead, at the same rate, so the beat only quickens and slows */
+    /* the tail beat's phase, integrated here (8 + speed x .055 a second) so the beat only quickens and
+       slows: a phase taken from the clock in the drawer would jump on every change of speed */
     f->jet = wrap01(f->jet + dt * (8 + f->speed * 0.055f) * (1.0f / TAU));
     /* the swim follows the facing: side-on it is the heading's own, and as
      * the fish turns head-on its level travel crosses zero and it brakes to
@@ -1030,7 +1024,7 @@ static void fish_swim(tank_t *t, int idx, fish_t *f, const target_t *tg, float d
 
     glass_bounce(f, 15 * f->size, TURN_SETTLE);   /* hard bounds: the glass, whatever its shape (glass.c) */
 }
-/* ---- the species (2026-10-05, docs/species.md): the classic fish's row is
+/* ---- the species (docs/species.md): the classic fish's row is
  * a placeholder - its looks and temperament are the ROSTER's ---- */
 const species_def_t SPECIES[SP_COUNT] = {
     /* name, token, default names, designs {name, body, fin, accent},
@@ -1079,7 +1073,7 @@ const species_def_t SPECIES[SP_COUNT] = {
     { "ELECTRIC EEL", "eel", { "zap", "volt", "sparky", "ohm" },
       { { "OLIVE", 0x5a6a3a, 0x3a4626, 0xff8a3d }, { "CHARCOAL", 0x3a3f45, 0x24282c, 0xffd23f },
         { "BRONZE", 0x8a6a3a, 0x5a4426, 0xffb070 },  { "SPOTTED", 0x4e7a4a, 0x2e4e2e, 0xd8f07a } },
-      0.98f, 1.23f, 0.60f, 0.90f, 0.10f, 0.30f, 4.5f, 0.6f, 1.8f, LOCO_UNDULATE,   /* 2026-10-10: 30 % smaller (was 1.40-1.75) */
+      0.98f, 1.23f, 0.60f, 0.90f, 0.10f, 0.30f, 4.5f, 0.6f, 1.8f, LOCO_UNDULATE,
       0.70f, 1.10f, 0.80f, 0.0f, 46, true,
       .mo = { 2.0f, 0.30f, 70, 2.0f, 1.60f, 0.90f,  6 },   /* the head at the front of a long body */
       .flags = SPF_BACKS | SPF_BREATHES | SPF_SPARKS, .fin_hz = 0.4f, .fin_div = 30,
@@ -1087,7 +1081,7 @@ const species_def_t SPECIES[SP_COUNT] = {
     { "HAMMERHEAD", "shark", { "hammer", "finn", "ridge", "bruce" },
       { { "GREY", 0x8a9aa6, 0x5e6e7a, 0xe8eef2 },  { "BRONZE", 0xa88a5a, 0x7a603a, 0xf2e6cc },
         { "SLATE", 0x6a83a8, 0x46607e, 0xdde8f4 }, { "SCALLOPED", 0xc0ccd4, 0x8e9aa2, 0xffffff } },
-      1.12f, 1.37f, 0.80f, 0.95f, 0.50f, 0.80f, 5.0f, 0.1f, 1.5f, LOCO_CRUISE,   /* 2026-10-10: 30 % smaller (was 1.60-1.95) */
+      1.12f, 1.37f, 0.80f, 0.95f, 0.50f, 0.80f, 5.0f, 0.1f, 1.5f, LOCO_CRUISE,
       0.95f, 1.20f, 0.50f, 16.0f, 52, true,
       .mo = { 0.6f, 0.00f,  0, 0.8f, 1.00f, 0.80f,  0 },   /* the slow yaw IS its wide turn */
       .flags = SPF_LEVEL,
@@ -1124,7 +1118,7 @@ const species_def_t SPECIES[SP_COUNT] = {
       .mo = { 1.2f, 0.30f,  0, 2.5f, 1.50f, 0.00f,  0 },   /* upright bell and long trailing arms */
       .flags = SPF_BACKS | SPF_PULSES, .clamp_th = 18,
       .poke = jelly_poke, .state = jelly_state, .flee = jelly_flee, .target = jelly_target },
-    { "SWORDFISH", "swordfish", { "blade", "marlin", "sabre", "dash" },   /* 2026-10-10 night: a cruiser like the hammerhead, faster, never still */
+    { "SWORDFISH", "swordfish", { "blade", "marlin", "sabre", "dash" },   /* a cruiser like the hammerhead, faster, never still */
       { { "STEEL", 0x5f7f99, 0x3d5468, 0xe9eef2 }, { "COBALT", 0x2f5cc8, 0x1d3a86, 0xa8d4ff },
         { "SUNSET", 0xb8743a, 0x7a4a22, 0xffd79a }, { "GHOST", 0xc9d6de, 0x8ea0ac, 0xffffff } },
       1.10f, 1.35f, 0.70f, 0.95f, 0.30f, 0.60f, 5.5f, 0.1f, 1.3f, LOCO_CRUISE,
@@ -1132,7 +1126,7 @@ const species_def_t SPECIES[SP_COUNT] = {
       .mo = { 0.7f, 0.00f,  0, 1.0f, 1.25f, 0.85f,  0 },   /* the hammerhead's wide turn, the bill most of the front */
       .flags = SPF_BACKS,
       .court = cruiser_court, .target = cruiser_target },
-    { "TURTLE", "turtle", { "shelly", "moss", "pebble", "tide" },   /* 2026-10-11: a sea turtle - slow strokes, long glides, a nap on the sand, up for a breath */
+    { "TURTLE", "turtle", { "shelly", "moss", "pebble", "tide" },   /* a sea turtle - slow strokes, long glides, a nap on the sand, up for a breath */
       { { "GREEN", 0x6f9a3e, 0x8fb45c, 0xe9dc9c }, { "HAWKSBILL", 0xb57a2c, 0x6b4318, 0xf3cf78 },
         { "LEATHERBACK", 0x45546a, 0x2c3542, 0xcfd9e6 }, { "SEAFOAM", 0x3f9c8a, 0x2c6c63, 0xdaf3e6 } },
       1.05f, 1.30f, 0.45f, 0.80f, 0.20f, 0.50f, 6.0f, 0.6f, 1.6f, LOCO_HOVER,
@@ -1169,10 +1163,10 @@ static target_t target_for_goal(tank_t *t, int idx, goal_id_t goal, bool glance)
         break;
     }
     case GOAL_FLEE_SHADOW: {
-        /* the roaming shadow was removed 2026-09-13; the token stays in the
-         * frozen schema (the state line always reads `shadow none`, which the
-         * model was trained on). If it still says flee, the fish bolts away
-         * from the surface centre - the old no-shadow fallback. */
+        /* there is no shadow; the goal stays in the frozen schema (the state
+         * line always reads `shadow none`, which the model was trained on).
+         * If the model still says flee, the fish bolts away from the surface
+         * centre. */
         float sx = TANK_W * 0.5f, sy = -60;
         float away = atan2f(f->y - sy, f->x - sx);
         tg.x = f->x + cosf(away) * 105; tg.y = f->y + sinf(away) * 83;
@@ -1218,15 +1212,13 @@ static target_t target_for_goal(tank_t *t, int idx, goal_id_t goal, bool glance)
         break;
     }
     case GOAL_EXPLORE: {
-        /* a destination, not a drift (2026-09-14). Before this, explore was
-         * the wander target above - 50 px ahead of the nose with a wobble -
-         * a random walk that never left the neighbourhood, so an explore
-         * decision looked like idling (Strato: "they don't explore the tank
-         * very much"). Now the fish picks the zone it has seen least recently
-         * (one of the two stalest, so two explorers don't take the same line),
-         * cruises to a point inside it, and on arrival picks the next. The
-         * model still owns the goal; this is the reflex layer resolving the
-         * concrete target, as it does for every other goal. */
+        /* a destination, not a drift (the wander target above would be a
+         * random walk that never leaves the neighbourhood): the fish picks
+         * the zone it has seen least recently (one of the two stalest, so two
+         * explorers don't take the same line), cruises to a point inside it,
+         * and on arrival picks the next. The model still owns the goal; this
+         * is the reflex layer resolving the concrete target, as it does for
+         * every other goal. */
         if (glance) { if (!f->explore_set) tg.valid = false; else { tg.x = f->explore_x; tg.y = f->explore_y; } break; }
         if (!f->explore_set || tank_dist(f->x, f->y, f->explore_x, f->explore_y) < 26) {
             int cur = zone_of(f->x, f->y), best = -1, second = -1;
@@ -1240,7 +1232,7 @@ static target_t target_for_goal(tank_t *t, int idx, goal_id_t goal, bool glance)
             f->explore_x = tank_randf(t, col * (TANK_W / 3.0f) + 40, (col + 1) * (TANK_W / 3.0f) - 40);
             f->explore_y = tank_randf(t, row * (TANK_BOT / 2.0f) + 42, (row + 1) * (TANK_BOT / 2.0f) - 40);
 #if GLASS_CURVED
-            tank_glass_clamp(&f->explore_x, &f->explore_y, 44);   /* a zone's corner is outside the bowl */
+            tank_glass_clamp(&f->explore_x, &f->explore_y, 44);   /* a zone's corner may be outside a curved glass */
 #endif
             f->explore_set = true;
         }
@@ -1265,15 +1257,15 @@ static void eat_nearby_food(tank_t *t, fish_t *f) {
             t->food[i].alive = false;
             f->hunger = clampf(f->hunger - 4.3f, 0, 10);
             f->energy = clampf(f->energy + 1.0f, 0, 10);
-            f->curiosity = clampf(f->curiosity + 0.5f, 0, 10);   /* was 0.8: a trickle burst
-                                                                     re-synced the school's curiosity */
+            f->curiosity = clampf(f->curiosity + 0.5f, 0, 10);   /* small: a trickle burst would
+                                                                     re-sync the school's curiosity */
             f->eaten++;
             tank_emit(TEV_EAT, (int)(f - t->fish));
             if (t->food[i].from_player) {
                 f->eaten_player++; f->ms_bits |= MS_FIRST_MEAL_FROM_YOU;
                 if (t->feed_open) { t->player_feedings++; t->feed_open = false; }   /* the gesture became a meal */
             }
-            /* post-meal reflex from the prototype */
+            /* post-meal reflex: nearly full, it moves on until the advisor answers */
             if (f->hunger < 2.2f && f->goal.id == GOAL_SEEK_FOOD)
                 f->goal.id = (tank_xr(t) & 1) ? GOAL_VISIT_BUBBLES : GOAL_EXPLORE;
             return;   /* one bite per frame: a fish in a cloud of pellets takes
@@ -1284,18 +1276,16 @@ static void eat_nearby_food(tank_t *t, fish_t *f) {
 
 void update_fish(tank_t *t, int idx, float dt) {
     fish_t *f = &t->fish[idx];
-    /* drives (prototype rates, speed rescaled by the same 0.55) */
+    /* drives: hunger rises (faster for the bold, and in play) */
     f->hunger    = clampf(f->hunger + dt * (HUNGER_PER_S + f->bold * HUNGER_BOLD_PER_S +
                           (f->goal.id == GOAL_DART_PLAY ? HUNGER_DART_PER_S : 0)), 0, 10);
-    /* curiosity: exploring feeds it (prototype) and - new 2026-09-01 -
-     * satisfying it SPENDS it: a fish that has reached the bubbles or the
-     * reef uses curiosity up there, the way rest restores energy and a meal
-     * drops hunger. Before this a fed fish had no sink at all (+0.8 per
-     * pellet, nothing ever took it back), so after days the whole school sat
-     * at curiosity 9 and the advisor - reading "fed, calm, curious" exactly
-     * as trained - parked all four at the bubble column for good. The model
-     * still owns the goal; it just sees an honest drive, and the curiosity
-     * band is in the re-ask signature so it gets to react. */
+    /* curiosity: exploring feeds it and satisfying it SPENDS it: a fish that
+     * has reached the bubbles or the reef uses curiosity up there, the way
+     * rest restores energy and a meal drops hunger. Without that sink a fed
+     * school would sit at curiosity 9, and the advisor - reading "fed, calm,
+     * curious" exactly as trained - would park them all at the bubble column
+     * for good. The model still owns the goal; it just sees an honest drive,
+     * and the curiosity band is in the re-ask signature so it gets to react. */
     {
         float dc = f->goal.id == GOAL_EXPLORE ? 0.08f : -0.025f;
         if (f->goal.id == GOAL_VISIT_BUBBLES || f->goal.id == GOAL_INSPECT_REEF) {
@@ -1310,22 +1300,21 @@ void update_fish(tank_t *t, int idx, float dt) {
         f->curiosity = clampf(f->curiosity + dt * dc, 0, 10);
     }
     f->stress    = clampf(f->stress - dt * (f->goal.id == GOAL_REST ? 0.48f : 0.18f), 0, 10);
-    /* energy: the prototype's per-second drain (full to empty in ~3 min of
-     * cruising) kept the school at energy ~3 - permanently tired, so the
-     * advisor never had a fish fit enough to dart and read every content
-     * fish as "relaxed": bubbles, reef, follow (2026-09-01 census). Now a
-     * fish cruises ~10 min on a full tank and a rest refills it in ~35 s. */
+    /* energy: a fish cruises ~10 min on a full tank and a rest refills it in
+     * ~35 s, so the advisor sees fish fit enough to dart (a faster drain
+     * keeps a school permanently tired, and every content fish reads as
+     * "relaxed": bubbles, reef, follow). */
     f->energy    = clampf(f->energy + dt * (f->goal.id == GOAL_REST ? 0.30f
                           : -0.012f - f->speed / 4000.0f), 0, 10);
     /* a canopy is a place to hide: a fish inside one calms faster (below) */
     bool hidden = false;
     for (int b = 0; b < tank_veg_beds(t) && !hidden; b++)
         hidden = t->veg_growth[b] >= VEG_BARE && veg_inside(t, b, f->x, f->y);
-    /* vegetation comfort (2026-09-04 rework: fish LIKE cover). Three regimes,
-     * each seeking its own equilibrium against the natural decay above:
+    /* vegetation comfort: the creatures LIKE cover. Three regimes, each
+     * seeking its own equilibrium against the natural decay above:
      *  - SMOTHERED: the second-tallest bed past VEG_SMOTHER (85% of the way to
-     *    its own ceiling, tank_veg_cap - since 2026-09-23 a bed stops short of
-     *    the surface) - at least two beds crowding their ceilings - is the tank
+     *    its own ceiling, tank_veg_cap; a bed stops short of the surface) -
+     *    at least two beds crowding their ceilings - is the tank
      *    being overrun: real stress, ramping from nothing at 85% to the full
      *    press at 100% (settles ~6-7 with every bed at its ceiling). One bed
      *    at the ceiling is just a good hiding place, never a stressor.
@@ -1362,7 +1351,8 @@ void update_fish(tank_t *t, int idx, float dt) {
      * friend only accrues. (A zone boundary under the orbit gives nothing:
      * the zone has to be BORED_ZONE_STALE_S stale.) The new-goal relief is in
      * tank_tick where goals change. The band is in state_signature, so a fish
-     * crossing into "bored" is re-asked - and the v4 model reads the value. */
+     * crossing into "bored" is re-asked - and the model (schema 4 and later)
+     * reads the value. */
     {
         goal_id_t g = f->goal.id;
         bool leisure = g == GOAL_VISIT_BUBBLES || g == GOAL_FOLLOW_FRIEND || g == GOAL_INSPECT_REEF ||
@@ -1412,9 +1402,8 @@ void update_fish(tank_t *t, int idx, float dt) {
     }
 
     /* touch: a poked creature gets away from the finger, its own way (its
-     * row's flee; a triple tap's startle did that for every fish near it
-     * until 2026-10-28); trusting fish drift to a resting finger
-     * (reflex-layer, independent of the advisor's goal) */
+     * row's flee); trusting fish drift to a resting finger (reflex-layer,
+     * independent of the advisor's goal) */
     float touch_speed = -1;
     bool sp_units = false;                 /* a species' reflex set touch_speed in its own px/s */
     bool breathing = f->species < SP_COUNT && (SPECIES[f->species].flags & SPF_BREATHES) && f->sp_mode >= SPM_RISE && f->sp_mode <= SPM_SINK;
@@ -1442,7 +1431,7 @@ void update_fish(tank_t *t, int idx, float dt) {
         desired=atan2f(tg.y-f->y,tg.x-f->x);touch_speed=tg.speed;sp_units=true;
     } else if (t->spawning && (idx == t->court_a || idx == t->court_b) &&
                f->goal.id != GOAL_FLEE_SHADOW && !(t->ravenous && f->hunger > 6.5f)) {
-        /* the spawning (2026-09-24): the courtship that ends in a fry. It
+        /* the spawning: the courtship that ends in a fry. It
          * outranks a resting finger and the greeting - this is the moment the
          * keeper is here for - and hunger short of the famine doesn't veto
          * it; a starving parent still begs first (feed it, it comes back). */
@@ -1503,10 +1492,9 @@ void update_fish(tank_t *t, int idx, float dt) {
         (sd->dance ? sd->dance : species_dance)(t, f, idx, vk, &tg, &desired, &touch_speed);
     }
 
-    /* separation - personal space. Fish are ~40 px long; the old 16 px
-     * radius let four content fish stack on one landmark like a pile of
-     * cards (2026-09-01). Now a body length, weighted by how close they are;
-     * a fleeing fish keeps its line. */
+    /* separation - personal space: a body length (fish are ~40 px long),
+     * weighted by how close they are, so content fish never stack on one
+     * landmark like a pile of cards; a fleeing fish keeps its line. */
     if (f->goal.id != GOAL_FLEE_SHADOW)
         for (int i = 0; i < t->n_fish; i++) {
             if (i == idx) continue;

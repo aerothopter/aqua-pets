@@ -14,7 +14,7 @@ static float    s_gap;                       /* seconds until the next may come 
 static int      s_cue = -1;
 
 /* never announced: they belong to the birth of a tank or a fish */
-#define MS_SILENT   (MS_ARRIVED | MS_INSPECTED | MS_RETIRED_6 | MS_RETIRED_7)   /* (MS_INSPECTED: no badge since 0.3.0) */
+#define MS_SILENT   (MS_ARRIVED | MS_INSPECTED | MS_RETIRED_6 | MS_RETIRED_7)   /* (MS_INSPECTED has no badge) */
 #define TMS_SILENT  (TMS_PAIR)
 #define MS_STAGES   (MS_REACHED_JUV | MS_REACHED_ADULT | MS_REACHED_ELDER)
 
@@ -53,8 +53,8 @@ void notice_tick(const tank_t *t, float dt, bool blocked) {
     s_tms = t->tank_ms_bits;
 
     if (s_up) {
-        if (blocked) {                       /* something opened over it (2026-09-29: the birth flow over
-                                                a fry's population badge): it steps aside and comes back
+        if (blocked) {                       /* something opened over it (the birth flow over a fry's
+                                                population badge): it steps aside and comes back
                                                 after, whole and quiet - its cue has played */
             if (s_qn < NOTICE_QUEUE) {
                 memmove(&s_q[1], &s_q[0], sizeof(notice_t) * (size_t)s_qn);

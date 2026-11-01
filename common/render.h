@@ -12,28 +12,26 @@
 void render_use_theme(int id);
 
 /* fb is TANK_W x TANK_H, RGB565, stride in PIXELS (usually TANK_W). */
-/* PAGE space (2026-10-01): the full-screen pages (milestones, shop, settings,
- * updates, the setup flow), the prompts and the notices are laid out on the
- * rectangle's 448 x 368. On a bigger frame (the round bowl's 466 x 466) that
- * layout sits centred: page (0,0) is frame (PAGE_X, PAGE_Y). The drawing
- * helpers below (render_text, render_rect, ...) take PAGE coordinates; the
- * tap tests take the frame's, as the touch ports report them. In the
- * rectangle the two are the same thing. */
+/* PAGE space: the full-screen pages (milestones, shop, settings, updates,
+ * the setup flow), the prompts and the notices are laid out on the 1.8's
+ * 448 x 368. On a bigger frame that layout sits centred: page (0,0) is frame
+ * (PAGE_X, PAGE_Y). The drawing helpers below (render_text, render_rect, ...)
+ * take PAGE coordinates; the tap tests take the frame's, as the touch ports
+ * report them. On the 1.8 the two are the same thing. */
 #define PAGE_W 448
 #define PAGE_H 368
 #define PAGE_X ((TANK_W - PAGE_W) / 2)
 #define PAGE_Y ((TANK_H - PAGE_H) / 2)
 /* Every page number that differs between boards (the card's place, the
  * pages' rows and feet, ...) is the board's: its layout header (device.h
- * DEVICE_LAYOUT, devices/<board>_layout.h, 2026-10-23). The bowl's circle
- * cuts the page's corners and the watch's glass is narrower than the page,
- * so their layouts draw a few things in from the glass. The numbers every
- * board shares are below, with each page. */
+ * DEVICE_LAYOUT, devices/<board>_layout.h). A glass that cuts the page's
+ * corners or is narrower than the page draws a few things in from its edge.
+ * The numbers every board shares are below, with each page. */
 #include DEVICE_LAYOUT
 void render_tank(const tank_t *t, uint16_t *fb, int stride);
 
 /* Optional frame profiling: set a microsecond clock and render_tank fills
- * render_prof_us per stage (0 scene-copy, 1 shafts, 2 veg (back), 3 food+
+ * render_prof_us per stage (0 scene-copy, 1 unused, 2 veg (back), 3 food+
  * bubbles, 4 fish + front veg, 5 vignette sweep, 6 algae film). Accumulates
  * until the caller zeroes it. NULL = off. */
 extern int64_t (*render_clock_us)(void);
@@ -63,25 +61,25 @@ const uint16_t *render_scene_buf(unsigned *epoch);
 void render_set_dirty_mask(uint32_t *buf);
 void render_fb_primed(const uint16_t *fb, unsigned epoch);
 
-/* Stats overlay for one selected fish: selection ring + a small card of
- * visual bars (drives + personality) and stage pips. No text, no digits —
- * the progression design's "simple and visual" stats view. Personality bars
- * are revealed only after the fish has shown that side of itself (milestone
- * bits): you learn your fish by watching. The card only shows (2026-10-21):
- * its MORE button and the toolbox under it went to the main menu (the BOOT
- * key, render_menu); a tap on the card puts it away.
- * fish_idx == RENDER_CARD_SNAIL (2026-09-16): the SNAIL's card instead - a
- * ring on the snail and a small centred card: the upright sprite at 2x and
- * how much algae it has grazed so far (tank_t.snail.grazed). The platforms
- * keep it in the same selection slot as a fish (a tap on the snail opens it,
- * a tap anywhere else dismisses it, no card cache). */
+/* Stats overlay for one selected fish: selection ring + a small card - its
+ * name, the certainty dot, visual bars for its needs and sliders for its
+ * personality, no digits: the progression design's "simple and visual" stats
+ * view. Personality sliders are revealed only after the fish has shown that
+ * side of itself (milestone bits): you learn your fish by watching. The card only shows: the pages
+ * are the main menu's (the BOOT key, render_menu), and a tap on the card
+ * puts it away.
+ * fish_idx == RENDER_CARD_SNAIL: the SNAIL's card instead - a ring on the
+ * snail and a small centred card: the upright snail at 2x and how much algae
+ * it has grazed so far (tank_t.snail.grazed). The platforms keep it in the
+ * same selection slot as a fish (a tap on the snail opens it, a tap anywhere
+ * else dismisses it, no card cache). */
 #define RENDER_CARD_SNAIL 99
-/* fish_idx == RENDER_CARD_SHRIMP (2026-09-29): the shrimp school's card, the
+/* fish_idx == RENDER_CARD_SHRIMP: the shrimp school's card, the
  * snail's way - a ring round the school and a centred card: a shrimp at 4x,
  * how many, the pellets they have eaten, ten pips toward the next shrimp and
  * where that stands (N more / arrives in N min / full / too much algae). */
 #define RENDER_CARD_SHRIMP 98
-/* fish_idx == RENDER_CARD_URCHIN (2026-10-02): the urchin's card, the
+/* fish_idx == RENDER_CARD_URCHIN: the urchin's card, the
  * snail's way - a ring on it and a centred card: the urchin at 3x, the grass
  * it has eaten (cm) and what it is up to (chewing / off to the tall grass /
  * resting). */
@@ -89,7 +87,7 @@ void render_fb_primed(const uint16_t *fb, unsigned epoch);
 void render_stats_card(const tank_t *t, int fish_idx, uint16_t *fb, int stride);
 /* a tap on a helper (helper.h), after the fish: the helper under (x, y) - its
  * kind, -1 = none - and the platform's card selection *sel updated (its card up,
- * or down again; the school's third quick tap scares them and drops it).
+ * or down again).
  * render_card_is_helper: sel is a helper's card, not a fish's, and its helper
  * is in the tank (one sold has nothing to show: the platform drops it). */
 int  render_helper_tap(tank_t *t, float x, float y, int *sel);
@@ -99,7 +97,7 @@ bool render_card_is_helper(const tank_t *t, int sel);
  * -> ~1 ms per frame on the device). NULL = draw every frame. The card's
  * place, RENDER_CARD_X / _Y, is the board's (its layout header). */
 #define RENDER_CARD_W 124
-#define RENDER_CARD_H 228       /* (258 with the MORE button strip, 2026-09-16 .. 10-21) */
+#define RENDER_CARD_H 228
 /* the card's tap hit box (touch ports): the card itself plus a fingertip's
  * slop - a tap there puts the card away instead of reaching the tank behind
  * it. RENDER_CARD_HIT(x, y) is the test. */
@@ -108,20 +106,19 @@ bool render_card_is_helper(const tank_t *t, int sel);
 #define RENDER_CARD_HIT(x, y) ((x) >= RENDER_CARD_X - RENDER_CARD_HIT_SIDE && (x) < RENDER_CARD_X + RENDER_CARD_W + RENDER_CARD_HIT_SIDE && \
                                (y) >= RENDER_CARD_Y && (y) < RENDER_CARD_Y + RENDER_CARD_H + RENDER_CARD_HIT_BELOW)
 void render_set_card_cache(uint16_t *buf);
-/* With a tool in hand (picked from the main menu's SPONGE / SCISSORS) and no
- * fish card up, a chip at the top left says so: the tool and DONE. A tap on
- * it (render_tool_chip_hit) puts the tool back. render_tool_chip draws
+/* With a tool in hand (picked from the main menu's SPONGE / SCISSORS / FEED)
+ * and no fish card up, a chip at the top left says so: the tool and DONE. A
+ * tap on it (render_tool_chip_hit) puts the tool back. render_tool_chip draws
  * nothing with TOOL_HAND, or when fish_idx is a fish. */
 void render_tool_chip(const tank_t *t, int fish_idx, uint16_t *fb, int stride);
 bool render_tool_chip_hit(const tank_t *t, float x, float y);
 
-/* Device battery pill (top-right), drawn with the main menu (since 2026-10-28;
- * with the fish card before), while the battery is low, and for BAT_POPUP_S
- * after the cable goes in:
- * frac 0..1, state = BAT_* (battery.h), clock (s) runs the sweep. Redrawn
- * 2026-09-24 for a color-blind keeper: on the cable a lightning bolt stands
- * left of the pill (gray while the charger rests), and while charge flows a
- * bright band sweeps the fill - shape and motion, hue only as a repeat.
+/* Device battery pill (top-right), drawn with the main menu, while the
+ * battery is low, and for BAT_POPUP_S after the cable goes in:
+ * frac 0..1, state = BAT_* (battery.h), clock (s) runs the sweep. Readable
+ * without colour: on the cable a lightning bolt stands left of the pill
+ * (gray while the charger rests), and while charge flows a bright band
+ * sweeps the fill - shape and motion, hue only as a repeat.
  * A tap in RENDER_BAT_HIT (the pill plus a fingertip's slop, most of it
  * below and to the left) opens the battery page - while the pill shows (with
  * the menu up, render_menu_tap says so: MENU_TAP_BATTERY).
@@ -130,50 +127,49 @@ bool render_tool_chip_hit(const tank_t *t, float x, float y);
 #define RENDER_BAT_H 15
 #define RENDER_BAT_HIT(x, y) ((x) >= RENDER_BAT_X - 44 && (y) < RENDER_BAT_Y + RENDER_BAT_H + 40)
 void render_battery(uint16_t *fb, int stride, float frac, int state, float clock);
-/* the battery page (2026-09-24): a panel over the live tank - the battery
+/* the battery page: a panel over the live tank - the battery
  * large with its percent, the state in words, time left / time to full,
  * then since the cable moved, screen-on time on this charge, what a full
  * charge lasts (battery_info fills bi) and the voltage, dim. Any tap closes
  * it (the platforms); it closes itself after a while. */
 void render_battery_info(uint16_t *fb, int stride, const bat_info_t *bi, float clock);
 /* an announcement over the live tank (notice.h: a milestone the moment it
- * is earned, a stage reached, low battery, lights out), in the milestones page's modal
+ * is earned, a stage reached, low battery, a new release), in the milestones page's modal
  * style; frac_left (1 -> 0) is its remaining time, drawn as a thin bar */
 void render_notice(const tank_t *t, uint16_t *fb, int stride, int kind, int fish, uint32_t bit, float frac_left);
 
-/* Milestones page (separate screen, never on the tank; 2026-09-13 redesign
- * on Strato's pixel-art badges): one row per fish - its sprite at its real
- * size, its name, a growth strip fry -> elder - and six event badges; the
- * tank's row below with the population strip and the tank badges - six a
- * page; the shrimp school's seventh (once there are shrimp) turns the row
- * into pages behind a small arrow at its right end (2026-09-30). A locked
- * badge is the same picture as a grey silhouette; one earned since the
- * keeper last closed the page wears a ring. While the tank can still grow,
- * a NEW FRY row sits under the last fish (2026-09-14): the fry-to-be as a
- * silhouette, a tick per gate, and the next arrival's gates as badges
+/* Milestones page (separate screen, never on the tank): one row per
+ * creature - its sprite at its real size, its name, a growth strip fry ->
+ * elder - and six event badges, in a list that scrolls up and down; the
+ * tank's row below it with the population strip and the tank badges, which
+ * scroll sideways (a bought thing's badge peeks in at the right). A
+ * locked badge is the same picture as a grey silhouette; one earned since
+ * the keeper last closed the page wears a ring, and a teal mark at the end
+ * of a list's bar says one lies out of view past it. While the tank can
+ * still grow, a NEW FRY row sits under the last creature: the fry-to-be as
+ * a silhouette, a tick per gate, and the next arrival's gates as badges
  * (progression_next_fry) - lit once met, a filling bar under each still
  * owed; a tap on a gate says what to do and where it stands, with a HOW?
  * button that flips to a tip page (progression_fry_tip: how the keeper
- * moves that gate); a tap on the name gives the tally. render_milestones_tap maps a tap: a badge, a name
- * or a strip opens a small detail modal (the art at 2x, a title, the
- * words). Arrow buttons at the modal's top corners (2026-09-16) step to the
- * previous / next of its group without leaving it - a fish's six badges,
- * the tank's (across its pages), the fry checklist's gates, or, from a fish's name, the
+ * moves that gate); a tap on the name gives the tally. render_milestones_tap
+ * maps a tap: a badge, a name or a strip opens a small detail modal (the art
+ * at 2x, a title, the words). Arrow buttons at the modal's top corners step
+ * to the previous / next of its group without leaving it - a fish's six
+ * badges, the tank's, the fry checklist's gates, or, from a fish's name, the
  * fish themselves (wrapping; a group of one shows none). Any other tap
- * closes the modal. A CLOSE button at the
- * bottom right leaves the page - back to the main menu (render_menu, the
- * platforms do that), as the shop's and the settings page's CLOSE do. */
+ * closes the modal. A CLOSE button at the bottom right leaves the page -
+ * back to the main menu (render_menu, the platforms do that), as the shop's
+ * and the settings page's CLOSE do. */
 void render_milestones(const tank_t *t, uint16_t *fb, int stride);
-/* a tap on the page (2026-09-13, Strato: with this much to tap, a stray tap
- * must not drop the whole page): MS_TAP_CLOSE = the CLOSE button, bottom
+/* a tap on the page (with this much to tap, a stray tap must not drop the
+ * whole page): MS_TAP_CLOSE = the CLOSE button, bottom
  * right - the ONLY way out by touch (caller closes the page, then
  * progression_ack_milestones + render_milestones_leave); MS_TAP_KEPT = a
  * badge / name / strip opened the detail modal, or the modal was up and
- * this tap closed it; MS_TAP_NONE = nothing here (the caller may try the
- * brightness row). */
-enum { MS_TAP_NONE = 0, MS_TAP_KEPT = 1, MS_TAP_CLOSE = 2, MS_TAP_SETTINGS = 3,   /* SETTINGS: no longer returned (its button went to the main menu, 2026-10-21) */
+ * this tap closed it; MS_TAP_NONE = nothing here. */
+enum { MS_TAP_NONE = 0, MS_TAP_KEPT = 1, MS_TAP_CLOSE = 2, MS_TAP_SETTINGS = 3,   /* SETTINGS: never returned (settings is the main menu's) */
        MS_TAP_SHOP = 4,                                                            /* the sand dollar left of the TANK row opens the shop */
-       MS_TAP_RENAME = 16, MS_TAP_SELL = 32 };                                     /* a fish's card (2026-10-01): + the fish's index */
+       MS_TAP_RENAME = 16, MS_TAP_SELL = 32 };                                     /* a fish's card: + the fish's index */
 /* MS_TAP_RENAME + fish: the card's RENAME - the caller leaves the page (ack +
  * leave, as for CLOSE) and opens setup_begin_rename; when that flow ends
  * (setup_take_renamed) it brings the page back with render_milestones_show_fish.
@@ -186,13 +182,11 @@ void render_milestones_show_fish(const tank_t *t, int fish);   /* put a fish's c
  * (false = none up) with the centres of RENAME and SELL; a point on a row's name */
 bool render_milestones_card(const tank_t *t, int *fish, int *rename_x, int *sell_x, int *btn_y);
 bool render_milestones_arrow(const tank_t *t, bool right, int *x, int *y);   /* the modal's left / right arrow (false = no modal up) */
-/* the page's two lists scroll (2026-10-28, scroll.h): the creature rows up and
- * down (they paged six at a time behind a chevron, 2026-10-05), the TANK row's
- * badges sideways (six a page behind an arrow, 2026-09-30). Every frame the
- * page is up the platform hands it the finger, in the frame's coordinates; a
- * stroke that scrolls is no tap (render_milestones_tap keeps it). A modal
- * opened on a row or a badge (or stepped to one by its arrows) scrolls it
- * into view. */
+/* the page's two lists scroll (scroll.h): the creature rows up and down, the
+ * TANK row's badges sideways. Every frame the page is up the platform hands
+ * it the finger, in the frame's coordinates; a stroke that scrolls is no tap
+ * (render_milestones_tap keeps it). A modal opened on a row or a badge (or
+ * stepped to one by its arrows) scrolls it into view. */
 void render_milestones_touch(const tank_t *t, float x, float y, bool down, uint32_t now_ms);
 /* for the tests and the director, so neither knows the lists' numbers: a
  * row's name, and the k-th TANK badge that shows, in the frame (false = not
@@ -205,32 +199,31 @@ void render_milestones_show_tank_badge(const tank_t *t, int k);
 bool render_milestones_scrolls(const tank_t *t, bool tank_row);
 void render_milestones_leave(void);
 
-/* The shop (2026-09-15): the sand dollar page. One
- * row per item (SD_ITEMS: the art, the name, the price, UNLOCK / IN TANK), a
- * HOW TO EARN button bottom left (a modal listing the sources), the balance
- * between it and CLOSE, bottom right (2026-10-28; at the top before). A tap on a row opens the item's modal - the art at 2x, the
- * words, the price, an UNLOCK button; render_shop_tap returns SHOP_TAP_BUY +
- * item when that button is tapped (the caller calls progression_buy; a short
- * balance was already a dim button), SHOP_TAP_CLOSE for the way out (back
- * to the milestones page, 2026-09-16),
- * SHOP_TAP_KEPT when a modal opened or closed. Page state is render-local;
- * render_shop_leave clears it when the page closes. */
+/* The shop: the sand dollar page. One row per item (SD_ITEMS: the art, the
+ * name, the price, UNLOCK / IN TANK) in a list that scrolls, a HOW TO EARN
+ * button bottom left (a modal listing the sources), the balance between it
+ * and CLOSE, bottom right. A tap on a row opens the item's modal - the art at
+ * 2x, the words, the price, an UNLOCK button; render_shop_tap returns
+ * SHOP_TAP_BUY + item when that button is tapped (the caller calls
+ * progression_buy; a short balance was already a dim button), SHOP_TAP_CLOSE
+ * for the way out (back to the main menu), SHOP_TAP_KEPT when a modal opened
+ * or closed. Page state is render-local; render_shop_leave clears it when
+ * the page closes. */
 enum { SHOP_TAP_NONE = 0, SHOP_TAP_KEPT = 1, SHOP_TAP_CLOSE = 2, SHOP_TAP_BUY = 64, SHOP_TAP_MOVE = 128, SHOP_TAP_SELL = 192 };   /* BUY / MOVE / SELL + item index */
-/* the bases were 16 apart until 2026-10-10: the jellyfish, item 16, bought as BUY + 16 = MOVE + 0 -
- * the sword plant's placement page opened and nothing was bought. 64 apart; the guard keeps it so. */
+/* the bases are 64 apart, and the guard keeps every item index under the next base (an index past
+ * it would read as the next code: BUY + 64 = MOVE + 0) */
 _Static_assert(SD_ITEM_COUNT <= SHOP_TAP_MOVE - SHOP_TAP_BUY && SD_ITEM_COUNT <= SHOP_TAP_SELL - SHOP_TAP_MOVE, "shop tap codes: an item index must not reach the next base");
-/* SHOP_TAP_SELL (2026-09-24): an owned placeable piece's modal has SELL next
- * to MOVE, an owned helper's (2026-10-22) SELL alone where UNLOCK was; the
+/* SHOP_TAP_SELL: an owned placeable piece's modal has SELL next to MOVE, an
+ * owned helper's SELL alone where UNLOCK was; the
  * first tap arms it ("+30 OK?"), the second returns SELL + item
  * and the platform calls progression_sell. Test SELL before MOVE before BUY. */
-/* SHOP_TAP_MOVE (2026-09-16): an owned, placeable item's modal carries a MOVE
+/* SHOP_TAP_MOVE: an owned, placeable item's modal carries a MOVE
  * button - the platform closes the shop and opens setup.c's placement page
  * (setup_begin_place), the same page a purchase opens. */
 void render_shop(const tank_t *t, uint16_t *fb, int stride);
 int  render_shop_tap(const tank_t *t, float x, float y);
 void render_shop_leave(void);
-/* the list scrolls (2026-10-28; four rows a page behind the header's arrows
- * before): every frame the shop is up the platform hands it the finger, in
+/* the list scrolls: every frame the shop is up the platform hands it the finger, in
  * the frame's coordinates (scroll.h); a drag on the rows moves them, a flick
  * flings them, and the stroke's release is no tap (render_shop_tap keeps it).
  * A thin bar at the right says where the view is. */
@@ -240,16 +233,16 @@ void render_shop_touch(float x, float y, bool down, uint32_t now_ms);
  * list scrolled to bring a row to its top (as far as the list goes) */
 bool render_shop_row(int item, int *x, int *y);
 void render_shop_show_item(int item);
-/* The MAIN MENU (2026-10-21): the BOOT key's page, a grid of six tiles -
- * TANK (the milestones page), UPGRADES (the shop), SETTINGS; then the
- * tools - the SPONGE, the SCISSORS and FEED (2026-10-28; an empty cell
- * before) - tank.h TOOL_*, the one in hand lit. Since 2026-10-28 the tiles stand over the live tank, in the
- * fish card's look; the platform draws the tank first, and the battery pill
- * with it. render_menu_tap maps a tap (the frame's coordinates): a tile's
- * MENU_TAP_*, MENU_TAP_BATTERY off the grid on the pill (RENDER_BAT_HIT: the
- * platform opens the battery page if the pill shows, else puts the menu
- * away), MENU_TAP_CLOSE elsewhere off the grid (the platform puts the menu
- * away), MENU_TAP_NONE on the empty cell or the grid's slop. The platform opens
+/* The MAIN MENU: the BOOT key's page, a grid of six tiles - TANK (the
+ * milestones page), UPGRADES (the shop), SETTINGS; then the tools - the
+ * SPONGE, the SCISSORS and FEED - tank.h TOOL_*, the one in hand lit. The
+ * tiles stand over the live tank, in the fish card's look; the platform
+ * draws the tank first, and the battery pill with it. render_menu_tap maps a
+ * tap (the frame's coordinates): a tile's MENU_TAP_*, MENU_TAP_BATTERY off
+ * the grid on the pill (RENDER_BAT_HIT: the platform opens the battery page
+ * if the pill shows, else puts the menu away), MENU_TAP_CLOSE elsewhere off
+ * the grid (the platform puts the menu away), MENU_TAP_NONE on the grid's
+ * slop. The platform opens
  * the page, or puts the tool in hand (the same tool again: back to the hand)
  * and closes the menu. BOOT on the platforms: from the tank the menu, from
  * the menu the tank, from any of its pages back to the menu. */
@@ -262,7 +255,7 @@ int  render_menu_tap(const tank_t *t, float x, float y);
 void render_menu_tile_rect(int i, int *x, int *y, int *w, int *h);   /* tile i (0..MENU_TILES-1, row by row) in the frame's coordinates */
 int  render_coral_cells(float growth);   /* the coral sprite's filled cells at a growth (the sim's selftest) */
 int  render_cluster_cells(float growth); /* the reef cluster's, likewise */
-/* the decor scratch (2026-09-24): the coral's and the cluster's tables in one
+/* the decor scratch: the coral's and the cluster's tables in one
  * block the platform provides - PSRAM on the board (internal RAM is spoken
  * for); the sim leaves it unset and render calloc's it */
 size_t render_decor_scratch_size(void);
@@ -273,10 +266,9 @@ void   render_set_decor_scratch(void *buf);
  * frame the live tank is showing (never over a page). */
 void render_sd_toast(const tank_t *t, uint16_t *fb, int stride);
 
-/* Reset confirm (2026-09-11): a modal panel over the live tank - "RESET
- * TANK?", what it costs, a NO and a YES button, and a bar draining toward
- * the timeout (frac 1 -> 0). The first text the renderer draws (a 5x7
- * pixel font, upper case). Drawn last, over the card / milestones page.
+/* Reset confirm: a modal panel over the live tank - "RESET TANK?", what it
+ * costs, a NO and a YES button, and a bar draining toward the timeout
+ * (frac 1 -> 0), in the 5x7 pixel font. Drawn last, over everything.
  * render_confirm_hit maps a tap in tank coordinates to a button (+1 YES,
  * -1 NO, 0 neither) so the device's touch port and the sim's mouse share
  * the geometry. */
@@ -292,18 +284,17 @@ void render_sd_toast(const tank_t *t, uint16_t *fb, int stride);
 void render_confirm_reset(uint16_t *fb, int stride, float frac);
 int  render_confirm_hit(float x, float y);
 
-/* Settings page (2026-09-15; the brightness row left the milestones page
- * for it): BRIGHTNESS 30 / 60 / 100 % and VOLUME OFF / QUIET / NORMAL as
- * segment buttons - tap the one you want - then LIGHTS OUT, one row since
- * 0.3.2 (Strato: "takes up too much real estate ... condense it and give a
- * few options"): a value between two arrows, AUTO after 5 SEC .. 30 MIN still
- * (LIGHT_IDLE_CHOICES), then NEVER (the default since 2026-10-28; DOUBLE-TAP,
- * MANUAL, came first before); a tap on the row's left half steps back, on its
- * right half forward. Under it AUTO FEED ON / OFF (tank_t.autofeed_off) and,
- * on a tank that turns its picture over by itself, ROTATION: one button, an
- * open padlock in a turning arrow while the picture follows the tank, a shut
- * one once the keeper locks the way up (tank_orient_lock). A CLOSE button
- * bottom right (back to the milestones page, 2026-09-16 - the platform's job).
+/* Settings page (no title): BRIGHTNESS, a value between two arrows, 10 % to
+ * 100 % in tens; VOLUME OFF / QUIET / NORMAL as segment buttons - tap the one
+ * you want - then LIGHTS OUT, a value between two arrows: AUTO after 5 SEC ..
+ * 30 MIN still (LIGHT_IDLE_CHOICES), then NEVER (the default). A tap on an
+ * arrow row's left half steps back, on its right half forward. Under it AUTO FEED ON / OFF
+ * (tank_t.autofeed_off) and, on a tank that turns its picture over by
+ * itself, ROTATION: one button, an open padlock in a turning arrow while the
+ * picture follows the tank, a shut one once the keeper locks the way up
+ * (tank_orient_lock). Then a row of UPDATES and RESET, and the foot: ABOUT
+ * bottom left, CLOSE bottom right (back to the main menu - the platform's
+ * job).
  * The platform feeds render_settings_touch EVERY FRAME while the page is up
  * (x, y, finger down), as it feeds setup_touch: it classifies the taps,
  * applies the tank's own settings to the tank itself (and marks the save),
@@ -317,15 +308,15 @@ int  render_confirm_hit(float x, float y);
  * (tank_screen_*) where the others have ROTATION, applied here like the light's.
  * render_settings_tap is the bare hit test (tests). */
 enum { SET_TAP_NONE = 0, SET_TAP_CLOSE = 1, SET_TAP_BRIGHT = 2, SET_TAP_VOLUME = 3, SET_TAP_LIGHT = 4, SET_TAP_IDLE = 5,
-       SET_TAP_UPDATES = 6,     /* the UPDATES button (2026-09-30; under ROTATION since 2026-10-28): the platform opens the updates page (update.h) */
-       SET_TAP_SCREEN = 7,      /* a worn tank's SCREEN row (2026-10-02): *value 1 = TURNED, already applied and marked
+       SET_TAP_UPDATES = 6,     /* the UPDATES button: the platform opens the updates page (update.h) */
+       SET_TAP_SCREEN = 7,      /* a worn tank's SCREEN row: *value 1 = TURNED, already applied and marked
                                    for the save - the platform only logs it (the picture turns on the next frame) */
-       SET_TAP_FEED = 8,        /* AUTO FEED (0.3.2): *value 1 = ON; applied and marked for the save */
-       SET_TAP_ROTATE = 9,      /* ROTATION (0.3.2): *value 1 = locked; applied and marked for the save */
-                                /* (10: the theme picker's, while there were themes to pick; 2026-10-26) */
-       SET_TAP_ABOUT = 11,      /* the ABOUT page (2026-10-10) opened (*value 1) or left (0): the platform starts / stops
+       SET_TAP_FEED = 8,        /* AUTO FEED: *value 1 = ON; applied and marked for the save */
+       SET_TAP_ROTATE = 9,      /* ROTATION: *value 1 = locked; applied and marked for the save */
+                                /* (10: kept for a theme picker, docs/THEMES.md) */
+       SET_TAP_ABOUT = 11,      /* the ABOUT page opened (*value 1) or left (0): the platform starts / stops
                                    its jingle (audio_jingle / audio_port_jingle); the page itself is render_settings' */
-       SET_TAP_RESET = 12 };    /* RESET (2026-10-10): the platform leaves the page and opens the reset confirm prompt
+       SET_TAP_RESET = 12 };    /* RESET: the platform leaves the page and opens the reset confirm prompt
                                    (render_confirm_reset: NO / YES, a timeout) - nothing is wiped here */
 void render_settings_leave(void);
 /* Native-frame geometry shared with the settings hit tests and simulator. */
@@ -334,7 +325,7 @@ void render_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, 
 int  render_settings_tap(float x, float y, int *value);
 int  render_settings_touch(tank_t *t, float x, float y, bool down, int *value);
 
-/* UI primitives (2026-09-13) for panels built outside this file (the first-
+/* UI primitives for panels built outside this file (the first-
  * run setup in common/setup.c): the confirm prompt's pixel font, flat rects
  * and buttons, and a fish drawn on its own for a preview. All ignore the
  * night dim, like the card, and draw AFTER render_tank (nothing re-vignettes
@@ -353,7 +344,7 @@ void render_glyph(uint16_t *fb, int stride, int x, int y, int scale, uint32_t rg
  * swimming on `clock` - the setup's live preview of a colour choice */
 void render_fish_preview(uint16_t *fb, int stride, float x, float y, float size,
                          uint32_t body, uint32_t fin, uint32_t accent, float clock);
-/* any species' creature (2026-10-05): its design's pattern is `variant`,
+/* any species' creature: its design's pattern is `variant`,
  * the colours as given; render_fish_preview is the classic fish's */
 void render_creature_preview(uint16_t *fb, int stride, float x, float y, float size, int species, int variant,
                              uint32_t body, uint32_t fin, uint32_t accent, float clock);
@@ -365,10 +356,10 @@ float render_fish_ring_r(const fish_t *f);
  * an elder its long tail), calm and fed - the birth flow's portrait */
 void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size, const fish_t *who, float clock);
 
-/* ---- the pages' layouts (2026-10-01). These lived in render.c; they are here
- * so the sim's selftests tap where the layout says on every board instead of
- * carrying the rectangle's pixels. PAGE coordinates unless a line says the
- * frame's; render.c has the words that go with each page. ---- */
+/* ---- the pages' layouts: here, not in render.c, so the sim's selftests tap
+ * where the layout says on every board instead of carrying the 1.8's pixels.
+ * PAGE coordinates unless a line says the frame's; render.c has the words
+ * that go with each page. ---- */
 /* the snail's and the shrimp school's cards: centered on the glass (the frame's coordinates) */
 #define SNAIL_CARD_W 336
 #define SNAIL_CARD_H 176
@@ -387,8 +378,8 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define MSP_MODAL_Y   100
 #define MSP_MODAL_W   336
 #define MSP_MODAL_H   156
-#define MSP_FISH_ROWS 6              /* creature rows the list's view holds whole (N_FISH_MAX was 6 until the species, 2026-10-05) */
-/* the lists' views (2026-10-28): the creature rows from the page's top to above the TANK row's rule,
+#define MSP_FISH_ROWS 6              /* creature rows the list's view holds whole */
+/* the lists' views: the creature rows from the page's top to above the TANK row's rule,
    the TANK row's badges from the first badge's slop out to the glass */
 #define MSP_LIST_Y0   0
 #define MSP_LIST_Y1   (MSP_TANK_Y - 5)
@@ -401,7 +392,7 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 /* a gate's modal is taller (two sentence lines, progress, the HOW? button)
    so it sits higher than the badge modal, clear of the CLOSE button */
 #define MSP_FRY_MODAL_Y 60
-#define MSP_HOW_W 100                 /* CLOSE-sized (Strato hit the 76 x 26 one a third of the time) */
+#define MSP_HOW_W 100                 /* CLOSE-sized: a smaller one is too easy to miss */
 #define MSP_HOW_H 32
 /* its hit box: wide and deep. Fingers on this panel land low and wide of
    where they feel, and a miss here costs the modal (any other tap closes
@@ -411,9 +402,8 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define MSP_HOW_SLOP_UP 12
 #define MSP_HOW_SLOP_DN 28
 /* the shop (the board's: the foot's SHP_EARN_X / SHP_CLOSE_X; the list's bar is PAGE_BAR_X). No
- * header since 2026-10-28 (the keeper): the list runs from the page's top, and the balance is the
- * milestones page's coin at the foot, its number to the right, the pair centred between HOW TO
- * EARN and CLOSE (a 64 px coin, "SAND DOLLARS" and the balance at 4x headed the page before) */
+ * header: the list runs from the page's top, and the balance is the milestones page's coin at the
+ * foot, its number to the right, the pair centred between HOW TO EARN and CLOSE */
 #define SHP_COIN_Y   (MSP_CLOSE_Y + (MSP_CLOSE_H - MSP_ICON) / 2)
 #define SHP_ROW_Y0    9
 #define SHP_ROW_DY    56
@@ -427,12 +417,11 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define SHP_MODAL_Y   48
 #define SHP_MODAL_H   244
 #define SHP_EARN_MODAL_Y 40
-/* the caption under the rows sits SHP_BTN_H + 12 under the last row (the third row, the castle, 2026-09-16: it used to be fixed at 224 / 244 and the castle's row ran into it) */
 #define SHP_EARN_MODAL_H 224
 #define SHP_TWO_GAP 16               /* MOVE and SELL side by side in the modal */
 #define SHP_TWO_X0  (SHP_MODAL_X + (SHP_MODAL_W - 2 * MSP_HOW_W - SHP_TWO_GAP) / 2)
 #define SHP_TWO_X1  (SHP_TWO_X0 + MSP_HOW_W + SHP_TWO_GAP)
-/* the list (2026-10-28): its view from the page's top to above the foot,
+/* the list: its view from the page's top to above the foot,
    every item's row in it - SHP_ROW_DY apart, 34 px tall (the button and the price line), 9 px in at each end */
 #define SHP_LIST_Y0  (SHP_ROW_Y0 - 9)
 #define SHP_LIST_Y1  (MSP_CLOSE_Y - 6)
@@ -454,14 +443,14 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
 #define SET_SEG_W     76
 #define SET_SEG_H     40
 #define SET_SEG_Y(row) ((row) - 10)  /* the segment sits on the label's line */
-/* LIGHTS OUT (0.3.2): one value between two arrow buttons, across the three
+/* LIGHTS OUT: one value between two arrow buttons, across the three
  * segments' span - the row's left half steps back, its right half forward */
 #define SET_ARW_W     40
 #define SET_SPAN_W    (2 * SET_SEG_DX + SET_SEG_W)
 #define SET_SPAN_MID  (SET_SEG_X + SET_SPAN_W / 2)
 /* ROTATION: one icon button where the first segment stands, its word beside it */
 #define SET_ROT_WORD_X (SET_SEG_X + SET_SEG_W + 14)
-/* the buttons (2026-10-28): UPDATES | RESET a row under ROTATION, ABOUT | CLOSE the foot
+/* the buttons: UPDATES | RESET a row under ROTATION, ABOUT | CLOSE the foot
  * (SET_UPD_*, SET_RST_*, SET_ABT_*, SET_CLOSE_*: the board's) */
 
 #endif

@@ -1,5 +1,5 @@
 #!/bin/bash
-# run_v4_overnight.sh — the schema v4 data cycle, unattended (docs/retrain-v4.md).
+# run_v4_overnight.sh — the schema v4 data cycle, unattended (docs/retrain.md).
 # Launch with nohup; everything logs to out/v4_overnight.log.
 #
 #   nohup ./run_v4_overnight.sh > /dev/null 2>&1 &
@@ -68,4 +68,4 @@ ls -la out/model_q4_v4m.bin out/model_v4m.bin out/tokenizer_v4.bin | tee -a "$LO
 log "--- probe (distribution) ---"
 $PY probe_dist.py --schema 4 --ckpt out/ckpt_v4m.pt --data out/v4m_clean.jsonl 2>&1 | grep -v Warning | tee -a "$LOG"
 
-log "=== v4 overnight DONE. Next: docs/retrain-v4.md acceptance + ship. ==="
+log "=== v4 overnight DONE. Next: docs/retrain.md acceptance + ship. ==="

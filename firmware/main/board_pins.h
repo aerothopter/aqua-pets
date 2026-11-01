@@ -6,17 +6,16 @@
  * variant. VERIFY I2C SDA/SCL on the bench: Waveshare's own code says
  * SDA=15/SCL=14, the Arduino variant says the reverse.
  *
- * Waveshare ESP32-S3-Touch-AMOLED-1.75C (2026-10-01; ROUND 466x466 CO5300 +
+ * Waveshare ESP32-S3-Touch-AMOLED-1.75C (ROUND 466x466 CO5300 +
  * CST9217). Sources: resources/ESP32-S3-Touch-AMOLED-1.75C/ (the schematic's
  * GPIO table) and Waveshare's BSP (waveshare/esp32_s3_touch_amoled_1_75c).
  * No IO expander - the resets are GPIOs - no RTC chip, no SD card; an ES7210
  * microphone ADC the 1.8 does not have (its I2C address is how the board is
  * recognized). PMIC, IMU, codec, amp and every audio pin: as on the 1.8.
  *
- * Waveshare ESP32-S3-Touch-AMOLED-2.06, the WATCH (2026-10-02; 410x502
- * CO5300 + FT3168, the 1.8's panel family a size up; worn, so its own build
- * is a PORTRAIT 410x502 tank, the panel unturned). Sources: resources/ESP32-S3-Touch-AMOLED-2.06-Watch/ (schematic,
- * wiki page) and Waveshare's BSP (waveshare/esp32_s3_touch_amoled_2_06).
+ * Waveshare ESP32-S3-Touch-AMOLED-2.06, the WATCH (410x502 CO5300 + FT3168,
+ * the 1.8's panel family a size up). Sources: resources/ESP32-S3-Touch-AMOLED-2.06-Watch/
+ * (schematic, wiki page) and Waveshare's BSP (waveshare/esp32_s3_touch_amoled_2_06).
  * No IO expander: the resets are GPIOs 8 and 9 - the pins the 1.8 plays its
  * I2S bit clock and data on, so the AUDIO PINS differ here (audio_port) and
  * the 1.8's would hold the panel in reset. An ES7210 like the 1.75C's, and an

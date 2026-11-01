@@ -34,7 +34,7 @@ static ctx_t ctx_page(uint16_t *fb, int stride) {
     g_dirty_hold = true;                           /* a page's coordinates must never reach the mask */
     return c;
 }
-/* a list's view (2026-10-28, scroll.h): the same coordinates, drawing only inside (x, y, w, h) */
+/* a list's view (scroll.h): the same coordinates, drawing only inside (x, y, w, h) */
 static ctx_t ctx_clip(const ctx_t *c, int x, int y, int w, int h) {
     int x0 = x > c->ox ? x : c->ox, y0 = y > c->oy ? y : c->oy;
     int x1 = x + w < c->ox + c->w ? x + w : c->ox + c->w, y1 = y + h < c->oy + c->h ? y + h : c->oy + c->h;
@@ -46,24 +46,22 @@ static ctx_t ctx_clip(const ctx_t *c, int x, int y, int w, int h) {
 #define CTX_IN(c, x, y) ((unsigned)((x) - (c)->ox) < (unsigned)(c)->w && (unsigned)((y) - (c)->oy) < (unsigned)(c)->h)
 #define CTX_PX(c, x, y) ((c)->fb[((y) - (c)->oy) * (c)->stride + ((x) - (c)->ox)])
 
-/* Dirty mask (2026-09-01): one bit per pixel, set by everything drawn over
- * the baked scene (px, span, blends), cleared every frame. The porthole
- * vignette re-apply walks the mask instead of comparing each pixel with the
- * scene cache (32 pixels per word, no scene reads), and a pixel that already
- * had its vignette applied inline (frond spans, span_final) is simply not
- * marked, so no later rect darkens it twice. (A first version tagged the
- * green LSB instead and cleared it across the scene - that halved the color
- * steps of the dark vignette falloff into visible contour rings. Colors are
- * untouched now.) */
-#define DIRTY_WORDS_PER_ROW ((TANK_W + 31) / 32)   /* 14 (15 on the 466 px bowl) */
+/* Dirty mask: one bit per pixel, set by everything drawn over the baked
+ * scene (px, span, blends), cleared every frame. The porthole vignette
+ * re-apply walks the mask instead of comparing each pixel with the scene
+ * cache (32 pixels per word, no scene reads), and a pixel that already had
+ * its vignette applied inline (frond spans, span_final) is simply not marked,
+ * so no later rect darkens it twice. The mask lives apart from the pixels: a
+ * tag in the green LSB would halve the color steps of the dark vignette
+ * falloff into visible contour rings. */
+#define DIRTY_WORDS_PER_ROW ((TANK_W + 31) / 32)   /* 14 on the 1.8 */
 static uint32_t *g_dirty = NULL;
 void render_set_dirty_mask(uint32_t *buf) { g_dirty = buf; }
-/* A PAGE draws in its own coordinates (ctx_page: on the bowl its origin is
- * not the frame's, and its y runs negative above the page) - marked as they
- * are, those wrote in front of the mask (2026-10-01: the settings page's
- * fill took the round board down). Nothing reads the mask after render_tank's
- * sweep, so from the first page ctx of a frame until the next render_tank
- * nothing is marked. */
+/* A PAGE draws in its own coordinates (ctx_page: on a bigger frame its origin
+ * is not the frame's, and its y runs negative above the page) - marked as
+ * they are, those would write in front of the mask. Nothing reads the mask
+ * after render_tank's sweep, so from the first page ctx of a frame until the
+ * next render_tank nothing is marked. */
 static bool g_dirty_hold;
 static inline void dirty_px(int x, int y) {
     if (g_dirty && !g_dirty_hold) g_dirty[y * DIRTY_WORDS_PER_ROW + (x >> 5)] |= 1u << (x & 31);
@@ -105,8 +103,8 @@ static void px(ctx_t *c, int x, int y, uint16_t col) {
 }
 
 /* A source color dimmed ONCE per shape (night palette), never per pixel:
- * the float multiply + conversions were the bulk of every blended pixel's
- * cost (vegetation, algae film, light shafts, the stats card backdrop). */
+ * per pixel, the float multiply + conversions would be the bulk of every
+ * blended pixel's cost (vegetation, algae film, light shafts, the card's backdrop). */
 typedef struct { int r, g, b; uint16_t v; } src_t;
 static inline src_t src_color(uint32_t rgb, float dim) {
     src_t s;
@@ -211,14 +209,7 @@ static uint32_t mix(uint32_t a, uint32_t b, float p) {
 
 #include "creatures.inc"   /* every creature's art: the classic fish and the species */
 
-#include "helper_shrimp.inc"   /* the shrimp (2026-09-29) */
-
-/* a bed of swaying seaweed fronds; seed varies phase/heights between beds.
- * n and max_seg come from tank_veg_bed (growth-driven: the beds keep growing
- * up and out until the keeper trims them; at VEG_NUB they are green stubble).
- * layer: 0 = the fronds drawn BEHIND the fish, 1 = the fronds drawn in FRONT
- * (alternating), so a fish that dips into a canopy swims woven through it
- * instead of floating on top. */
+#include "helper_shrimp.inc"   /* the shrimp */
 
 /* algae film on the glass, drawn over everything: dappled blobs per covered
  * grid cell, thicker film = bigger and greener. The keeper wipes it off. */
@@ -241,8 +232,8 @@ static void draw_algae(ctx_t *c, const tank_t *t) {
         }
 }
 
-/* the snail: drawn procedurally (2026-09-16), defined after the castle
- * block below - it shares the castle's position hash */
+/* the snail: drawn procedurally, defined after the castle block below - it
+ * shares the castle's position hash */
 static void draw_snail(ctx_t *c, const tank_t *t, bool upright_pass);
 
 /* optional per-stage frame profiling (render.h) */
@@ -268,7 +259,7 @@ const uint16_t *render_scene_buf(unsigned *epoch) {
 }
 void render_fb_primed(const uint16_t *fb, unsigned epoch) { g_primed_fb = fb; g_primed_epoch = epoch; }
 
-/* vignette alpha at (x,y); matches the classic per-pixel loop */
+/* vignette alpha at (x,y) */
 static inline int vig_alpha(int x, int y) {
     float dx = (x - TANK_W * 0.5f) / (TANK_W * 0.5f);
     float dy = (y - TANK_H * 0.5f) / (TANK_H * 0.5f);
@@ -295,8 +286,8 @@ static inline void span_final(ctx_t *c, int x0, int x1, int y, const src_t *s, i
     if (x0 > x1) return;
     uint16_t *p = &CTX_PX(c, x0, y);
     /* ONE vignette alpha per span, computed (a 5 px frond span changes it by
-       < 4%, invisible) rather than read: the PSRAM LUT costs a cache line
-       per span and fronds are vertical, which was most of the frond cost */
+       < 4%, invisible) rather than read: the PSRAM LUT would cost a cache
+       line per span, and fronds are vertical */
     int a = vig_alpha((x0 + x1) >> 1, y);
     if (alpha >= 255) {                         /* opaque: a store, no PSRAM read */
         for (int x = x0; x <= x1; x++, p++) { *p = s->v; if (a) px_darken(p, a); }
@@ -311,20 +302,19 @@ static inline void span_final(ctx_t *c, int x0, int x1, int y, const src_t *s, i
 /* water gradient colour of row y (shared by the scene bake and the frond
  * pre-tint below) */
 static inline uint32_t water_rgb(int y) {
-    float p = (float)y / TANK_BOT;                 /* the gradient runs surface to floor; under a bowl's sand line it holds */
+    float p = (float)y / TANK_BOT;                 /* the gradient runs surface to floor; under a sand line above the frame's bottom it holds */
     if (p > 1) p = 1;
     const uint32_t *water = theme_palette(theme_active())->water;
     return p < 0.45f ? mix(water[0], water[1], p / 0.45f)
                      : mix(water[1], water[2], (p - 0.45f) / 0.55f);
 }
 
-/* Fronds are drawn OPAQUE from a per-row pre-tinted palette (2026-09-04):
- * the 220/255 blend against the water that gave them their depth tint is
- * folded in here, once per row per colour, when the day/night dim changes -
- * so each frond pixel is a store instead of a PSRAM read-modify-write
- * (a ceiling-high jungle was ~16 of 19.5 ms on the device). Only what a
- * frond covers OTHER than water changes: a fish behind a front-layer frond
- * no longer shows through at 14%. */
+/* Fronds are drawn OPAQUE from a per-row pre-tinted palette: the 220/255
+ * blend against the water that gives them their depth tint is folded in here,
+ * once per row per colour, when the day/night dim changes - so each frond
+ * pixel is a store instead of a PSRAM read-modify-write (a ceiling-high
+ * jungle would cost ~16 of 19.5 ms on the device). A fish behind a
+ * front-layer frond does not show through. */
 #define VEG_ALPHA 220
 static uint16_t g_veg_row[4][TANK_H];   /* grass pair, then the sword plant's yellow-green pair */
 static float    g_veg_row_dim = -1;
@@ -339,12 +329,12 @@ static void veg_tint_fill(float dim) {
     g_veg_row_dim = dim;
 }
 
-#define VEG_SEG_DY   VEG_SEG_PX           /* segment pitch, px of height (tank.h: 3.2, the watch 4.3) */
-#define VEG_SEG_RY   2.2f                 /* the old segment ellipse's half-height */
+#define VEG_SEG_DY   VEG_SEG_PX           /* segment pitch, px of height (the board's) */
+#define VEG_SEG_RY   2.2f                 /* a segment's half-height */
 #define VEG_MAX_SEGS (VEG_SEGS_FULL + 5)  /* tank_veg_bed tops out at VEG_SEGS_FULL */
 /* final: the scene cache is live, so each frond span applies its own vignette
- * (see span_final) and needs no re-apply rect - a full canopy used to hand
- * the sweep three bed-sized boxes, the largest PSRAM traffic in the frame. */
+ * (see span_final) and needs no re-apply rect - three bed-sized boxes for the
+ * sweep would be the largest PSRAM traffic in the frame. */
 /* a frond span - minus the castle's silhouette while the castle stands IN
  * FRONT of the grass (the pieces outside it are drawn; the mask and
  * g_veg_mask_cx live with the castle, below). Off the castle it is one span. */
@@ -352,8 +342,8 @@ static void veg_tint_fill(float dim) {
 #define CASTLE_ROWS 164
 static uint32_t g_castle_mask[CASTLE_ROWS + 12][224 / 32];
 static int      g_veg_mask_cx;
-/* the pieces IN FRONT with a mask the grass leaves alone (2026-10-03: the reef
- * cluster and the coral, then the wreck): baked into the scene like the castle,
+/* the pieces IN FRONT with a mask the grass leaves alone (the reef cluster,
+ * the coral, the wreck): baked into the scene like the castle,
  * so the grass leaves their pixels alone too - the masks live with the decor's
  * passes, below (DECOR_DRAW) */
 static int      g_front_x[DK_COUNT];                    /* this frame's: the piece's centre x, -1 = not baked in front (render_tank) */
@@ -383,7 +373,12 @@ static inline void veg_span(ctx_t *c, int x0, int x1, int y, const src_t *s, boo
     if (final) span_final(c, x0, x1, y, s, 255);
     else       span(c, x0, x1, y, s, 255);
 }
-/* layer: 0 = the even fronds, 1 = the odd ones, -1 = every frond */
+/* a bed of swaying seaweed fronds; seed varies the phase between beds. The
+ * fronds' heights come from tank_veg_frond (the beds keep growing until the
+ * keeper trims them; at VEG_NUB they are green stubble).
+ * layer: 0 = the even fronds, 1 = the odd ones, -1 = every frond: a split bed
+ * draws one set behind the fish and the other in front, so a fish that dips
+ * into a canopy swims woven through it instead of floating on top. */
 static void draw_veg(ctx_t *c, const tank_t *t, int b, int seed, int layer, bool final) {
     veg_tint_fill(c->dim);
     int n; tank_veg_bed(t, b, NULL, NULL, NULL, &n);
@@ -406,9 +401,8 @@ static void draw_veg(ctx_t *c, const tank_t *t, int b, int seed, int layer, bool
         for (int seg = 0; seg <= segs; seg++)
             xs[seg] = bx + sway * seg / (float)segs * fast_sin(seg * 0.4f + t->clock * 0.6f + i + seed);
         /* one span per pixel row, centred on the spine, half-width tapering
-         * toward the tip: the same silhouette the old chain of overlapping
-         * ellipses drew (their union was a 5 px ribbon), at ~a quarter fewer
-         * pixels and without a sqrt per row. Full canopy = ~1000 segments. */
+         * toward the tip: a 5 px ribbon, without a sqrt per row. Full canopy
+         * = ~1000 segments. */
         const uint16_t *pal = g_veg_row[(sword ? 2 : 0) + ((i + seed) & 1)];
         int y_bot = (int)(TANK_BOT - 16 + VEG_SEG_RY);
         int y_top = (int)(TANK_BOT - 16 - (segs - 1) * VEG_SEG_DY - VEG_SEG_RY);
@@ -417,9 +411,8 @@ static void draw_veg(ctx_t *c, const tank_t *t, int b, int seed, int layer, bool
             if (sp < 0) sp = 0;
             if (sp > segs - 1) sp = (float)(segs - 1);
             /* taper relative to the frond's own length (2.4 px at the root,
-             * 0.4 at the tip): the old fixed 0.07/segment thinned every frond
-             * to nothing at 29 segments, a hidden height cap now that fronds
-             * grow to the ceiling (VEG_SEGS_FULL) */
+             * 0.4 at the tip), so a frond of any height (up to VEG_SEGS_FULL)
+             * reaches its tip whole */
             float u = sp / (segs > 1 ? segs - 1 : 1);
             float half = sword ? 1.2f + 6.0f * (u < 0.4f ? u / 0.4f : (1 - u) / 0.6f)
                                : root - (root - tip) * u;
@@ -433,11 +426,10 @@ static void draw_veg(ctx_t *c, const tank_t *t, int b, int seed, int layer, bool
 }
 
 
-#include "decor_castle.inc"   /* the castle (2026-09-16) */
+#include "decor_castle.inc"   /* the castle */
 
-/* ---- the coral, procedural (2026-09-23; Strato's coral-single.png: a
- * branching orange fan in chunky pixel art - rounded branches, a dark red
- * rim, sunlit yellow tips). Built ONCE as a tone sprite on a 2 px cell grid
+/* ---- the coral, procedural: a branching fan in chunky pixel art - rounded
+ * branches, a dark rim, sunlit tips. Built ONCE as a tone sprite on a 2 px cell grid
  * (CORAL_CW x CORAL_CH cells): a skeleton of capsules (the trunk and its
  * branches), each cell classed by its signed distance to the nearest one -
  * the rim, a lit edge up-left, the tips, and a hashed speckle inside. The
@@ -455,21 +447,20 @@ static int      g_coral_q = -1;               /* the growth step the sprite was 
 static int      g_coral_cells;                /* filled cells in the sprite (the selftest) */
 static uint32_t g_coral_rgb = 1;              /* what the rows hold (1 = never) */
 static float    g_coral_dim = -1;
-/* the decor scratch (2026-09-24): every table the coral and the reef cluster
- * build - sprites, tinted rows, the distance grids - lives in ONE block the
- * platform hands over (render_set_decor_scratch: the firmware gives PSRAM,
- * since internal RAM is down to ~23 KB free and the display driver needs
- * 57 KB of DMA memory at boot - the first cluster build's statics cost it
- * that and the tank booted black). Without one it is calloc'd (the sim). */
+/* the decor scratch: every table the coral and the reef cluster build -
+ * sprites, tinted rows, the distance grids - lives in ONE block the platform
+ * hands over (render_set_decor_scratch: the firmware gives PSRAM, since
+ * internal RAM has only ~23 KB free and the display driver needs 57 KB of DMA
+ * memory at boot; as statics they would boot the tank black). Without one it
+ * is calloc'd (the sim). */
 #define CL_CW   72
 #define CL_CH   60
 #define CL_H    (CL_CH * 2)
 #define CL_TONES (1 + 5 * 5)
-/* the shipwreck (2026-10-10, item 7): a small sunken boat, drawn from geometry like the
+/* the shipwreck (item 7): a small sunken boat, drawn from geometry like the
  * castle, baked into the scene; IN FRONT its hull comes back over the fish through a mask
  * (as the cluster's) that leaves its two big holes out - so a fish behind the hull shows
- * through them, swimming in and out. (The frogman hung from its stern until the afternoon of 2026-10-10;
- * he is his own thing now, draw_frogman.) */
+ * through them, swimming in and out. */
 #define WK_W   128
 #define WK_H   84                               /* rows above WK_FY: the mast's top */
 #define WK_FY  (TANK_BOT - 14 + DECOR_SINK)
@@ -499,10 +490,10 @@ static inline void rec_px(int x, int y) {
     int lx = x - g_rec_x0, r = y - g_rec_y0;
     if ((unsigned)lx < (unsigned)g_rec_w && (unsigned)r < (unsigned)g_rec_rows) g_rec[r * g_rec_wpr + (lx >> 5)] |= 1u << (lx & 31);
 }
-#include "decor_coral.inc"   /* the coral (2026-09-23): its sizes, its state and its scratch are above */
+#include "decor_coral.inc"   /* the coral: its sizes, its state and its scratch are above */
 
-#include "helper_snail.inc"   /* the snail (2026-09-16) */
-#include "helper_urchin.inc"   /* the urchin (2026-10-02) */
+#include "helper_snail.inc"   /* the snail */
+#include "helper_urchin.inc"   /* the urchin */
 
 /* where a piece stands this frame: its centre x (-1 = not in the tank), its
  * depth, and whether the keeper is dragging it on the placement page (then
@@ -515,29 +506,27 @@ static bool decor_state(const tank_t *t, int k, int *cx, int *z, bool *placing) 
     return true;
 }
 
-#include "decor_cluster.inc"   /* the reef cluster (2026-09-24) */
+#include "decor_cluster.inc"   /* the reef cluster */
 
-#include "decor_wreck.inc"   /* the shipwreck (2026-10-10, item 7) */
+#include "decor_wreck.inc"   /* the shipwreck (item 7) */
 static void thick_line(ctx_t *c, float x0, float y0, float x1, float y1, float w, uint32_t rgb) {
     float dx = x1 - x0, dy = y1 - y0, l = sqrtf(dx * dx + dy * dy) + 1e-3f, nx = -dy / l * w * 0.5f, ny = dx / l * w * 0.5f;
     float px[4] = { x0 + nx, x1 + nx, x1 - nx, x0 - nx }, py[4] = { y0 + ny, y1 + ny, y1 - ny, y0 - ny };
     fill_poly(c, px, py, 4, rgb);
 }
-#include "helper_frogman.inc"   /* the frogman (2026-10-10, item 8) */
+#include "helper_frogman.inc"   /* the frogman (item 8) */
 
 
-#include "helper_sub.inc"   /* the submarine (2026-10-10 night, item 9) */
+#include "helper_sub.inc"   /* the submarine (item 9) */
 
-/* ---- a piece IN FRONT, the castle's way (2026-10-03). The cluster and the
- * coral IN FRONT were repainted whole every frame, over everything: with
- * both there the 1.8 spent more on them than on its four fish. Now, with
- * the scene cache, they are BAKED into the scene (bake_scene, which records
- * the pixels each covers); the grass skips those pixels (veg_span), and
- * after the fish the piece comes back only where something was drawn over
- * it this frame - the dirty mask says where, the scene holds the pixel,
- * already vignetted (front_restore). The picture is the same to the pixel.
- * Not while a placement page is up: a dragged piece is drawn live, the old
- * way. */
+/* ---- a piece IN FRONT, the castle's way. Repainting the cluster and the
+ * coral whole every frame would cost the 1.8 more than its fish. With the
+ * scene cache they are BAKED into the scene (bake_scene, which records the
+ * pixels each covers); the grass skips those pixels (veg_span), and after the
+ * fish the piece comes back only where something was drawn over it this frame
+ * - the dirty mask says where, the scene holds the pixel, already vignetted
+ * (front_restore). Not while a placement page is up: a dragged piece is
+ * drawn live. */
 /* the masks of the pieces baked IN FRONT: row 0 is the piece's top row (y0),
  * bit 0 its left edge (its centre x - w / 2), wpr words a row, in the decor
  * scratch at `off`. The grass leaves a `grass` piece's pixels alone (the
@@ -647,12 +636,12 @@ static void front_restore(uint16_t *fb, const uint32_t *mask, int wpr, int rows,
 static bool g_scene_front;                                   /* the baked scene holds the pieces IN FRONT */
 
 /* the floor's colour at (x,y), from a position hash so it is stable every
- * frame. The rectangle: a 14 px strip of speckled stones in four tones. A
- * floor above the frame's bottom (the bowl's): the same speckle in 2 px
- * grains over a bed that runs ~70 px down to the glass, pebbles scattered
- * through it, darkening with depth. */
+ * frame. The 1.8: a 14 px strip of speckled stones in four tones. A floor
+ * above the frame's bottom: the same speckle in 2 px grains over a bed that
+ * runs ~70 px down to the glass, pebbles scattered through it, darkening with
+ * depth. */
 static inline uint32_t floor_rgb(int x, int y) {
-#if TANK_BOT < TANK_H                                    /* a floor above the frame's bottom (the bowl's): a deep bed of sand */
+#if TANK_BOT < TANK_H                                    /* a floor above the frame's bottom: a deep bed of sand */
     uint32_t g = (uint32_t)(x >> 1) * 0x9E3779B1u ^ (uint32_t)(y >> 1) * 0x85EBCA77u;
     g ^= g >> 15; g *= 0x2C1B3C6Du; g ^= g >> 12;
     uint32_t tone = g % 16;
@@ -674,7 +663,7 @@ static inline uint32_t floor_rgb(int x, int y) {
     return tone < 2 ? 0x2e3b2c : tone < 5 ? 0x22301f : tone < 8 ? 0x1a2418 : 0x101a12;
 #endif
 }
-/* ---- the decor's passes (decor.h, 2026-10-21): what each piece paints, and when ----
+/* ---- the decor's passes (decor.h): what each piece paints, and when ----
  * A piece with a body in the static scene is baked there - BEHIND, whole; IN
  * FRONT, whole too, with its solid pixels recorded into its mask (FMASK) to
  * come back over the creatures. Without the scene cache, or dragged on the
@@ -927,11 +916,11 @@ static void shrimp_paint(dframe_t *f, int slot) {
         dyn_add(f->dr, (int)t->school.q[i].x - 10, (int)t->school.q[i].y - 5, (int)t->school.q[i].x + 10, (int)t->school.q[i].y + 5);
     }
 }
-static void frogman_paint(dframe_t *f, int slot) {        /* (2026-10-10) drifting sideways in mid-water, under the fish */
+static void frogman_paint(dframe_t *f, int slot) {        /* drifting sideways in mid-water, under the fish */
     if (slot != HS_UNDER) return;
     int x0, y0, x1, y1; draw_frogman(f->c, f->t, &x0, &y0, &x1, &y1); dyn_add(f->dr, x0, y0, x1, y1);
 }
-static void sub_paint(dframe_t *f, int slot) {            /* (2026-10-10 night) cruising the water, under the fish */
+static void sub_paint(dframe_t *f, int slot) {            /* cruising the water, under the fish */
     if (slot != HS_UNDER) return;
     int x0, y0, x1, y1; draw_submarine(f->c, f->t, &x0, &y0, &x1, &y1); dyn_add(f->dr, x0, y0, x1, y1);
 }
@@ -976,7 +965,7 @@ static void draw_scene(const tank_t *t, uint16_t *fb, int stride, float dim) {
         uint16_t v = rgb565(water_rgb(y), dim);
         for (int x = 0; x < TANK_W; x++) fb[y * stride + x] = v;
     }
-    /* pebbled bottom: irregular top edge, speckled stones in three tones.
+    /* pebbled bottom: irregular top edge, speckled stones in four tones.
        All variation comes from a position hash so it is stable every frame. */
     for (int x = 0; x < TANK_W; x++) {
         uint32_t h = (uint32_t)(x * 2654435761u);
@@ -986,9 +975,7 @@ static void draw_scene(const tank_t *t, uint16_t *fb, int stride, float dim) {
             fb[y * stride + x] = rgb565(col, dim);
         }
     }
-    /* (the dark oval under the left bed - the "reef rock" - is gone, 2026-10-02:
-       it stood for nothing; the reef is the cluster the keeper buys) */
-    dpos_t pos[DK_COUNT]; decor_positions(t, pos);
+        dpos_t pos[DK_COUNT]; decor_positions(t, pos);
     for (int i = 0; i < N_OF(PAINT_SCENE); i++) {
         const dpos_t *p = &pos[PAINT_SCENE[i]];
         if (p->x >= 0 && DECOR_DRAW[p->k].plain) DECOR_DRAW[p->k].plain(&c, t, p);
@@ -999,10 +986,9 @@ static void draw_scene(const tank_t *t, uint16_t *fb, int stride, float dim) {
 /* The baked scene (scene cache mode). Water gradient x porthole vignette
  * computed in 8-bit and ORDERED-DITHERED to RGB565 (4x4 Bayer: at 322 ppi
  * the pattern is invisible, the 5/6-bit banding of a dark gradient and of
- * the vignette falloff is not - Strato saw it at the edges), then the floor
- * and the backdrop decor on top, vignetted per pixel. Fills the vignette LUT on the
- * way. Bake-only: fidelity here costs nothing per frame. The light shafts
- * are gone (2026-09-01, Strato: they never looked good on this screen). */
+ * the vignette falloff is not), then the floor and the backdrop decor on top,
+ * vignetted per pixel. Fills the vignette LUT on the way. Bake-only: fidelity
+ * here costs nothing per frame. */
 static void bake_scene(const tank_t *t, uint16_t *sc, float dim) {
     static const uint8_t bayer[4][4] = { {0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5} };
     for (int y = 0; y < TANK_H; y++) {
@@ -1020,7 +1006,7 @@ static void bake_scene(const tank_t *t, uint16_t *sc, float dim) {
             sc[y * TANK_W + x] = (uint16_t)((r5 << 11) | (g6 << 5) | b5);
         }
     }
-    /* pebbled bottom: irregular top edge, speckled stones in three tones,
+    /* pebbled bottom: irregular top edge, speckled stones in four tones,
        stable position hash; vignetted in 8-bit before quantising */
     for (int x = 0; x < TANK_W; x++) {
         uint32_t h = (uint32_t)(x * 2654435761u);
@@ -1091,11 +1077,11 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
     } else draw_scene(t, fb, stride, dim);
     PROF_ADD(0, p0);
 
-    PROF_ADD(1, p0);   /* stage 1 (light shafts) retired 2026-09-01 */
+    PROF_ADD(1, p0);   /* (profile stage 1 is unused) */
     /* the decor behind the creatures: the crowns of the pieces BEHIND (over the
        baked fan, under the grass), the plant BEHIND, then the back fronds of the
        woven beds - the reef bed (left - milestone lushness widens its base, never
-       withers) and two decor beds, all growing up and out with tank_t.veg_growth
+       withers) and two decor beds, all growing up with tank_t.veg_growth
        until the keeper trims them. Their front fronds draw after the fish, below. */
     g_veg_mask_cx = -1;
     decor_pass(&df, pos, PAINT_BACK, N_OF(PAINT_BACK), false, DECOR_Z_BACK);
@@ -1132,7 +1118,7 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
     PROF_ADD(4, p0);
     /* porthole vignette: darken corners toward AMOLED black. With a scene
        cache the full-frame pass is baked into the scene and only the dynamic
-       patches are re-darkened; without one, the classic per-pixel pass runs. */
+       patches are re-darkened; without one, a per-pixel pass runs. */
     if (cached) {
         /* one row sweep over the union of the dynamic rects: pixels marked
            in the dirty mask were drawn this frame (and not already vignetted
@@ -1200,11 +1186,9 @@ void render_tank(const tank_t *t, uint16_t *fb, int stride) {
 #undef DYN_RECT
 }
 
-/* ---- the battery (2026-09-24 redraw): Strato is color blind and could not
- * tell the charging pill (a teal fill) from the full one (green). Now the
- * cable shows as a SHAPE - a lightning bolt left of the pill - and flowing
- * charge as MOTION - a bright band sweeping the fill; the hue only repeats
- * it. On battery the fill wears the level colors; on the cable it is the
+/* ---- the battery, readable without colour: the cable shows as a SHAPE - a
+ * lightning bolt left of the pill - and flowing charge as MOTION - a bright
+ * band sweeping the fill; the hue only repeats it. On battery the fill wears the level colors; on the cable it is the
  * calm green whatever the level (a red sliver on the charger is no alarm).
  * The info page draws the same battery large. ---- */
 
@@ -1308,9 +1292,9 @@ static void px565_blend(ctx_t *c, int x, int y, uint16_t v, int a) {
     *p = (uint16_t)((r << 11) | (g << 5) | b);
 }
 
-/* draw a baked icon (icons.h, generated from Strato's pixel art) at x,y.
+/* draw a baked icon (icons.h, generated from assets/icons) at x,y.
  * alpha scales the icon's own alpha plane: 255 = as drawn, lower = dimmed
- * (unrevealed traits, torn thought bubbles). */
+ * (unrevealed traits). */
 static void blit_icon(ctx_t *c, int x, int y, const icon_t *ic, int alpha) {
     ic = theme_icon(ic);
     for (int j = 0; j < ic->h; j++)
@@ -1385,22 +1369,20 @@ static void card_draw(ctx_t c, const tank_t *t, int fish_idx) {
     /* card: top-left, bordered in the fish's own color (that's its "name").
      * Two zones: NEEDS (things you can act on now - icon + segmented meter)
      * above the divider, WHO THEY ARE (slow traits - pole-to-pole spectrum
-     * sliders) below it. Iconified 2026-08-30 with Strato's pixel art. */
+     * sliders) below it. */
     const int X = RENDER_CARD_X, Y = RENDER_CARD_Y, W = RENDER_CARD_W, H = RENDER_CARD_H; /* x clear of the curved bezel */
-    /* backdrop: 28k blended pixels - hoisted (this alone was most of the
-     * card's ~12 ms/frame on the device through per-pixel px_blend) */
+    /* backdrop: 28k blended pixels - hoisted (through per-pixel px_blend this
+     * alone would be most of the card's cost on the device) */
     src_t bg = src_color(theme_ui_color(0x04141a), 1.0f);
     for (int y = Y; y < Y + H; y++) span(&c, X, X + W - 1, y, &bg, 215);
     for (int x = X; x < X + W; x++) { px(&c, x, Y, rgb565(f->color, 1)); px(&c, x, Y + H - 1, rgb565(f->color, 1)); }
     for (int y = Y; y < Y + H; y++) { px(&c, X, y, rgb565(f->color, 1)); px(&c, X + W - 1, y, rgb565(f->color, 1)); }
 
     /* identity row: the fish's NAME and the certainty dot - bright = the
-     * model was sure of its last decision, dim = torn. (2026-09-29, Strato:
-     * the name at the top; the stage pips and growth bar are gone - "a bit
-     * ambiguous", the keeper sees the fish's size, and the milestones page
-     * names the stage. The colour swatch went with them: the
-     * border is the fish's colour, and a 7-letter name needs the row.) */
-    /* a creature of a species (2026-10-05) says what it is under its name, in
+     * model was sure of its last decision, dim = torn. The keeper sees the
+     * fish's size, the milestones page names the stage, and the border is
+     * the fish's colour. */
+    /* a creature of a species says what it is under its name, in
        the 8 px font: "SEAHORSE - GOLDEN" - or, too long for the card, the
        design first, or the species' short word ("EEL - CHARCOAL") */
     const char *kind = card_kind(f);
@@ -1410,7 +1392,7 @@ static void card_draw(ctx_t c, const tank_t *t, int fish_idx) {
 
     /* needs: 5 segments each. Hunger is shown as FULLNESS - a full belly is
      * a full meter, and it drains as the fish gets hungry (a food icon next
-     * to a growing bar read backwards) */
+     * to a growing bar would read backwards) */
     struct { const icon_t *ic; float v; uint32_t rgb; } needs[4] = {
         { &icon_hunger, 10.0f - f->hunger, 0xffbd59 },
         { &icon_energy, f->energy,         0x78d67d },
@@ -1434,25 +1416,21 @@ static void card_draw(ctx_t c, const tank_t *t, int fish_idx) {
     slider(&c, X + 8, Y + 152, W - 16, f->bold,             0xffffff, &icon_shy,      &icon_bold,    saw_bold);
     slider(&c, X + 8, Y + 178, W - 16, f->sociable,         0x38dcc7, &icon_solo,     &icon_social,  saw_social);
     slider(&c, X + 8, Y + 204, W - 16, f->curiosity / 10.0f, 0x6db9ff, &icon_cautious, &icon_curious, saw_curious);
-    /* (the MORE button that stood at the foot until 2026-10-21 went with the
-       main menu: the BOOT key is the way to the pages now, the card only shows) */
 }
 
-/* ---- stats card cache (2026-09-01) ----
- * The card cost ~7 ms of every frame it was up (28k blended backdrop pixels
- * + icons + meters) - fps sagged whenever the keeper inspected a fish. With a
- * cache it is redrawn at most 4x a second over the STATIC water under it
- * (from the scene cache, so the translucent backdrop looks as before; only
- * things swimming behind the card stop showing through at 16%) and copied
- * into the frame otherwise. The selection ring follows the fish per frame. */
+/* ---- stats card cache ----
+ * Drawn fresh, the card costs ~7 ms of every frame it is up (28k blended
+ * backdrop pixels + icons + meters). With a cache it is redrawn at most 4x a
+ * second over the STATIC water under it (from the scene cache, so the
+ * translucent backdrop holds; only things swimming behind the card don't show
+ * through) and copied into the frame otherwise. The selection ring follows
+ * the fish per frame. */
 static uint16_t *g_card = NULL;
 static int g_card_fish = -1; static float g_card_t = -1; static unsigned g_card_epoch;
 void render_set_card_cache(uint16_t *buf) { g_card = buf; g_card_fish = -1; }
 
-/* the snail's card (2026-09-16, Strato: "tapping the snail show a simple
-   card with the upright snail image and how much algae has been grazed so
-   far"): a ring on the snail, a centred box in the modal's dress - the
-   upright sprite at 2x, SNAIL, the tally. Drawn every frame (no cache: a
+/* the snail's card: a ring on the snail, a centred box in the modal's dress
+   - the upright snail at 2x, SNAIL, how much algae it has grazed so far. Drawn every frame (no cache: a
    few hundred blended pixels, nothing like the fish card's meters). */
 static int  text_w(const char *s, int scale);                                  /* the pixel font, below */
 static void draw_text(ctx_t *c, int x, int y, int scale, uint32_t rgb, const char *s);
@@ -1476,7 +1454,7 @@ static void snail_card_draw(ctx_t *c, const tank_t *t) {
     draw_text(c, X + (W - text_w(n, 3)) / 2, Y + 134, 3, 0xffffff, n);
 }
 
-/* the urchin's card (2026-10-02), the snail's: a ring on it, the urchin
+/* the urchin's card, the snail's: a ring on it, the urchin
    at 3x with its spines waving, SEA URCHIN, the grass it has eaten so far
    (the trim's centimeters) and what it is up to - in words, never colour. */
 static void urchin_card_draw(ctx_t *c, const tank_t *t) {
@@ -1501,7 +1479,7 @@ static void urchin_card_draw(ctx_t *c, const tank_t *t) {
     char n[24]; int cm = (int)(t->urchin.grazed_px / PX_PER_CM);
     if (cm < 1) snprintf(n, sizeof n, "NOTHING YET");
     else if (cm < 1000) snprintf(n, sizeof n, "%d CM", cm);
-    else snprintf(n, sizeof n, "%d.%dK CM", cm / 1000, cm % 1000 / 100);   /* 1.0K CM and up: the line never outgrows the card (0.3.2) */
+    else snprintf(n, sizeof n, "%d.%dK CM", cm / 1000, cm % 1000 / 100);   /* 1.0K CM and up: the line never outgrows the card */
     draw_text(c, X + (W - text_w(n, 3)) / 2, Y + 140, 3, 0xffffff, n);
     const char *now = tank_urchin_chewing(t) ? "CHEWING"
                     : t->urchin.frond >= 0 ? "OFF TO THE TALL GRASS"
@@ -1509,9 +1487,9 @@ static void urchin_card_draw(ctx_t *c, const tank_t *t) {
     draw_text(c, X + (W - text_w(now, 2)) / 2, Y + 170, 2, 0x9fd8e2, now);
 }
 
-/* the shrimp school's card (2026-09-29, Strato: "one tap should bring up a
-   card to show how much food they've eaten and progress to the next shrimp").
-   The pips fill with pellets - filled vs hollow, never colour alone. */
+/* the shrimp school's card: how much food they've eaten and the progress to
+   the next shrimp. The pips fill with pellets - filled vs hollow, never
+   colour alone. */
 static void shrimp_card_draw(ctx_t *c, const tank_t *t) {
     int n = t->school.n;
     if (n <= 0) return;
@@ -1595,8 +1573,7 @@ void render_stats_card(const tank_t *t, int fish_idx, uint16_t *fb, int stride) 
     } else card_draw(c, t, fish_idx);
 }
 
-/* ---- the tool chip (2026-10-01; the toolbox that stood under the card is
- * the main menu's bottom row since 2026-10-21) ----
+/* ---- the tool chip (the tools are the main menu's bottom row) ----
  * Drawn every frame, uncached - so the backdrop is the card's look by bit
  * shifts, not blends: an eighth of the water through, the rest the card's
  * dark. */
@@ -1613,7 +1590,7 @@ static void rect_fill(ctx_t *c, int x, int y, int w, int h, uint32_t rgb);   /* 
 
 /* the chip: the tool at 1x and DONE, top left where the card would be (TOOL_CHIP_X / _Y: the board's) */
 #define TOOL_CHIP_H 40
-/* a tool's art, the chip's and the menu tile's: FEED's is the first-feeding badge's can until it has its own (2026-10-28) */
+/* a tool's art, the chip's and the menu tile's: FEED wears the first-feeding badge's can */
 static const icon_t *tool_icon(int tool) {
     return tool == TOOL_SCISSORS ? &icon_tool_scissors : tool == TOOL_FEED ? &icon_ms_first_feeding : &icon_tool_sponge;
 }
@@ -1634,11 +1611,10 @@ bool render_tool_chip_hit(const tank_t *t, float x, float y) {
 }
 
 
-/* ---- a small pixel font (2026-09-11) ----
+/* ---- a small pixel font ----
  * 5x7 glyphs - upper case, digits, a little punctuation - drawn as scale x
  * scale blocks, so one table reads at 2x for a caption and 3x for a
- * button. The renderer's first text (the milestones page can borrow it for
- * labels). Lower case maps to upper; anything else advances a cell. */
+ * button. Lower case maps to upper; anything else advances a cell. */
 static const uint8_t FONT5X7[][7] = {
     { 0x0e, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11 }, /* A */
     { 0x1e, 0x11, 0x11, 0x1e, 0x11, 0x11, 0x1e }, /* B */
@@ -1708,11 +1684,11 @@ static void draw_text(ctx_t *c, int x, int y, int scale, uint32_t rgb, const cha
     }
 }
 
-/* 8 px text (2026-09-16, the settings page's version line): the 5x7 font at
- * scale 1 with its second row drawn twice. Row 1 is a vertical-stroke row in
- * every glyph the line can hold (letters, digits, '-', '.'), so the doubling
- * only lengthens strokes and never thickens a bar - Strato wanted the line
- * smaller than the page's text (14 px) but not the font's 7 px. */
+/* 8 px text (the settings page's version line): the 5x7 font at scale 1 with
+ * its second row drawn twice. Row 1 is a vertical-stroke row in every glyph
+ * the line can hold (letters, digits, '-', '.'), so the doubling only
+ * lengthens strokes and never thickens a bar: smaller than the page's text
+ * (14 px) but not the font's 7 px. */
 static void draw_text_8px(ctx_t *c, int x, int y, uint32_t rgb, const char *s) {
     src_t col = src_color(theme_ui_color(rgb), c->dim);
     for (; *s; s++, x += 6) {
@@ -1726,8 +1702,9 @@ static void draw_text_8px(ctx_t *c, int x, int y, uint32_t rgb, const char *s) {
     }
 }
 
-/* ---- reset confirm (2026-09-11) ----
- * The keeper's "start over" (device: hold BOOT, tap the glass; sim: X). A
+/* ---- reset confirm ----
+ * The keeper's "start over" (settings RESET; device: hold BOOT, tap the
+ * glass; sim: X). A
  * modal panel over the live tank - the fish keep swimming behind it - that
  * asks before the save is wiped. Opaque stores only, so a frame with it up
  * costs about what the milestones page does. */
@@ -1784,7 +1761,7 @@ void render_glyph(uint16_t *fb, int stride, int x, int y, int scale, uint32_t rg
                 for (int yy = 0; yy < scale; yy++)
                     span(&c, x + k * scale, x + k * scale + scale - 1, y + r * scale + yy, &col, 255);
 }
-/* a creature of any species, side-on and calm (2026-10-05): the preview
+/* a creature of any species, side-on and calm: the preview
    holds its live state still - the jet's phase from the clock (an eel's
    wave, a seahorse's fan), the lure half lit, no puff, no ink */
 void render_creature_preview(uint16_t *fb, int stride, float x, float y, float size, int species, int variant,
@@ -1818,13 +1795,13 @@ void render_fish_portrait(uint16_t *fb, int stride, float x, float y, float size
     tank_fish_face(&f);
     draw_fish_core(&c, &f, clock, false, size);
 }
-/* how big a species draws (2026-10-05): its half-length at size 1 (a page
+/* how big a species draws: its half-length at size 1 (a page
    fits a creature by it) and the selection ring's radius round it */
-static const float SP_HALF_LEN[SP_COUNT] = { 22, 22, 24, 22, 24, 36, 34, 26, 18, 30, 30, 36, 24 };   /* the swordfish's bill (2026-10-10 night); the turtle (2026-10-11) */
+static const float SP_HALF_LEN[SP_COUNT] = { 22, 22, 24, 22, 24, 36, 34, 26, 18, 30, 30, 36, 24 };   /* the swordfish's bill; the turtle */
 static const float SP_RING_R[SP_COUNT]   = { 17, 19, 20, 17, 19, 28, 28, 19, 16, 24, 31, 29, 21 };
 _Static_assert(sizeof SP_HALF_LEN / sizeof SP_HALF_LEN[0] == SP_COUNT && sizeof SP_RING_R / sizeof SP_RING_R[0] == SP_COUNT, "a size row per species");
 float render_species_half_len(int species) { return SP_HALF_LEN[species > 0 && species < SP_COUNT ? species : 0]; }
-/* a fish of the tank as the pages show it (2026-10-05): its species and
+/* a fish of the tank as the pages show it: its species and
    design, in the colours given (its own, or a page's dim silhouette);
    `fit` shrinks a long creature (an eel, a hammerhead) to a fish's length */
 static void fish_preview(uint16_t *fb, int stride, float x, float y, float size, const fish_t *f,
@@ -1863,7 +1840,7 @@ int render_confirm_hit(float x, float y) {
     return 0;
 }
 
-/* ---- the battery page (2026-09-24): a tap on the pill. The snail card's
+/* ---- the battery page: a tap on the pill. The snail card's
  * dress, centered over the live tank: the battery large with its percent,
  * the state in words (the one thing no color has to carry), the estimate,
  * then two or three rows - since the cable moved, the screen-on time on
@@ -1921,7 +1898,7 @@ void render_battery_info(uint16_t *fb, int stride, const bat_info_t *bi, float c
     }
 }
 
-/* ---- milestones page (2026-09-13 redesign: an achievement wall) ----
+/* ---- milestones page: an achievement wall ----
  * Rows of 40 px: the fish (render_fish_preview at its real size, so growth
  * shows), its name, a growth strip, then six 32 px badges at a 40 px pitch.
  * The tank row repeats the shape with the population strip. A locked badge
@@ -1930,8 +1907,7 @@ void render_battery_info(uint16_t *fb, int stride, const bat_info_t *bi, float c
  * badge / a name / a strip opens a small detail modal in the reset prompt's
  * dress (the art at 2x, a title, the words); the next tap anywhere closes
  * it back to the page. Render-local state, cleared by render_milestones_leave. */
-/* (the page's numbers, MSP_*: render.h, and the board's in its layout header -
- * the bowl's rows start where the circle is wide enough for them) */
+/* (the page's numbers, MSP_*: render.h, and the board's in its layout header) */
 #define MSP_INK       0x031015
 #define MSP_DIM       0x2a3f45
 #define MSP_TEAL      0x9fd8e2
@@ -1939,7 +1915,7 @@ void render_battery_info(uint16_t *fb, int stride, const bat_info_t *bi, float c
 typedef struct { uint32_t bit; const icon_t *icon; } badge_t;
 static const badge_t FISH_BADGES[6] = {
     { MS_FIRST_MEAL_FROM_YOU, &icon_ms_first_meal },  { MS_FIRST_HOLD_APPROACH, &icon_ms_first_hold_approach },
-    { MS_FIRST_GRASS, &icon_ms_first_seagrass },      { MS_FIRST_BUBBLES, &icon_ms_first_bubbles },   /* (the third was "first reef" until 0.3.0) */
+    { MS_FIRST_GRASS, &icon_ms_first_seagrass },      { MS_FIRST_BUBBLES, &icon_ms_first_bubbles },
     { MS_FIRST_FOLLOW, &icon_ms_first_follow },       { MS_FIRST_DART, &icon_ms_first_dart },
 };
 #define TANK_BADGE_N 8
@@ -1947,8 +1923,8 @@ static const badge_t TANK_BADGES[TANK_BADGE_N] = {
     { TMS_FIRST_FEEDING, &icon_ms_first_feeding },    { TMS_FIRST_TRIM, &icon_ms_first_trimming },
     { TMS_FIRST_CLEANING, &icon_ms_first_glass_cleaning }, { TMS_FIRST_FULL_NIGHT, &icon_ms_first_quiet_night },
     { TMS_FIRST_PLAY_SESSION, &icon_ms_first_play_session }, { TMS_CHANGED_SOMEONE, &icon_ms_tank_changed_someone },
-    { TMS_FULL_SCHOOL, &icon_ms_full_school },        /* 2026-09-30: only once the shrimp are bought (tank_badge_shown) */
-    { TMS_FIRST_REEF, &icon_ms_first_reef },          /* 2026-10-02: only once the reef cluster is bought */
+    { TMS_FULL_SCHOOL, &icon_ms_full_school },        /* only once the shrimp are bought (tank_badge_shown) */
+    { TMS_FIRST_REEF, &icon_ms_first_reef },          /* only once the reef cluster is bought */
 };
 /* which tank badges show: a bought thing's badge only once the thing is
    bought (the shrimp school's, the reef cluster's) - and, once earned, for
@@ -1970,13 +1946,11 @@ static const badge_t *tank_badge(const tank_t *t, int k) {
         if (tank_badge_shown(t, i) && k-- == 0) return &TANK_BADGES[i];
     return &TANK_BADGES[0];
 }
-/* the page's two lists (2026-10-28, scroll.h): the rows - the creatures, then
-   the NEW FRY row while one can still come - up and down between the page's
-   top and the TANK row's rule (six fit; they paged six at a time behind a
-   chevron from 2026-10-05), and the TANK row's badges sideways (six fit and a
-   seventh peeks in; six a page behind an arrow from 2026-09-30). A bar beside
-   each says where its view is, with a teal mark at the end past which a
-   badge not seen yet lies. */
+/* the page's two lists (scroll.h): the rows - the creatures, then the NEW FRY
+   row while one can still come - up and down between the page's top and the
+   TANK row's rule (six fit), and the TANK row's badges sideways (six fit and
+   a seventh peeks in). A bar beside each says where its view is, with a teal
+   mark at the end past which a badge not seen yet lies. */
 static scroll_t g_ms_fscroll, g_ms_tscroll;   /* the rows (down), the TANK row's badges (across) */
 static void scroll_bar(ctx_t *c, const scroll_t *s, int x, int y, int len, bool across, int view, int content, bool fresh_lo, bool fresh_hi);   /* with the shop, below */
 static void list_fade(ctx_t *c, const scroll_t *s, bool across, int x, int y, int w, int h, uint32_t ink);   /* ... and its edges' fade */
@@ -2014,25 +1988,24 @@ static int  g_ms_fish = -1;          /* a fish's own sprite instead, or -1 */
 static bool g_ms_fry;                /* the fry-to-be (a silhouette) instead */
 static int  g_ms_kind = -1;          /* a gate's modal: its kind (the HOW? button shows), or -1 */
 static bool g_ms_tip;                /* the gate's tip page is up instead of its modal */
-/* where the modal came from (2026-09-16, Strato: arrows at the top corners
-   to cycle without dropping back to the page): the row (a fish's index, or
+/* where the modal came from (arrows at the top corners cycle without dropping
+   back to the page): the row (a fish's index, or
    the TANK / NEW FRY row) and the column (-1 = the name / strip, else the
    badge or gate). ms_step moves along the group the modal belongs to: a
-   fish's six badges, the tank's six, the fry's gates, or - from a fish's
+   fish's six badges, the tank's, the fry's gates, or - from a fish's
    name - the fish themselves. A group of one (TANK's tally, NEW FRY's)
    shows no arrows. */
 static int  g_ms_row = -1, g_ms_k = -1;
 static bool g_ms_tankrow, g_ms_fryrow;
-/* a fish's CARD (the modal behind its name) carries two buttons at its foot
-   (2026-10-01, Strato): RENAME - the letter wheel over the live tank - and
-   SELL. SELL is two taps on the placement page's idiom: the first arms it
+/* a fish's CARD (the modal behind its name) carries two buttons at its foot:
+   RENAME - the letter wheel over the live tank - and SELL. SELL is two taps on the placement page's idiom: the first arms it
    (the label turns to the price and OK?, the line above says TAP AGAIN), the
    second sells - but not within MSP_SELL_WAIT_S of the first, so a doubled
    tap cannot sell a fish. A fish the tank will not part with (the last pair,
    or a fry still owed its welcome) shows SELL dim, and the line above stays
-   empty until the dim button is tapped - then it gives the reason (Strato,
-   2026-10-01: the reason "only if the gray sell button is tapped"). The card stands where a gate's modal does (the taller one), inside
-   the box every board's glass shows whole: no per-board layout. */
+   empty until the dim button is tapped - then it gives the reason. The card
+   stands where a gate's modal does (the taller one), inside the box every
+   board's glass shows whole: no per-board layout. */
 #define MSP_CARD_BTN_W   116
 #define MSP_CARD_BTN_GAP 24
 #define MSP_SELL_WAIT_S  0.6f
@@ -2040,16 +2013,15 @@ static bool  g_ms_sell_armed;
 static bool  g_ms_sell_asked;        /* the dim SELL was tapped: the line says why it stays */
 static float g_ms_sell_clock;        /* the tank clock when SELL was armed */
 
-/* the TANK tally's picture (2026-10-02, Strato: the modal "feels bare"): the
- * school itself across the top of the box - every fish in its own colours,
+/* the TANK tally's picture: the school itself across the top of the box - every fish in its own colours,
  * at its own size and stage, in the order they arrived - then a dim
  * silhouette for each place still open. The count is in the words under it;
  * here it is seen (lit against dim, never by hue alone). */
-#define MSP_SCHOOL_PITCH 52               /* up to six places; ten share the box's width (2026-10-05) */
+#define MSP_SCHOOL_PITCH 52               /* up to six places; ten share the box's width */
 #define MSP_SCHOOL_SCALE 0.74f
 #define MSP_SCHOOL_MAX   1.02f            /* the size that still fits its place (a big elder) */
 static void ms_school(const tank_t *t, uint16_t *fb, int stride, int X, int Y, int W) {
-    /* past ten places (2026-10-07, the 25): two rows, the places shared between them */
+    /* past ten places: two rows, the places shared between them */
     const int rows = POP_CAP > 10 ? 2 : 1, per = (POP_CAP + rows - 1) / rows;
     int pitch = per * MSP_SCHOOL_PITCH <= W - 16 ? MSP_SCHOOL_PITCH : (W - 16) / per;
     float k = pitch < MSP_SCHOOL_PITCH ? 1.3f * pitch / MSP_SCHOOL_PITCH : 1.0f;   /* the places shrink together */
@@ -2208,7 +2180,7 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
                   (f->ms_bits & bit) != 0, (f->ms_seen & bit) == 0);
         }
     }
-    /* the NEW FRY row (2026-09-14): under the last fish while the tank can
+    /* the NEW FRY row: under the last fish while the tank can
        still grow - what the next arrival needs, as badges that light up when
        met (the fry-to-be a silhouette at the left, a tick per gate under
        its name, a filling bar under each badge still owed) */
@@ -2245,10 +2217,10 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
         scroll_bar(&c, &g_ms_fscroll, PAGE_BAR_X, MSP_LIST_Y0 + 4, MSP_LIST_Y1 - MSP_LIST_Y0 - 8, false,
                    MSP_LIST_Y1 - MSP_LIST_Y0, 2 * MSP_ROW_Y0 + fish_rows(t, nreq) * MSP_ROW_H, lo, hi); }
     /* the tank's row: the sand dollar at the left (the fish rows' portrait
-       slot) opens the shop (2026-09-15) */
+       slot) opens the shop */
     for (int x = 24; x < PAGE_W - 24; x++) px_blend(&c, x, MSP_TANK_Y - 4, MSP_DIM, 200);
     blit_icon(&c, MSP_SD_X, MSP_TANK_Y, &icon_ms_sand_dollar, 255);
-    {   /* the balance under the coin (Strato, 2026-09-15), centred on it - the
+    {   /* the balance under the coin, centred on it - the
            only room: the divider and the last row sit above, 12 px to the left */
         char bal[16]; snprintf(bal, sizeof bal, "%d", (int)t->sd_balance);
         draw_text(&c, MSP_SD_X + (MSP_ICON - text_w(bal, 2)) / 2, MSP_TANK_Y + 34, 2, 0xffffff, bal);
@@ -2256,10 +2228,10 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
     draw_text(&c, 92, MSP_TANK_Y + 2, 2, MSP_TEAL, "TANK");
     if (POP_CAP <= 6)                        /* population strip: who is here, who could still arrive */
         for (int k = 0; k < POP_CAP; k++) fish_glyph(&c, 96 + k * 14, MSP_TANK_Y + 30, 2.8f, k < t->n_fish ? MSP_TEAL : MSP_DIM);
-    else if (POP_CAP <= 10)                  /* ten (2026-10-05): two rows of five, smaller, clear of the badges */
+    else if (POP_CAP <= 10)                  /* ten: two rows of five, smaller, clear of the badges */
         for (int k = 0; k < POP_CAP; k++)
             fish_glyph(&c, 96 + (k % 5) * 14, MSP_TANK_Y + 25 + (k / 5) * 11, 2.3f, k < t->n_fish ? MSP_TEAL : MSP_DIM);
-    else                                     /* 25 (2026-10-07): three rows of nine, dots, in the same 74 px before the badges */
+    else                                     /* 25: three rows of nine, dots, in the same 74 px before the badges */
         for (int k = 0; k < POP_CAP; k++)
             fish_glyph(&c, 96 + (k % 9) * 8, MSP_TANK_Y + 23 + (k / 9) * 8, 1.4f, k < t->n_fish ? MSP_TEAL : MSP_DIM);
     int nb = tank_badge_n(t);
@@ -2279,10 +2251,8 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
     /* the way out: a CLOSE button in the prompt's calm dress (a tap anywhere
        else never drops the page - too much to tap for that) */
     button(&c, MSP_CLOSE_X, MSP_CLOSE_Y, MSP_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
-    /* (SETTINGS and UPGRADES stood beside it, 2026-09-15 .. 10-21: the main menu has them now) */
-    /* a modal up: the page under it is out of reach (any tap only closes the
-       modal), so it LOOKS out of reach - every pixel at half (Strato: with
-       CLOSE lit it looked like you could still tap it). One shift per
+        /* a modal up: the page under it is out of reach (any tap only closes the
+       modal), so it LOOKS out of reach - every pixel at half. One shift per
        pixel, so cheap enough for every frame. */
     if (g_ms_caption[0])
         for (int y = 0; y < TANK_H; y++)
@@ -2319,8 +2289,8 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
         }
         rect_fill(&c, X, Y, W, H, 0x04141a);
         rect_edge(&c, X, Y, W, H, MSP_TEAL); rect_edge(&c, X + 1, Y + 1, W - 2, H - 2, 0x1c2f36);
-        if (g_ms_kind >= 0)                        /* the way further in: HOW?, centred at the foot (Strato: bottom
-                                                      right sat too close to CLOSE for comfort) */
+        if (g_ms_kind >= 0)                        /* the way further in: HOW?, centred at the foot (bottom
+                                                      right sits too close to CLOSE for comfort) */
             button(&c, X + (W - MSP_HOW_W) / 2, Y + H - 10 - MSP_HOW_H, MSP_HOW_W, MSP_HOW_H, 0x1c2f36, MSP_TEAL, "HOW?", 2);
         if (card) {
             const int by = ms_card_btn_y(t);
@@ -2347,7 +2317,7 @@ void render_milestones(const tank_t *t, uint16_t *fb, int stride) {
         int ly = Y + 144;
         if (g_ms_caption2[0]) { draw_text(&c, X + (W - text_w(g_ms_caption2, 2)) / 2, ly, 2, g_ms_lit ? MSP_TEAL : 0x5f8a92, g_ms_caption2); ly += 20; }
         if (g_ms_sub[0]) draw_text(&c, X + (W - text_w(g_ms_sub, 2)) / 2, ly + 4, 2, g_ms_lit ? 0xffffff : MSP_TEAL, g_ms_sub);
-        {   /* the arrows (2026-09-16): the previous / next of the group at the
+        {   /* the arrows: the previous / next of the group at the
                top corners, in the buttons' dress, only when there is a group */
             int idx, n = ms_group(t, nreq, &idx);
             if (n > 1) {
@@ -2435,10 +2405,10 @@ static int ms_open(const tank_t *t, int row, bool tank_row, bool fry_row, int k,
         if (k < 0) {                                 /* the name: the tally, and when it comes */
             int met = 0; for (int i = 0; i < nreq; i++) met += req[i].met;
             snprintf(g_ms_title, sizeof g_ms_title, "NEW FRY");
-            if (staged) { snprintf(g_ms_caption, sizeof g_ms_caption, "EVERY STEP IS DONE. A FRY");   /* the spawning, 2026-09-24 */
+            if (staged) { snprintf(g_ms_caption, sizeof g_ms_caption, "EVERY STEP IS DONE. A FRY");   /* the spawning */
                           snprintf(g_ms_caption2, sizeof g_ms_caption2, "WILL BE BORN IN THE GRASS");
                           snprintf(g_ms_sub, sizeof g_ms_sub, "ON ITS WAY"); }
-            else { snprintf(g_ms_caption, sizeof g_ms_caption, "WHEN ALL NEEDS ARE MET, A");     /* Strato's words, 2026-09-14 */
+            else { snprintf(g_ms_caption, sizeof g_ms_caption, "WHEN ALL NEEDS ARE MET, A");
                    snprintf(g_ms_caption2, sizeof g_ms_caption2, "NEW FRY IS READY TO BE BORN");
                    snprintf(g_ms_sub, sizeof g_ms_sub, "%d OF %d DONE", met, nreq); }
             g_ms_lit = staged; g_ms_icon = NULL; g_ms_fish = -1; g_ms_fry = true;
@@ -2534,7 +2504,7 @@ bool render_milestones_scrolls(const tank_t *t, bool tank_row) {
     return (tank_row ? g_ms_tscroll.max : g_ms_fscroll.max) > 0;
 }
 
-/* ---- announcement modal (notice.h, 2026-09-15) ----
+/* ---- announcement modal (notice.h) ----
  * The milestones page's detail modal, over the live tank: the badge art at
  * 2x (a fish's own sprite for a stage), the name, the caption, and a thin
  * bar along the foot that runs out with the notice's time. */
@@ -2548,7 +2518,7 @@ void render_notice(const tank_t *t, uint16_t *fb, int stride, int kind, int fish
     const char *caption2 = NULL;                              /* a second line: the title and both move up */
     const icon_t *ic = NULL;
     const fish_t *f = fish >= 0 && fish < t->n_fish ? &t->fish[fish] : NULL;
-    if (kind == 4) {                                   /* NOTICE_UPDATED (2026-09-30): the first boot of a new release */
+    if (kind == 4) {                                   /* NOTICE_UPDATED: the first boot of a new release */
         snprintf(title, sizeof title, "UPDATED");
         snprintf(caption, sizeof caption, "YOUR TANK IS NOW V%s", PT_RELEASE);
         /* a tick in a ring, teal: the shape says it, not the hue */
@@ -2592,10 +2562,9 @@ void render_notice(const tank_t *t, uint16_t *fb, int stride, int kind, int fish
     rect_fill(&c, X + 2, Y + H - 4, (int)((W - 4) * frac_left), 2, 0x1c2f36);
 }
 
-/* ---- the shop (2026-09-15): sand dollars, and what they buy ----
- * The milestones page's dress. A 64 px coin and the balance at the top, a
- * row per item (SD_ITEMS), HOW TO EARN bottom left, CLOSE bottom right. A
- * row opens the item's modal (the art at 2x, the words, the price, UNLOCK -
+/* ---- the shop: sand dollars, and what they buy ----
+ * The milestones page's dress. A row per item (SD_ITEMS) in a list that
+ * scrolls; at the foot HOW TO EARN, the balance and CLOSE. A row opens the item's modal (the art at 2x, the words, the price, UNLOCK -
  * dim when the balance is short, IN THE TANK once owned); HOW TO EARN a
  * modal of the sources. The page dims under a modal like the milestones
  * page. Fingers land low here too: the row bands run 8 px above and to the
@@ -2605,27 +2574,25 @@ static int  g_shp_modal = -1;        /* the item whose modal is up, or -1 */
 static bool g_shp_earn;              /* the HOW TO EARN modal is up */
 static bool g_shp_sell_armed;        /* SELL tapped once: the next tap on it sells */
 static const icon_t *shop_icon(int item) {
-    static const icon_t *const SP_ICONS[SP_COUNT - 1] = {   /* the species' pairs (2026-10-05), in species order */
+    static const icon_t *const SP_ICONS[SP_COUNT - 1] = {   /* the species, in species order */
         &icon_shop_seahorse, &icon_shop_octopus, &icon_shop_puffer, &icon_shop_angler, &icon_shop_eel,
         &icon_shop_shark, &icon_shop_squid, &icon_shop_crab, &icon_shop_lobster, &icon_shop_jellyfish, &icon_shop_swordfish, &icon_shop_turtle };
     if (progression_item_species(item) > 0) return SP_ICONS[progression_item_species(item) - 1];
     return item == 0 ? &icon_shop_plant : item == 1 ? &icon_shop_snail : item == 2 ? &icon_shop_castle : item == 3 ? &icon_shop_coral : item == 4 ? &icon_shop_cluster : item == 5 ? &icon_shop_shrimp : item == SD_ITEM_WRECK_IDX ? &icon_shop_wreck : item == SD_ITEM_FROGMAN_IDX ? &icon_shop_frogman : item == SD_ITEM_SUB_IDX ? &icon_shop_sub : &icon_shop_urchin; }
-/* a species' creature needs one free place (2026-10-07; a pair needed two): with no room its UNLOCK reads NO ROOM, dim */
+/* a species' creature needs one free place: with no room its UNLOCK reads NO ROOM, dim */
 static bool shop_no_room(const tank_t *t, int item) { return progression_item_species(item) > 0 && !progression_has_room_one(t); }
-/* the list (2026-10-28): every item's row in one column that scrolls
- * from the page's top to the foot (scroll.h; under a header with the
- * balance until the keeper moved it to the foot, the same day); four rows a
- * page behind arrows at the header's right before (2026-09-23). */
+/* the list: every item's row in one column that scrolls from the page's top
+ * to the foot (scroll.h). */
 static scroll_t g_shp_scroll = { .max = SHP_LIST_H - (SHP_LIST_Y1 - SHP_LIST_Y0) };
 static int shop_row_top(int i) { return SHP_ROW_Y0 + i * SHP_ROW_DY - scroll_px(&g_shp_scroll); }
-/* a list's scroll bar (2026-10-28): a dim 3 px track `len` long from (x, y), down a column or across a
-   row, the thumb as long as the view's share of the list, where it is; a teal mark at an end while
-   something not seen yet (a badge's ring) lies past it - what the pagers' ring said before */
+/* a list's scroll bar: a dim 3 px track `len` long from (x, y), down a column or across a row, the
+   thumb as long as the view's share of the list, where it is; a teal mark at an end while something
+   not seen yet (a badge's ring) lies past it */
 static void bar_seg(ctx_t *c, bool across, int x, int y, int from, int to, int fat, const src_t *s, int a) {
     if (across) { for (int j = -fat; j < 3 + fat; j++) span(c, x + from, x + to - 1, y + j, s, a); }
     else for (int i = from; i < to; i++) span(c, x - fat, x + 2 + fat, y + i, s, a);
 }
-/* a list's edge fade (2026-10-28, the keeper): where the view cuts the list - more of it past that
+/* a list's edge fade: where the view cuts the list - more of it past that
    edge - its last LIST_FADE px melt into the page's ink: the foot at the start, both edges along the
    way, the head at the end. A list that fits shows no fade (and no bar). The view is (x, y, w, h). */
 #define LIST_FADE 14
@@ -2673,12 +2640,11 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
         const sd_item_t *it = &SD_ITEMS[i];
         int top = shop_row_top(i);
         if (top + 34 <= SHP_LIST_Y0 || top >= SHP_LIST_Y1) continue;   /* out of the view */
-        /* (a species' row is never "owned": one is bought as often as there is room, 2026-10-07) */
+        /* (a species' row is never "owned": one is bought as often as there is room) */
         bool owned = (t->sd_unlocks & it->bit) != 0 && progression_item_species(i) <= 0, room = !shop_no_room(t, i), can = t->sd_balance >= it->price && room;
         /* a thing not yet bought is its silhouette; a species is always shown as the creature
-         * (2026-10-07: its bit means "in the tank", not "bought" - the silhouette read as a missing
-         * picture for every species the keeper had not got yet) */
-        if (owned || i >= SD_ITEM_SP_FIRST) blit_icon(&c, 32, top, shop_icon(i), 255); else blit_icon_locked(&c, 32, top, shop_icon(i));   /* (the rows are where the bowl is wide: their own column) */
+         * (its bit means "in the tank", not "bought") */
+        if (owned || i >= SD_ITEM_SP_FIRST) blit_icon(&c, 32, top, shop_icon(i), 255); else blit_icon_locked(&c, 32, top, shop_icon(i));   /* (the rows' own column) */
         draw_text(&c, 76, top + 2, 2, 0xffffff, it->name);
         if (owned) draw_text(&c, 76, top + 20, 2, MSP_TEAL, "IN THE TANK");
         else price_tag(&c, 76, top + 20, it->price, can ? MSP_TEAL : MSP_DIM);
@@ -2691,7 +2657,7 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
     c = page;
     list_fade(&c, &g_shp_scroll, false, -PAGE_X, SHP_LIST_Y0, TANK_W, SHP_LIST_Y1 - SHP_LIST_Y0, MSP_INK);
     scroll_bar(&c, &g_shp_scroll, PAGE_BAR_X, SHP_LIST_Y0 + 2, SHP_LIST_Y1 - SHP_LIST_Y0 - 4, false, SHP_LIST_Y1 - SHP_LIST_Y0, SHP_LIST_H, false, false);
-    {   /* the balance at the foot (2026-10-28): the coin, the number to its right, centred between the buttons */
+    {   /* the balance at the foot: the coin, the number to its right, centred between the buttons */
         char bal[16]; snprintf(bal, sizeof bal, "%d", (int)t->sd_balance);
         int w = MSP_ICON + 6 + text_w(bal, 2), x = (SHP_EARN_X + SHP_EARN_W + SHP_CLOSE_X - w) / 2;
         blit_icon(&c, x, SHP_COIN_Y, &icon_ms_sand_dollar, 255);
@@ -2732,7 +2698,7 @@ void render_shop(const tank_t *t, uint16_t *fb, int stride) {
                                 button(&c, SHP_TWO_X1, by, MSP_HOW_W, MSP_HOW_H, MSP_TEAL, MSP_TEAL, sell, 2);
                                 draw_text(&c, SHP_TWO_X1 + (MSP_HOW_W - text_w(sell, 2)) / 2, by + (MSP_HOW_H - 14) / 2, 2, MSP_INK, sell); }
         else button(&c, SHP_TWO_X1, by, MSP_HOW_W, MSP_HOW_H, 0x1c2f36, MSP_DIM, "SELL", 2);
-    } else if (owned && helper_kind_of_item(g_shp_modal) >= 0) {   /* a helper (2026-10-22): SELL alone, where UNLOCK was - tapped twice, it sells it back */
+    } else if (owned && helper_kind_of_item(g_shp_modal) >= 0) {   /* a helper: SELL alone, where UNLOCK was - tapped twice, it sells it back */
         char sell[24]; snprintf(sell, sizeof sell, "SELLS BACK FOR %d", progression_sell_value(g_shp_modal));
         draw_text(&c, X + (W - text_w("IN THE TANK", 2)) / 2, Y + 164, 2, MSP_TEAL, "IN THE TANK");
         draw_text(&c, X + (W - text_w(sell, 2)) / 2, Y + 184, 2, MSP_DIM, sell);
@@ -2763,7 +2729,7 @@ int render_shop_tap(const tank_t *t, float x, float y) {
     if (g_shp_modal < 0 && scroll_took(&g_shp_scroll)) return SHOP_TAP_KEPT;   /* the stroke scrolled the list (or stopped it) */
     if (g_shp_modal >= 0) {
         int item = g_shp_modal; const sd_item_t *it = &SD_ITEMS[item];
-        bool owned = (t->sd_unlocks & it->bit) != 0 && progression_item_species(item) <= 0, can = t->sd_balance >= it->price && !shop_no_room(t, item);   /* (a species: never owned, 2026-10-07) */
+        bool owned = (t->sd_unlocks & it->bit) != 0 && progression_item_species(item) <= 0, can = t->sd_balance >= it->price && !shop_no_room(t, item);   /* (a species: never owned) */
         const int bx = SHP_MODAL_X + (SHP_MODAL_W - MSP_HOW_W) / 2, by = SHP_MODAL_Y + SHP_MODAL_H - 12 - MSP_HOW_H;
         bool row = y >= by - MSP_HOW_SLOP_UP && y < by + MSP_HOW_H + MSP_HOW_SLOP_DN;
         bool on_btn = row && x >= bx - MSP_HOW_SLOP_X && x < bx + MSP_HOW_W + MSP_HOW_SLOP_X;
@@ -2808,14 +2774,13 @@ bool render_shop_row(int item, int *x, int *y) {
 }
 void render_shop_show_item(int item) { scroll_to(&g_shp_scroll, (float)(item * SHP_ROW_DY)); }
 
-/* ---- the main menu (2026-10-21): the BOOT key's page ----
+/* ---- the main menu: the BOOT key's page ----
  * Six tiles, three across: TANK (the milestones page), UPGRADES (the shop),
- * SETTINGS; then the tools: the SPONGE, the SCISSORS and FEED (2026-10-28,
- * the empty cell before; its art the first-feeding badge's can for now). The page
- * icons are placeholders (the bubbles badge) until their own art lands:
- * assets/icons/menu_*.png through tools/gen_icons.py, then the table below.
- * The tool in hand is lit (the toolbox's look: a white double edge on a
- * lighter fill). Over the live tank (2026-10-28): each tile a pane in the
+ * SETTINGS; then the tools: the SPONGE, the SCISSORS and FEED (FEED wears the
+ * first-feeding badge's can). The page icons are placeholders (the bubbles
+ * badge); art of their own goes in assets/icons/menu_*.png, through
+ * tools/gen_icons.py and the table below. The tool in hand is lit (a white
+ * double edge on a lighter fill). Over the live tank: each tile a pane in the
  * fish card's look, the water a sixth through. */
 static const icon_t *const MENU_ICON[MENU_TILES] = {
     &icon_ms_first_bubbles, &icon_ms_first_bubbles, &icon_ms_first_bubbles,   /* TANK, UPGRADES, SETTINGS (placeholders) */
@@ -2834,7 +2799,7 @@ void render_menu(const tank_t *t, uint16_t *fb, int stride) {
     render_use_theme(t->theme);
     ctx_t c = ctx_page(fb, stride);
     for (int i = 0; i < MENU_TILES; i++) {
-        if (!MENU_ICON[i]) continue;                 /* the empty cell */
+        if (!MENU_ICON[i]) continue;                 /* a tile with no art is an empty cell */
         int x, y; menu_tile_page(i, &x, &y);
         bool held = MENU_TOOL[i] >= 0 && t->tool == MENU_TOOL[i];
         src_t bg = src_color(theme_ui_color(held ? 0x356670 : 0x04141a), 1.0f);   /* the card's backdrop (card_draw) */
@@ -2888,23 +2853,19 @@ void render_sd_toast(const tank_t *t, uint16_t *fb, int stride) {
     draw_text(&c, X + 25, Y + 4, 2, 0xffffff, txt);
 }
 
-/* ---- settings page (2026-09-15) ----
- * The milestones page's foot used to carry the brightness row; Strato:
- * "a new UI for settings and leave milestones alone - we may need more
- * room there anyway". Rows of segment buttons, generous hit bands (fingers
- * land low near the bezel, as on the milestones page). 0.3.2: LIGHTS OUT is
- * one row (a value between two arrows, where MANUAL / AUTO and a big seconds
- * selector stood), and AUTO FEED and ROTATION have the room it gave back. */
+/* ---- settings page ----
+ * Rows of segment buttons and of a value between two arrows, generous hit
+ * bands (fingers land low near the bezel, as on the milestones page). */
 /* (the page's numbers, SET_*: render.h) */
-/* BRIGHTNESS (2026-10-10, evening): ten steps, 10 % to 100 %, a value between two arrows like
-   LIGHTS OUT (four segments 15/30/60/100 before). An odd saved value rounds to the nearest step. */
+/* BRIGHTNESS: ten steps, 10 % to 100 %, a value between two arrows like LIGHTS OUT. Any other
+   saved value rounds to the nearest step. */
 static const char *const SET_BRIGHT[10] = { "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%" };
 static const int         SET_BRIGHT_PCT[10] = { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
 #define SET_BRIGHT_N 10
 static int bright_index(int pct) { int i = (pct + 5) / 10 - 1; return i < 0 ? 0 : i >= SET_BRIGHT_N ? SET_BRIGHT_N - 1 : i; }
 static const char *const SET_VOLUME[3] = { "OFF", "QUIET", "NORMAL" };
 static const char *const SET_LIGHT[LIGHT_IDLE_N + 1] = {
-    "5 SEC", "15 SEC", "30 SEC", "1 MIN", "3 MIN", "5 MIN", "10 MIN", "30 MIN", "NEVER" };   /* NEVER the default (2026-10-28; DOUBLE-TAP, MANUAL, first before) */
+    "5 SEC", "15 SEC", "30 SEC", "1 MIN", "3 MIN", "5 MIN", "10 MIN", "30 MIN", "NEVER" };   /* NEVER the default */
 static const char *const SET_FEED[2]   = { "ON", "OFF" };          /* the default first */
 #if DEVICE_WORN
 static const char *const SET_SCREEN[2] = { "NORMAL", "TURNED" };   /* the default first */
@@ -2931,7 +2892,7 @@ static void set_arrow(ctx_t *c, int x, int y, bool right, bool live) {
         rect_fill(c, px, cy - hh, 1, 2 * hh + 1, rgb);
     }
 }
-/* (the watch has SCREEN where ROTATION is) */
+/* (a worn tank has SCREEN where ROTATION is) */
 /* ROTATION's picture: a padlock inside a turning arrow - shut when the way
  * up is locked, its shackle swung open while the picture follows the tank
  * (the two differ in shape, not in color alone) */
@@ -2951,7 +2912,7 @@ static void set_lock_icon(ctx_t *c, int cx, int cy, bool locked, uint32_t rgb) {
     rect_fill(c, cx - 4, top, 2, cy - 1 - top, rgb);
     rect_fill(c, cx + 2, top, 2, locked ? cy - 1 - top : 4, rgb);
 }
-/* a row of one value between two arrow buttons (LIGHTS OUT, and BRIGHTNESS since 2026-10-10) */
+/* a row of one value between two arrow buttons (LIGHTS OUT, BRIGHTNESS) */
 static void set_arrow_row(ctx_t *c, int row_y, const char *label, const char *text, bool can_prev, bool can_next) {
     int y = SET_SEG_Y(row_y), bx = SET_SEG_X + SET_ARW_W + 4, bw = SET_SPAN_W - 2 * (SET_ARW_W + 4);
     draw_text(c, SET_LABEL_X, row_y, 2, MSP_TEAL, label);
@@ -2963,7 +2924,7 @@ static void set_arrow_row(ctx_t *c, int row_y, const char *label, const char *te
 static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, int bright_pct, int volume) {
     render_use_theme(t->theme);
     ctx_t c = ctx_page(fb, stride);
-    rect_fill(&c, -PAGE_X, -PAGE_Y, TANK_W, TANK_H, MSP_INK);   /* (no title since 2026-10-28: the rows start at the top) */
+    rect_fill(&c, -PAGE_X, -PAGE_Y, TANK_W, TANK_H, MSP_INK);   /* (no title: the rows start at the top) */
     int bi = bright_index(bright_pct);
     set_arrow_row(&c, SET_ROW1_Y, "BRIGHTNESS", SET_BRIGHT[bi], bi > 0, bi < SET_BRIGHT_N - 1);   /* < the percent > */
     set_row(&c, SET_ROW2_Y, "VOLUME", SET_VOLUME, 3, volume < 0 ? 0 : volume > 2 ? 2 : volume);
@@ -2971,12 +2932,12 @@ static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, 
     { int ch = tank_light_choice(t); set_arrow_row(&c, SET_ROW3_Y, "LIGHTS OUT", SET_LIGHT[ch], ch > 0, ch < LIGHT_IDLE_N); }   /* < the choice > */
     set_row(&c, SET_ROW4_Y, "AUTO FEED", SET_FEED, 2, t->autofeed_off ? 1 : 0);
 #if DEVICE_WORN
-    /* SCREEN (2026-10-02): the way up of a watch worn either way round - TURNED
+    /* SCREEN: the way up of a watch worn either way round - TURNED
        for buttons toward the elbow. The picture turns as the finger lifts. */
     set_row(&c, SET_ROW5_Y, "SCREEN", SET_SCREEN, 2, t->screen_turned ? 1 : 0);
     draw_text(&c, SET_LABEL_X, SET_NOTE5_Y, 2, MSP_DIM, "WORN THE OTHER WAY AROUND?");
 #else
-    /* ROTATION (0.3.2): the picture turns over with the tank, unless locked */
+    /* ROTATION: the picture turns over with the tank, unless locked */
     {
         int x = SET_SEG_X, y = SET_SEG_Y(SET_ROW5_Y);
         draw_text(&c, SET_LABEL_X, SET_ROW5_Y, 2, MSP_TEAL, "ROTATION");
@@ -2989,24 +2950,20 @@ static void render_original_settings(const tank_t *t, uint16_t *fb, int stride, 
     /* the firmware version, hugging the bottom left of the frame (6 px up,
        on the labels' x; the bezel's curve is clear there), small (8 px) and
        dim: it is for the keeper who asks "how do I update?", not for
-       reading - Strato: "FISH ARE QUIET AT NIGHT is meant to be read; the
-       fw version is something most people should not care about. minimize
-       it", "make it 8px tall", "hug the bottom of the frame" (2026-09-16).
-       The installer page shows the version it would write in the same words. */
-    /* 2026-09-29: the release number first ("V0.2.0 ALPHA"), the build id after it */
+       reading. The installer page shows the version it would write in the
+       same words. */
+    /* the release number first, the build id after it */
     char ver[64]; snprintf(ver, sizeof ver, "V%s %s  BUILD %s", PT_RELEASE, PT_RELEASE_STAGE, version_port_string());
-    draw_text_8px(&c, SET_VER_X((int)strlen(ver) * 6 - 1), SET_VER_Y, MSP_DIM, ver);   /* where the board puts it (the watch: centred under the foot) */
-    /* UPDATES (2026-09-30, docs/OTA.md) and RESET (2026-10-10): a row of their own under ROTATION
-       (2026-10-28, out of the foot); the foot keeps ABOUT and CLOSE */
+    draw_text_8px(&c, SET_VER_X((int)strlen(ver) * 6 - 1), SET_VER_Y, MSP_DIM, ver);   /* where the board puts it */
+    /* UPDATES (docs/OTA.md) and RESET: a row of their own under ROTATION; the foot keeps ABOUT and CLOSE */
     button(&c, SET_UPD_X, SET_UPD_Y, SET_UPD_W, SET_SEG_H, 0x1c2f36, MSP_TEAL, "UPDATES", 2);
     button(&c, SET_RST_X, SET_RST_Y, SET_RST_W, SET_SEG_H, 0x1c2f36, 0xe0785a, "RESET", 2);   /* a warm edge: it starts the tank over (after the prompt) */
     button(&c, SET_ABT_X, SET_ABT_Y, SET_ABT_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "ABOUT", 2);
     button(&c, SET_CLOSE_X, SET_FOOT_Y, SET_CLOSE_W, MSP_CLOSE_H, 0x1c2f36, MSP_TEAL, "CLOSE", 2);
 }
-/* ---- the ABOUT page (2026-10-10): the game's name, who makes it, the release and the build,
- * a little fish crossing above them and bubbles rising; a jingle plays while it is up (the
- * platform's: SET_TAP_ABOUT). Inside the settings bounds on every board, in the theme's colours.
- * (Each theme had its own creature here: git tag multi-board-multi-theme.) */
+/* ---- the ABOUT page: the game's name, who makes it, the release and the build, a little fish
+ * crossing above them and bubbles rising; a jingle plays while it is up (the platform's:
+ * SET_TAP_ABOUT). Inside the settings bounds on every board, in the theme's colours. */
 static void render_about_page(const tank_t *t, uint16_t *fb, int stride) {
     int x, y, w, h; render_settings_bounds(&x, &y, &w, &h);
     const theme_palette_t *p = theme_palette(t->theme);
@@ -3051,7 +3008,7 @@ static int set_segment(float x, int n) { return set_segment_w(x, n, SET_SEG_DX);
  * toggle); the LIGHTS OUT row's own hits are LIGHT_PREV / LIGHT_NEXT (its
  * left and right halves). */
 enum { SET_HIT_LIGHT_PREV = 100, SET_HIT_LIGHT_NEXT, SET_HIT_PAGE, SET_HIT_BRIGHT_PREV, SET_HIT_BRIGHT_NEXT, SET_HIT_CYCLE_VOLUME, SET_HIT_TOGGLE_FEED, SET_HIT_TOGGLE_SCREEN,
-       SET_HIT_ABOUT, SET_HIT_ABOUT_BACK, SET_HIT_RESET };   /* (2026-10-10) ABOUT, the about page's BACK, RESET */
+       SET_HIT_ABOUT, SET_HIT_ABOUT_BACK, SET_HIT_RESET };   /* ABOUT, the about page's BACK, RESET */
 static bool g_settings_about;
 static int g_settings_page, g_settings_bright = 60, g_settings_volume = 2;
 static int original_settings_tap(float x, float y, int *value) {
@@ -3061,7 +3018,7 @@ static int original_settings_tap(float x, float y, int *value) {
         if (x < SET_ABT_X + SET_ABT_W + 8) return SET_HIT_ABOUT;
         return SET_TAP_NONE;
     }
-    if (y >= SET_SEG_Y(SET_ROW6_Y) - 12)         /* row 6 (2026-10-28): UPDATES | RESET, split between them */
+    if (y >= SET_SEG_Y(SET_ROW6_Y) - 12)         /* row 6: UPDATES | RESET, split between them */
         return x < (SET_UPD_X + SET_UPD_W + SET_RST_X) / 2 ? SET_TAP_UPDATES : SET_HIT_RESET;
     /* the row bands: from a little above each segment down to the next row
        (fingers report low); the last one stops at the foot's */

@@ -1,21 +1,22 @@
-/* The creatures' table (2026-10-23): the species, a row a kind (SPECIES[],
- * creature.c) - what it is, how it moves, its hooks. The classic fish is
- * SP_FISH, a row like the rest. tank.h includes this file where the goals
- * are known and before fish_t; the hooks take the fish and the tank by their
- * tags. Creatures keep the fish's names in code (fish_t, t->fish[]). */
+/* The creatures' table: the species, a row a kind (SPECIES[], creature.c) -
+ * what it is, how it moves, its hooks. The classic fish is SP_FISH, a row
+ * like the rest. tank.h includes this file where the goals are known and
+ * before fish_t; the hooks take the fish and the tank by their tags.
+ * Creatures keep the fish's names in code (fish_t, t->fish[]). */
 #ifndef CREATURE_H
 #define CREATURE_H
 
-/* ---- species (2026-10-05, docs/species.md) ----
- * The classic fish and nine creatures that breed like it. The model picks
+/* ---- species (docs/species.md) ----
+ * The classic fish and twelve creatures that breed like it. The model picks
  * every creature's goal (schema 5 also hears its species); the species
  * decides how the goal is carried out (its locomotion, its own spots) and
- * how it looks (render.c). SP_FISH is 0, so every older save reads as fish. */
+ * how it looks (creatures.inc). The ids are saved: a new species goes at the
+ * end. */
 typedef enum { SP_FISH, SP_SEAHORSE, SP_OCTOPUS, SP_PUFFER, SP_ANGLER, SP_EEL, SP_SHARK, SP_SQUID,
-               SP_CRAB, SP_LOBSTER,     /* the floor's two (2026-10-05, the same day) */
-               SP_JELLYFISH,           /* appended: persisted species IDs never move */
-               SP_SWORDFISH,           /* 2026-10-10 night: a fast open-water cruiser with a bill */
-               SP_TURTLE,              /* 2026-10-11: a sea turtle - a slow paddler that naps on the sand and surfaces for a breath */
+               SP_CRAB, SP_LOBSTER,     /* the floor's two */
+               SP_JELLYFISH,
+               SP_SWORDFISH,           /* a fast open-water cruiser with a bill */
+               SP_TURTLE,              /* a sea turtle - a slow paddler that naps on the sand and surfaces for a breath */
                SP_COUNT } species_t;
 #define SP_VARIANTS 4            /* designs a species (fish_t.variant) */
 #define SP_MUTATE_P 0.04f        /* a classic fish's fry hatching as a new species */
@@ -24,15 +25,15 @@ typedef enum {
     LOCO_FIN,        /* the classic fish: committed U-turns, a tail beat */
     LOCO_UPRIGHT,    /* seahorse: upright, slow, vertical, anchors its tail */
     LOCO_JET,        /* octopus / squid: pulsed jets, mantle first; the octopus crawls the floor */
-    LOCO_HOVER,      /* pufferfish: sculls, stops, turns on the spot, backs up */
+    LOCO_HOVER,      /* pufferfish, jellyfish, turtle: sculls, stops, turns on the spot, backs up */
     LOCO_AMBUSH,     /* anglerfish: still and low, short fast lunges */
     LOCO_UNDULATE,   /* electric eel: a travelling wave, swims backward, breathes air */
-    LOCO_CRUISE,     /* hammerhead: never stops, wide turns, the head sweeps */
+    LOCO_CRUISE,     /* hammerhead, swordfish: never stops, wide turns, the head sweeps */
     LOCO_SIDEWALK,   /* crab: walks the floor SIDEWAYS on its legs, climbs rock */
     LOCO_WALK        /* lobster: walks the floor head first, a backward tail-flip to escape */
 } loco_t;
 typedef struct { const char *name; uint32_t color, fin, accent; } sp_variant_t;
-/* how a species turns and carries its body (tank.c's species motion) */
+/* how a species turns and carries its body (creature.c's species motion) */
 typedef struct {
     float yaw_rate;   /* how fast the head swings round, yaw units/s (the fish: turn_rate x 1.2) */
     float brake;      /* how much the swing slows it: ~1 = it stops to turn, a turn on the spot */
@@ -65,7 +66,7 @@ typedef struct { float low, food_x, food_y, hx, hy; } sp_aim_t;      /* what sp_
 struct tank; struct fish;
 typedef struct {
     const char  *name;            /* the card's / shop's word, upper case */
-    const char  *token;           /* schema-5 word: fish seahorse octopus puffer angler eel shark squid crab lobster */
+    const char  *token;           /* its schema-5 word (`fish` while the loaded tokenizer lacks it: advisor_core_species_word) */
     const char  *names[4];        /* a newborn's default names (<= FISH_NAME_MAX) */
     sp_variant_t var[SP_VARIANTS];
     float size_lo, size_hi;       /* base size (1.0 = the classic fish's ~42 px) */
@@ -78,8 +79,8 @@ typedef struct {
     float min_speed;              /* never slower (the hammerhead's ram breathing); 0 = can stop */
     float hit_r;                  /* tap radius at size 1, px */
     bool  big;                    /* the small ones keep their distance (SP_AVOID_R) */
-    /* how it moves (tank.c, the species' motion; 2026-10-23: the rows took over
-     * the species switches - a new species is a row and its hooks) */
+    /* how it moves (creature.c, the species' motion: a new species is a row
+     * and its hooks) */
     sp_motion_t mo;
     uint32_t flags;               /* SPF_* */
     float fin_hz, fin_div;        /* the free swim's beat a second: fin_hz, or fin_hz + speed / fin_div (fin_div > 0) */

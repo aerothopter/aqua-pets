@@ -67,7 +67,7 @@ bool advisor_llm_esp_init(const uint8_t *model_bin, size_t model_len, const uint
         ESP_LOGE(TAG, "bad model/tokenizer"); return false;
     }
     q4_clock_us = esp_timer_get_time;        /* per-stage inference profiling */
-    /* one-time kernel/memory bench on boot (numbers for docs/bringup step 9) */
+    /* one-time kernel/memory bench on boot, to the log */
     q4_model_t *bm = advisor_core_model();
     ESP_LOGI(TAG, "bench: dot100k %lld us | batch44 flash %lld us ram %lld us | decode flash %lld us ram %lld us",
              q4_model_bench(bm, 0, 44, esp_timer_get_time),

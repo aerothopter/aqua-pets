@@ -1,7 +1,7 @@
 # esp_env.sh - ESP-IDF for the flash tools; SOURCED by them, not run.
 #
-# A Mac (or Linux): ~/esp/esp-idf/export.sh, as always. Windows (Git Bash,
-# 2026-10-23): ESP-IDF's install is a PowerShell profile whose idf.py and
+# A Mac (or Linux): ~/esp/esp-idf/export.sh. Windows (Git Bash): ESP-IDF's
+# install is a PowerShell profile whose idf.py and
 # espsecure.py are an alias and a function no bash can call. Start the tool
 # from the ESP-IDF 5.4.4 PowerShell (its profile sets IDF_PATH and PATH,
 # which bash inherits) and they become bash functions over its python:

@@ -1,5 +1,5 @@
-/* update.h - over-the-air updates: the pages and the flow (docs/OTA.md,
- * 2026-09-30). Platform-independent, like every page in common/: the
+/* update.h - over-the-air updates: the pages and the flow (docs/OTA.md).
+ * Platform-independent, like every page in common/: the
  * radio, the credential store and the download are PORTS (net_port_*),
  * implemented by firmware/main/net_port_esp.c on the tank and by
  * sim/net_port_sim.c with pretend networks on the desktop, so the pages are
@@ -51,7 +51,7 @@ typedef struct {
     uint32_t app_size;           /* bytes */
     bool     needs_cable;        /* the model changed and this build cannot fetch it */
     char     model_version[16];  /* the model this release needs ("" = unchanged) */
-    bool     model_offered;      /* phase two: the model is downloadable */
+    bool     model_offered;      /* the model is downloadable (not yet offered by any release) */
     uint32_t model_size;
     char     board[24];          /* the board the image is for (PT_BOARD); another board's manifest is refused */
 } update_manifest_t;
@@ -59,7 +59,7 @@ typedef struct {
 enum { NET_IDLE = 0, NET_BUSY, NET_DONE, NET_FAILED };
 enum { NET_ERR_NONE = 0, NET_ERR_NO_SIGNAL, NET_ERR_PASSWORD, NET_ERR_NO_NET, NET_ERR_BAD_MANIFEST,
        NET_ERR_DOWNLOAD, NET_ERR_VERIFY, NET_ERR_SPACE, NET_ERR_ABORTED, NET_ERR_RADIO,
-       NET_ERR_BOARD };            /* the image's board marker named another board (2026-10-02): refused, nothing written past its first sector */
+       NET_ERR_BOARD };            /* the image's board marker named another board: refused, nothing written past its first sector */
 
 bool net_port_creds_get(char *ssid, char *pass);            /* the saved network (buffers NET_*_MAX + 1); false = none */
 bool net_port_creds_set(const char *ssid, const char *pass);
@@ -88,8 +88,8 @@ void render_updates_page(uint16_t *fb, int stride);
 int  updates_page_tap(float x, float y);                    /* the bare hit test */
 int  updates_page_touch(float x, float y, bool down);       /* every frame: UPD_TAP_* on a tap's release; FORGET is applied here */
 
-/* the pages' layout (PAGE coordinates, render.h; 2026-10-01: out of update.c,
- * setup.h's way, so the sim's selftest taps where the layout says on every board) */
+/* the pages' layout (PAGE coordinates, render.h): here, setup.h's way, so the
+ * sim's selftest taps where the layout says on every board */
 #define UPD_PANEL_W   384                       /* the pages' panel: x 32..416 */
 #define UPD_CHECK_X   32
 #define UPD_CHECK_Y   206
@@ -112,10 +112,8 @@ int  updates_page_touch(float x, float y, bool down);       /* every frame: UPD_
 #define UPD_KB_Y    96
 #define UPD_BTN_H     38
 #define UPD_BTN_Y     296                       /* (the pair, UPD_BTN_L_X / _R_X / _W: the board's) */
-#define UPD_BTN_MID_X ((PAGE_W - UPD_BTN_W) / 2)   /* a button on its own: CANCEL, a lone BACK TO TANK (the PLUG IN page's too,
-                                                      Strato 2026-10-01; it stood at the left) - the page's middle
-                                                      (until 2026-10-01 it was measured from the left button, which the bowl
-                                                      draws in: its CANCEL sat 30 px right of center) */
+#define UPD_BTN_MID_X ((PAGE_W - UPD_BTN_W) / 2)   /* a button on its own: CANCEL, a lone BACK TO TANK (the PLUG IN page's too) -
+                                                      the page's middle */
 #define UPD_ROW_Y0    58
 #define UPD_ROW_H     38
 #define UPD_ROWS_PER  6
@@ -129,7 +127,7 @@ void update_begin(int battery_pct, bool on_power);
 void update_tick(float dt);
 void update_touch(float x, float y, bool down);
 void render_update(uint16_t *fb, int stride, float clock);
-/* the clockless board's wake (2026-10-03): the glass while the boot asks the
+/* the clockless board's wake: the glass while the boot asks the
  * internet for the time - a few seconds that would otherwise be dark, and a
  * dark glass after a press gets pressed again. Nothing to tap. */
 void render_clock_sync(uint16_t *fb, int stride, float clock);

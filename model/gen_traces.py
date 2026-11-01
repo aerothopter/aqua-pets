@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """Trace generator for the Aqua Pets advisor model.
 
-Runs a minimal headless tank sim, encodes per-fish state per schema.md (DRAFT),
+Runs a minimal headless tank sim, encodes per-fish state per schema.md,
 asks Ollama (gemma4:26b, structured output) for a goal, and appends
 {"state": ..., "goal": ...} lines to a JSONL file.
 
   python3 gen_traces.py --count 10 --dry-run    # print encoded states, no network
   python3 gen_traces.py --count 1000            # query Ollama, append to out/traces.jsonl
 
-Stdlib only. Schema v2 is FROZEN (see schema.md); `--schema 3` emits the v3 line
+Stdlib only. schema.md is the v5 line; the default is the v2 line; `--schema 3` emits the v3 line
 (no fish names, + trust 0-9, tanks of 2-6 fish); `--schema 4` (2026-09-14) drops
 the shadow - the predator left the game on 2026-09-13 - and adds `bored 0-9`,
 how stale the fish's current activity is, so the teacher can push a fish out of
-a rut (the bubble-column and follow-the-friend loops Strato saw on the device).
+a rut (the bubble-column and follow-the-friend loops seen on the device).
 `--schema 5` (2026-10-05, docs/species.md) adds `species <word>` after `stage`:
 tanks of 2-10 creatures of ten species (the classic fish ~1/3), each rolled
 inside its species' trait ranges and living its species' situations (the
@@ -36,7 +36,7 @@ import urllib.request
 
 TANK_W, TANK_H = 448, 368
 FISH_NAMES = ["mira", "bolt", "kelp", "nori", "pip", "sol"]
-SCHEMA = 2          # set by --schema; 3 = v3 line, 4 = v4 line (see schema.md)
+SCHEMA = 2          # set by --schema; 2, 3, 4 = the older lines, 5 = the v5 line (schema.md)
 GOALS = [
     "seek_food", "flee_shadow", "visit_bubbles", "follow_friend",
     "explore", "rest", "dart_play", "inspect_reef",
@@ -512,12 +512,12 @@ class Tank:
             cases += ["habitat", "habitat", "habitat", "school"]
         if SCHEMA >= 4:
             # v4: no shadow cases; a fish in a RUT (bored 4-9 on a pastime, the
-            # loops Strato saw), a fish that has just started something (fresh),
+            # loops seen on the device), a fish that has just started something (fresh),
             # and the lone fish stays
             cases += ["lonely", "bored", "bored", "bored", "fresh"]
         elif SCHEMA >= 3:
             # v3: a shadow in view while CALM (the v2 student learned stress, not
-            # shadow distance, as its flee cue - docs/progression-next.md), and a
+            # shadow distance, as its flee cue - docs/progression.md), and a
             # lone fish (friend none, 17/28K in v2 data - the v2 model breaks on it)
             cases += ["shadow_calm", "shadow_calm", "lonely"]
         case = rng.choice(cases)

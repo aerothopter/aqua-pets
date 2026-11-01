@@ -61,7 +61,7 @@ bool battery_port_poweroff(void) {
     return i2c_master_transmit(s_dev, wr, 2, 100) == ESP_OK;
 }
 
-/* ---- the PWR key (2026-09-16): REG 41 IRQ enables, REG 49 IRQ status 1
+/* ---- the PWR key: REG 41 IRQ enables, REG 49 IRQ status 1
  * (RW1C; bit 3 short press, bit 2 long press), REG 27 IRQLEVEL 5:4 /
  * OFFLEVEL 3:2 / ONLEVEL 1:0. Polled from the tank task; no IRQ line needed. */
 static bool wr(uint8_t reg, uint8_t val) {
@@ -76,7 +76,7 @@ void battery_port_key_init(void) {
      * be HELD to power the board on from a power-off (128 / 512 ms, 1 / 2 s).
      * ONLEVEL is the one that decides how a wake from the night feels: at the
      * chip's default a tap is shorter than the hold and does nothing, and the
-     * keeper presses again (2026-09-16: "three presses"). 128 ms = a tap. */
+     * keeper presses again. 128 ms = a tap. */
     static const char *ON[4] = { "128 ms", "512 ms", "1 s", "2 s" }, *IRQ[4] = { "1 s", "1.5 s", "2 s", "2.5 s" };
     { uint8_t r20 = 0, r21 = 0, r48 = 0, r49 = 0, r4a = 0, r10 = 0;   /* what the PMIC saw before this boot: power-on / power-off source, the pending IRQ flags */
       rd(0x20, &r20); rd(0x21, &r21); rd(0x48, &r48); rd(0x49, &r49); rd(0x4A, &r4a); rd(0x10, &r10);
@@ -96,7 +96,7 @@ int battery_port_key_poll(void) {
     return (st & 0x04) ? 2 : 1;
 }
 
-/* bench (director `keytime N`, 2026-09-16): how long are the keeper's presses?
+/* bench (director `keytime N`): how long are the keeper's presses?
  * Polls REG 49 every ~2 ms for N s and logs each press from the PWRON falling
  * edge (bit 1) to the rising edge (bit 0). The short / long flags are swallowed
  * with them, so a press inside the trace never sleeps the tank. The point: a
@@ -129,7 +129,7 @@ void battery_port_key_trace(int seconds) {
     ESP_LOGI("battery", "key trace over: %d presses", n);
 }
 
-/* ---- diagnostics (2026-09-11, the battery-life pass) ----
+/* ---- diagnostics ----
  * AXP2101 register map (as XPowersLib reads it): 0x80 DCDC1-5 enables
  * (bits 0-4); 0x82-0x86 DCDC1-5 voltage codes; 0x90 LDO enables (bit0 ALDO1,
  * 1 ALDO2, 2 ALDO3, 3 ALDO4, 4 BLDO1, 5 BLDO2, 6 CPUSLDO, 7 DLDO1), 0x91 bit0
@@ -179,7 +179,7 @@ bool battery_port_set_rail(const char *name, bool on) {
     ESP_LOGW("battery", "no such rail '%s' (dcdc1 and the RTC LDO are never switched)", name);
     return false;
 }
-/* boot: everything with no consumer off, plus ALDO1 (audio analog, unused) */
+/* boot: everything with no consumer off, plus ALDO1 (audio analog: the audio port raises it) */
 void battery_port_trim_rails(void) {
     static const char *off[] = { "dcdc2", "dcdc3", "dcdc4", "aldo1", "aldo2", "aldo3", "aldo4", "bldo1", "bldo2", "cpusldo", "dldo1", "dldo2" };
     int n = 0;

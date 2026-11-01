@@ -1,8 +1,7 @@
-/* ---- the urchin, procedural (2026-10-02, SD_ITEM_URCHIN) ----
- * After Strato's sea-urchin-v1 (working-assets): a domed purple urchin seen
- * a little from above, a crown of short pointed spines with pale tips, warm
+/* ---- the urchin, procedural (SD_ITEM_URCHIN) ----
+ * A domed purple urchin seen a little from above, a crown of short pointed spines with pale tips, warm
  * light from the upper left, no outline. Drawn the snail's way - a tone rule
- * per pixel over a ~37 x 24 box, mixed with the water of its row - in his six
+ * per pixel over a ~37 x 24 box, mixed with the water of its row - in six
  * tones. The spines are its life: they wave slowly, each on its own beat,
  * and work faster while it chews. The dome's centre is (urchin.x,
  * URCHIN_FLOOR_Y); its flat base sits on the root line, UR_BASE below. */
@@ -16,8 +15,8 @@ static const uint32_t URCHIN_RGB[UR_NONE] = { 0x320746, 0x66107d, 0x9732b1, 0xbe
 #define UR_TINT   0.93f
 typedef struct { float dx[UR_SPINES + UR_FACE], dy[UR_SPINES + UR_FACE], len[UR_SPINES + UR_FACE];
                  float rim[UR_SPINES], end[UR_SPINES], den[UR_SPINES]; } ur_pose_t;   /* per crown spine: where it leaves the dome, its tip, the wedge's taper -
-                                                                                        once a frame here, not per pixel (2026-10-03: a sqrtf and two
-                                                                                        divides per spine per pixel cost the 1.8 milliseconds a frame) */
+                                                                                        once a frame here, not per pixel (a sqrtf and two divides per
+                                                                                        spine per pixel would cost the 1.8 milliseconds a frame) */
 /* the spines this frame: a fan from just under the left side, over the top,
  * to just under the right (the floor hides the rest), long and short in
  * turn; then a few short ones on the dome's face, pointing at the viewer

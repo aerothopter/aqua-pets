@@ -1,7 +1,7 @@
 /* display_port.h — the ONLY platform-specific seam for the renderer.
  * The tank renders into an RGB565 buffer (common/render.c); this port ships
- * it to the panel. QEMU/bring-up: stub. Track 4: SH8601 over QSPI (V1 board)
- * or CO5300 (V2), rotated 90 degrees so the tank is landscape 448x368. */
+ * it to the panel. QEMU/bring-up: stub. The board: SH8601 over QSPI (V1) or
+ * CO5300 (V2), rotated 90 degrees so the tank is landscape 448x368. */
 #ifndef DISPLAY_PORT_H
 #define DISPLAY_PORT_H
 #include <stdint.h>
@@ -30,7 +30,7 @@ uint8_t display_port_brightness(void);
  *   FULL - px for px, centered: the circle crops the frame's four corners
  * display_port_panel_to_tank turns a touch on the panel into the tank px
  * under it as if the picture were upright (the view included; the touch port
- * turns it after its calibration, 2026-10-02; it may land outside the frame -
+ * turns it after its calibration; it may land outside the frame -
  * the caller clamps). */
 enum { DISPLAY_VIEW_FIT, DISPLAY_VIEW_FULL };
 bool board_is_round(void);

@@ -1,11 +1,8 @@
 /* Presentation only. IDs are persisted: never reorder or reuse them.
  *
- * One theme for now (2026-10-26): the Original. Quiet Lagoon (1), Tidepool
- * Club (2) and Blackwater (3) were taken out while features are built, to
- * come back later; their palettes, art, tunes and generated assets are at
- * git tag multi-board-multi-theme. Their IDs stay reserved: a save that
- * holds one loads as the Original (theme_valid). The hooks stay too - a
- * theme is a palette row plus what it changes through theme_ui_color,
+ * One theme for now: the Original (docs/THEMES.md). IDs 1-3 are reserved: a
+ * save that holds one loads as the Original (theme_valid). A theme is a
+ * palette row plus what it changes through theme_ui_color,
  * theme_creature_color and theme_icon, and the art asks theme_active(). */
 #ifndef AQUA_THEME_H
 #define AQUA_THEME_H

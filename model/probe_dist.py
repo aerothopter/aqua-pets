@@ -1,6 +1,6 @@
 """probe_dist.py — probe the student's goal *distribution* (not just argmax) on real and synthetic states.
 Runs on CPU with the shipped word-level v2 checkpoint (ckpt_v2w.pt), ~1 min.
-Numbers feed docs/progression-next.md. Run: ~/.venvs/aquapets/bin/python model/probe_dist.py"""
+Numbers feed docs/progression.md and docs/stats.md. Run: .venv/bin/python model/probe_dist.py"""
 import sys, os, json, random, math, argparse
 MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
 _ap = argparse.ArgumentParser()

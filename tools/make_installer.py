@@ -15,8 +15,7 @@ bundle into ONE static folder that any HTTPS host can serve as-is:
                             ESP Web Tools' erase question first
         manifest-<board>.json, manifest-<board>-erase.json
                             the same pair for each other board built
-                            (--board-build; 2026-10-02, 0.3.0 ships three):
-                            the 1.8 keeps the plain names every page
+                            (--board-build): the 1.8 keeps the plain names every page
                             already points at
         firmware/*.bin      bootloader, partition table, app, model; a board's
                             file that differs from the 1.8's is <name>-<board>.bin
@@ -59,32 +58,31 @@ DIALOG_ERASE_CLICK = 'this._manifest.new_install_prompt_erase?this._state="ASK_E
 DIALOG_NEVER_ERASE = 'this._manifest.new_install_prompt_erase?this._state="ASK_ERASE":this._startInstall(!this._manifest.never_erase)'
 WIFI_FORM_TEXT = ("Connect your tank to Wi-Fi so it can download future updates. Wi-Fi is only on while it checks "
                   "for an update, or on the pendant to set its clock. Your tank sends nothing about you or your fish.")
-# Three more, the same way (2026-10-04, Strato's first install on a brand-new board): each is
+# The other edits, the same way: each is
 # (the text, how often it must occur, its replacement).
 DIALOG_EDITS = [
-    # after an install, Next opens the Wi-Fi form for a tank with no network (it did only after an
-    # ERASING install, which this page never does; the keeper met the menu, and the tank its 25 s)
+    # after an install, Next opens the Wi-Fi form for a tank with no network (stock, only after an
+    # ERASING install, which this page never does)
     ('this._state=i&&this._installErase?"PROVISION":"DASHBOARD"', 1,
      'this._state=i&&(this._installErase||this._showsProvisionForm)?"PROVISION":"DASHBOARD"'),
     # a tank already on this version says so (the menu's update item is hidden for it by the
     # dialog itself: the tank reports the manifest's own version string - director.c)
     ('<div slot="headline">Connected to ${this._info.name}</div>', 1,
      '<div slot="headline">${this._isSameVersion?"Your tank is up to date":"Connected to "+this._info.name}</div>'),
-    # the dialog's "Visit Device" item (the link the tank hands the page; it read "See what's new"
-    # until 2026-10-10, when Alvin had it removed): never shown, in the menu or after an install
+    # the dialog's "Visit Device" item (the link the tank hands the page): never shown, in the menu
+    # or after an install
     ('void 0===this._client.nextUrl?"":', 2, '!0?"":'),
-    # a tank on this version got an "Erase User Data" item in the menu (an ERASING reinstall): this
-    # page's button never erases - the "start over" button below it is the only way to a wipe
+    # the stock dialog gives a tank on this version an "Erase User Data" item in the menu (an ERASING
+    # reinstall): this page's button never erases - the "start over" button below it is the only way to a wipe
     ('this._isSameVersion?s`', 1, '!1?s`'),
-    # connecting to a board: the dialog gave it 1.5 s to answer Improv, and the connect RESETS the
-    # board - a tank answers ~0.7 s after the reset, but when the reset lands late the tank showed
-    # as an unknown device ("Install Aqua Pets" on a tank that has it). 4 s; the dialog asks
+    # connecting to a board: the stock dialog gives it 1.5 s to answer Improv, and the connect RESETS
+    # the board - a tank answers ~0.7 s after the reset, but when the reset lands late 1.5 s shows the
+    # tank as an unknown device ("Install Aqua Pets" on a tank that has it). 4 s; the dialog asks
     # again every second inside it. A board without Improv waits those 4 s once, at connect.
     (':1e4:1500;this._info=await t.initialize(i)', 1, ':1e4:4e3;this._info=await t.initialize(i)'),
-    # the Wi-Fi form says what Wi-Fi is for, and what the tank does not do with it (Strato, 2026-10-04)
+    # the Wi-Fi form says what Wi-Fi is for, and what the tank does not do with it
     ('<div>Connect your device to the network to start using it.</div>', 1, '<div>' + WIFI_FORM_TEXT + '</div>'),
-    # a failed handshake is tried once more WITHOUT the reset dance (2026-10-12, Alvin's phone on the
-    # round 1.75: "failed to initialize" with BOOT held): esptool-js resets the board through DTR/RTS
+    # a failed handshake is tried once more WITHOUT the reset dance: esptool-js resets the board through DTR/RTS
     # first; a board already sitting in the ROM's download mode (BOOT held through a reset) needs no
     # reset, and over the Android WebUSB polyfill the reset can cost the link. The second try syncs as
     # the board is. The status box shows which try failed and why.
@@ -100,7 +98,7 @@ DIALOG_EDITS = [
 
 
 def patch_dialog(vendor_dir):
-    """apply the never_erase edit to the copied install dialog bundle"""
+    """apply the never_erase edit and DIALOG_EDITS to the copied install dialog bundle"""
     names = [n for n in os.listdir(vendor_dir) if n.startswith("install-dialog") and n.endswith(".js")]
     if len(names) != 1:
         sys.exit(f"{vendor_dir}: expected one install-dialog*.js, found {names}")
@@ -175,12 +173,11 @@ def check_nvs_untouched(parts, ptable):
 
 
 def release_version(build_id=None):
-    """common/version.h's release (2026-09-29): "v0.2.0 alpha" - the number
-    the tank's settings page shows - with the build id beside it. The id is
-    the IMAGE's own (2026-10-04: the tank reports this very string to the
-    page over Improv, and the page hides its update item when the two are
-    equal - an id taken from git at assembly differed whenever the checkout
-    had moved since the build)."""
+    """common/version.h's release: "v<release> <stage>" - the number the tank's
+    settings page shows - with the build id beside it. The id is the IMAGE's
+    own: the tank reports this very string to the page over Improv, and the
+    page hides its update item when the two are equal (an id taken from git
+    at assembly would differ whenever the checkout had moved since the build)."""
     h = open(os.path.join(ROOT, "common", "version.h")).read()
     rel = re.search(r'#define PT_RELEASE\s+"([^"]+)"', h).group(1)
     stage = re.search(r'#define PT_RELEASE_STAGE\s+"([^"]*)"', h).group(1)
@@ -230,8 +227,7 @@ def main():
         if os.path.getsize(a.model) > model_part()[1] - TRAILER_SIZE:
             sys.exit(f"{a.model}: {os.path.getsize(a.model):,} B does not leave the model partition's last sector for the trailer")
         # the trailer is made in a scratch folder, never in the build dir: in CI the build dirs are
-        # root-owned (the ESP-IDF action's docker) and the public repo's first 0.3.0 installer run
-        # died here (2026-10-04; make_ota_manifest.py had the same fault at the rehearsal)
+        # root-owned (the ESP-IDF action's docker)
         trailer = os.path.join(tempfile.mkdtemp(prefix="pt-trailer-"), "model_trailer.bin")
         subprocess.run([sys.executable, os.path.join(ROOT, "tools", "model_trailer.py"), "--model", a.model, "--out", trailer, "--check"], check=True)
         parts.append((model_trailer_offset(), trailer, "model_trailer.bin"))
@@ -273,14 +269,13 @@ def main():
     board_files = {b: [(off, publish(src, pub, b), src) for off, src, pub in builds[b]] for b in order}
     total = sum(os.path.getsize(src) for _, _, src in board_files["amoled18"])
     shutil.copytree(os.path.join(ROOT, "installer", "vendor"), os.path.join(out, "vendor"))
-    media = os.path.join(ROOT, "installer", "media")        # the page's own pictures (2026-10-07: the species)
+    media = os.path.join(ROOT, "installer", "media")        # the page's own pictures
     if os.path.isdir(media):
         shutil.copytree(media, os.path.join(out, "media"))
     dialog, tag = patch_dialog(os.path.join(out, "vendor", "esp-web-tools"))
     # The bundle's file names are content hashes of the PRISTINE vendor, and
     # hosts serve .js with a year's max-age: a patched dialog under the old
-    # path stays the old, erasing one in every CDN and browser cache (it
-    # happened, 2026-09-18). So the folder carries the patched dialog's hash -
+    # path stays the old, erasing one in every CDN and browser cache. So the folder carries the patched dialog's hash -
     # the imports inside are relative, a new folder is a new URL for all of it.
     vendor = f"vendor/esp-web-tools-{tag}"
     os.rename(os.path.join(out, "vendor", "esp-web-tools"), os.path.join(out, vendor))
@@ -310,7 +305,7 @@ def main():
     # Apache / LiteSpeed hosts sometimes refuse .bin or serve .json as text;
     # harmless elsewhere. The page itself must never come out of a host's
     # page cache: it names the vendor folder, and a stale page is a stale
-    # (once: erasing) dialog.
+    # dialog.
     open(os.path.join(out, ".htaccess"), "w").write(
         "AddType application/octet-stream .bin\nAddType application/json .json\n"
         "AddType text/javascript .js\n"

@@ -2,8 +2,7 @@
 # updates (docs/OTA.md). nvs holds the keeper's tank and never moves
 # (tools/make_installer.py refuses a table that moves it). The model does not
 # move either: a cable update writes the app and skips the 7.5 MB model. The
-# second slot is carved from the front of the old storage row; otadata sits
-# in front of it. The model's LAST sector (0xA8F000) is the model trailer
+# model's LAST sector (0xA8F000) is the model trailer
 # (firmware/main/model_trailer.c), written after the body so a half-written
 # model is never mistaken for a good one.
 # Name,     Type, SubType, Offset,   Size,     Flags

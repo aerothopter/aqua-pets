@@ -1,10 +1,9 @@
-/* glass.c - the glass, whatever its shape (glass.h; refactor phase 4b,
- * 2026-10-23). Every piece of the tank that depends on the glass's shape is
- * here, one body a shape, picked by DEVICE_GLASS: the glass's edges, a point
- * brought inside it, open water, the film's cells, and the swimmers' glass
- * (the bounce, the push away, a target's room). One shape for now
- * (2026-10-26): the rectangle. The bowl's and the watch's bodies are at git
- * tag multi-board-multi-theme; a board brought back brings its shape here. */
+/* glass.c - the glass, whatever its shape (glass.h). Every piece of the tank
+ * that depends on the glass's shape is here, one body a shape, picked by
+ * DEVICE_GLASS: the glass's edges, a point brought inside it, open water, the
+ * film's cells, and the swimmers' glass (the bounce, the push away, a
+ * target's room). One shape for now, the rectangle; a board brought back
+ * brings its shape here (docs/BOARDS.md). */
 #include "glass.h"
 #include "tank.h"
 #include "tank_internal.h"

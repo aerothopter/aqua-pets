@@ -156,7 +156,7 @@ static void show_state(const tank_t *t) {
              t->sd_unlocks & SD_ITEM_CASTLE ? " castle" : "", t->sd_unlocks & SD_ITEM_CORAL ? " coral" : "", t->sd_unlocks & SD_ITEM_CLUSTER ? " cluster" : "",
              t->sd_unlocks & SD_ITEM_SHRIMP ? " shrimp" : "", t->sd_unlocks & SD_ITEM_URCHIN ? " urchin" : "",
              t->sd_unlocks & SD_ITEM_WRECK ? " wreck" : "", t->sd_unlocks & SD_ITEM_FROGMAN ? " frogman" : "", t->sd_unlocks & SD_ITEM_SUB ? " submarine" : "", t->sd_unlocks ? "" : " -", (int)t->algae_colonies, t->trim_px / PX_PER_CM);
-    {   /* who lives here, by species (2026-10-05): "fish 4, seahorse 2" - and which pairs the shop holds back */
+    {   /* who lives here, by species: "fish 4, seahorse 2" */
         char sl[160] = ""; size_t l = 0;
         for (int sp = 0; sp < SP_COUNT && l + 24 < sizeof sl; sp++) {
             int n = tank_species_n(t, sp);
@@ -362,7 +362,7 @@ static void run(tank_t *t, char *line) {
     } else if (!strcmp(c, "milestones")) {
         bool on = argc < 2 || strcmp(argv[1], "off");
         touch_port_show_milestones(on); ESP_LOGI(TAG, "milestones page %s", on ? "up (CLOSE button ends it)" : "closed");
-    } else if (!strcmp(c, "menu")) {                 /* the main menu (2026-10-21), as a BOOT press opens it */
+    } else if (!strcmp(c, "menu")) {                 /* the main menu, as a BOOT press opens it */
         bool on = argc < 2 || strcmp(argv[1], "off");
         touch_port_show_menu(on); ESP_LOGI(TAG, "main menu %s", on ? "up (a tap off the grid or BOOT ends it)" : "closed");
     } else if (!strcmp(c, "shop")) {                 /* the sand dollar page */
@@ -413,7 +413,7 @@ static void run(tank_t *t, char *line) {
             fry_req_t rq[FRY_REQ_MAX]; bool staged; int k = progression_next_fry(t, rq, &staged);
             for (int i = 0; i < k; i++) ESP_LOGI(TAG, "next fry: %s - %s %s (%s)%s", rq[i].title, rq[i].words, rq[i].words2, rq[i].progress, rq[i].met ? " MET" : "");
         }
-    } else if (!strcmp(c, "sell") && argc > 1) {     /* sell plant|castle|coral|cluster: the sale back at 20% (never the snail) */
+    } else if (!strcmp(c, "sell") && argc > 1) {     /* sell plant|castle|coral|cluster|wreck: the decor's sale back at 20% (the helpers sell from the shop's page) */
         int item = !strcmp(argv[1], "plant") ? 0 : !strcmp(argv[1], "castle") ? 2 : !strcmp(argv[1], "coral") ? 3 : !strcmp(argv[1], "cluster") ? 4 : !strcmp(argv[1], "wreck") ? SD_ITEM_WRECK_IDX : -1;
         if (item < 0) ESP_LOGW(TAG, "sell plant|castle|coral|cluster|wreck (the snail stays)");
         else if (progression_sell(t, item)) ESP_LOGI(TAG, "%s sold back for %d, balance %d", SD_ITEMS[item].name, progression_sell_value(item), (int)t->sd_balance);
@@ -425,7 +425,7 @@ static void run(tank_t *t, char *line) {
             float g = (float)atof(argv[2]); if (g < CLUSTER_START + 1e-4f) g = CLUSTER_START + 1e-4f; if (g > CLUSTER_FULL) g = CLUSTER_FULL;
             t->decor[DK_CLUSTER].growth = g; progression_save(t); ESP_LOGI(TAG, "cluster growth %.2f (1 = full size, %.0f = every tentacle), saved", g, CLUSTER_FULL); }
         else ESP_LOGW(TAG, "cluster look <0-2> | cluster grow <g>");
-    } else if (!strcmp(c, "place")) {                /* place [plant|castle|coral|cluster] [x [behind|among|front]]: the piece's spot; no x = the page */
+    } else if (!strcmp(c, "place")) {                /* place [plant|castle|coral|cluster|wreck] [x [behind|among|front]]: the piece's spot; no x = the page */
         int item = 0, a = 1;
         if (argc > 1 && !strcmp(argv[1], "castle")) { item = 2; a = 2; }
         else if (argc > 1 && !strcmp(argv[1], "coral")) { item = 3; a = 2; }
@@ -624,7 +624,7 @@ static void run(tank_t *t, char *line) {
     }
 }
 
-/* ---- Improv Wi-Fi over serial (docs/OTA.md, 2026-09-30) ----
+/* ---- Improv Wi-Fi over serial (docs/OTA.md) ----
  * The web installer (ESP Web Tools) speaks Improv on the same USB port after
  * a flash: it asks the device's state and info, then sends a network and a
  * passphrase. The tank STORES them (net_port_creds_set) and reports
@@ -632,17 +632,14 @@ static void run(tank_t *t, char *line) {
  * FOR UPDATES is what connects (a wrong passphrase ends on the keyboard
  * there). Packets: "IMPROV" 0x01 <type> <len> <data> <checksum = the sum of
  * every byte before it>. Types: 1 state, 2 error, 3 RPC command, 4 RPC
- * result. RPC: 1 send settings (ssid_len ssid pass_len pass) -> the result
- * carries a URL; 2 request state; 3 request info -> name, version, chip,
+ * result. RPC: 1 send settings (ssid_len ssid pass_len pass) -> an empty
+ * result (no URL); 2 request state; 3 request info -> name, version, chip,
  * device name; 4 scan -> an empty list beside the tank (no radio there), the
  * real list in provisioning mode (below). The parser rides the
  * console's byte stream: the six header bytes are matched as they arrive
  * and pulled back out of the command line when they complete. */
-/* (2026-10-10: the result used to carry the old site's updates page as the "next URL"; the
-   installer page no longer shows a Visit Device link, and the tank hands no URL now) */
-/* The handshake's flight recorder (2026-10-04): what the page asked and what the tank answered,
- * across resets (RTC memory, the batlog's pattern), read back with the director's `improv`. The
- * page's connect could not be reproduced from a script - this is the tank's own account of it. */
+/* The handshake's flight recorder: what the page asked and what the tank answered, across resets
+ * (RTC memory, the batlog's pattern), read back with the director's `improv`. */
 typedef struct { uint32_t ms; uint8_t kind, a, b, c; } imp_ev_t;   /* kind: 'B' boot (a = reset reason), 'R' ask (a = rpc cmd),
                                                                      'X' dropped (a: 1 stale, 2 checksum, 3 restarted by a header),
                                                                      'T' sent (a = type, b = cmd / state / error), 'F' NOT sent whole, 'H' the poll took over */
@@ -661,7 +658,7 @@ static void imp_dump(void) {
 }
 #define IMPROV_STALE_US 300000              /* a packet is a few dozen bytes sent at once: 0.3 s without its end = cut short */
 static int s_imp_match, s_imp_len, s_imp_n; static bool s_imp_in; static uint8_t s_imp[128];   /* a 32-byte name + a 63-byte passphrase fit */
-/* Provisioning mode (2026-10-03, update_mode.c provision_mode_run): right
+/* Provisioning mode (update_mode.c provision_mode_run): right
  * after an install, before the tank exists, the radio is free - the page's
  * scan gets the real list, and the network it sends is CONNECTED to before
  * it is saved, so a wrong password shows on the page, at install. */
@@ -673,13 +670,11 @@ static char s_imp_ssid[NET_SSID_MAX + 1], s_imp_pass[NET_PASS_MAX + 1];
 void net_port_esp_connect_budget(int attempts, int wait_ms);
 static void improv_send(uint8_t type, const uint8_t *data, int n) {
 #if CONFIG_SOC_USB_SERIAL_JTAG_SUPPORTED
-    /* Every packet starts on a NEW LINE and ends one (2026-10-04). The page's parser takes a packet
-     * only at the start of a line, and skips everything up to the next newline once a line began
-     * with anything else. At a connect Chrome first hands it what sat in the USB FIFO - the tail
-     * of some log line, cut off, no newline - so the page was "inside a line" and threw every
-     * answer away until the tank's next log line ended (seconds apart on a quiet tank): asked
-     * four times, answered four times, not one answer taken. Seen in the bytes Chrome received
-     * (a diagnostic page) after the tank's own trace showed it answering every ask. */
+    /* Every packet starts on a NEW LINE and ends one. The page's parser takes a packet only at the
+     * start of a line, and skips everything up to the next newline once a line began with anything
+     * else. At a connect Chrome first hands it what sat in the USB FIFO - the tail of some log line,
+     * cut off, no newline - so without the leading newline the page is "inside a line" and throws
+     * every answer away until the tank's next log line ends. */
     uint8_t p[120]; int k = 0;
     if (n < 0 || n > (int)sizeof p - 12) return;
     p[k++] = '\n';
@@ -795,13 +790,10 @@ void director_provision_tick(void) {
 /* one byte of the console stream; true = it belonged to an Improv packet */
 static bool improv_feed(uint8_t ch) {
     static const char HDR[6] = { 'I', 'M', 'P', 'R', 'O', 'V' };
-    /* A packet CUT SHORT must not eat the next one (2026-10-04). The page's connect resets the
-     * board and its first ask can arrive with its tail lost in the reset; the old parser then read
-     * the next packet's bytes as the rest of the first - a length byte out of the letters, tens of
-     * bytes "still to come" - and swallowed every ask that followed: the page saw no tank ("Install
-     * Aqua Pets" on a tank that has it, about one connect in three). So: a header seen INSIDE a
-     * packet starts a new packet; a packet not finished in IMPROV_STALE_US is dropped; and a packet
-     * that fails its checksum is dropped in silence (an error packet makes the page give up at once). */
+    /* A packet CUT SHORT must not eat the next one. The page's connect resets the board and its
+     * first ask can arrive with its tail lost in the reset. So: a header seen INSIDE a packet starts a
+     * new packet; a packet not finished in IMPROV_STALE_US is dropped; and a packet that fails its
+     * checksum is dropped in silence (an error packet makes the page give up at once). */
     static int64_t t_in; static int inner;
     if (s_imp_in && esp_timer_get_time() - t_in > IMPROV_STALE_US) { s_imp_in = false; s_imp_n = 0; s_imp_match = 0; imp_ev('X', 1, 0); }
     if (s_imp_in) {
@@ -841,11 +833,9 @@ void director_init(void) {
 
 /* The installer page gives a board it connects to 1.5 s to answer Improv,
  * and its connect RESETS the board: its first ask dies in the bootloader,
- * its second comes 1.0 s in. The console used to come up ~1.3-1.6 s into
- * the boot (after the display, the glass, the PMIC), so a tank with a
- * network saved - which must ANSWER, not just announce itself - was never
- * recognized: the page showed "Install" and no Wi-Fi item. director_early
- * runs at the top of app_main: the console, and a small task that answers
+ * its second comes 1.0 s in. That is before the display, the glass and the
+ * PMIC are up, and a tank with a network saved must ANSWER, not just announce
+ * itself. So director_early runs at the top of app_main: the console, and a small task that answers
  * Improv (and nothing else) until the first director_poll takes over. */
 #if CONFIG_SOC_USB_SERIAL_JTAG_SUPPORTED
 static volatile bool s_early_run; static volatile TaskHandle_t s_early;

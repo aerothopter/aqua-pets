@@ -1,5 +1,5 @@
-/* Export the approved HTML concept's vector art for native menu thumbnails.
- * Run before gen_theme_assets.py when intentionally updating this direction. */
+/* Export the Quiet Lagoon concept's vector art (docs/design/quiet-lagoon/preview.js) as the theme's SVGs.
+ * Run before gen_theme_assets.py to bring the theme's art back in line with the concept. */
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const source=fs.readFileSync(path.join(root,'docs/design/quiet-lagoon/preview.js'),'utf8');

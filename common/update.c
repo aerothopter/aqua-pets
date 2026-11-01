@@ -19,7 +19,7 @@
 #define C_CAPT   0x9fd8e2
 #define C_GO     0x155e58
 #define C_GO_E   0x38dcc7
-#define C_WARN   0xf2b65b     /* amber: never the only signal (Strato is color blind) */
+#define C_WARN   0xf2b65b     /* amber: never the only signal (a keeper may be color blind) */
 
 /* the panel the setup uses: inside the bezel curve */
 #define UX   32
@@ -241,8 +241,7 @@ static struct {
 #define FIELD_VISIBLE 30                    /* characters that fit the field at scale 2 */
 /* the function row, left to right: the keys a long passphrase needs most
  * (MORE, DEL, SPACE) at the left, away from the two that leave the page
- * (BACK, JOIN) at the right - Strato, 2026-09-30: MORE beside BACK was
- * "difficult to tap without hitting back", and BACK wiped the text */
+ * (BACK, JOIN) at the right */
 enum { FK_MORE = 0, FK_DEL, FK_SPACE, FK_SHIFT, FK_MODE, FK_BACK, FK_JOIN };
 static const char *const KB_ABC[2] = { "abcdefghijklm@", "nopqrstuvwxyz_" };
 static const char *const KB_123[3] = { "0123456789.-_@", "!?#$%&*+=/:;,'", "\"()[]{}<>\\|^`~" };
@@ -325,8 +324,7 @@ static void message3(const char *title, const char *l1, bool l1_ascii, const cha
 }
 const char *update_message_title(void) { return s.title; }
 /* a message's first action: beside its second, or centred on its own over a
- * centred BACK TO TANK (2026-10-03, Strato on the watch's ODD ANSWER: a lone
- * TRY AGAIN in the left slot "doesn't look right") */
+ * centred BACK TO TANK */
 static int primary_x(void) { return s.secondary ? UPD_BTN_L_X : UPD_BTN_MID_X; }
 static void message(const char *title, const char *l1, bool l1_ascii, const char *l2,
                     const char *primary, int act_p, const char *secondary, int act_s) {
@@ -349,7 +347,7 @@ static void type_password(bool fresh) {
     s.kb_mode = 0; s.kb_page = 0; s.kb_caps = false; go(STEP_PASSWORD, UPD_PG_PASSWORD);
 }
 
-/* touch calibration (2026-09-30): nine crosshairs over the glass, a press
+/* touch calibration: nine crosshairs over the glass, a press
  * each; the platform logs the panel's position for each known centre and
  * the mapping is fitted from the log */
 static const int CAL_X[3] = { UPD_CAL_IN_X, TANK_W / 2, TANK_W - UPD_CAL_IN_X },   /* the FRAME's px, as the panel reports; */
@@ -433,11 +431,11 @@ void update_tick(float dt) {
         st = net_port_check_state(&m);
         if (st == NET_DONE && m) {
             s.m = *m; s.have_m = true;
-            if (strcmp(m->board, PT_BOARD) != 0)            /* another board's manifest (2026-10-02): never offered */
+            if (strcmp(m->board, PT_BOARD) != 0)            /* another board's manifest: never offered */
                 message("WRONG BOARD", "THIS UPDATE IS FOR", false, "ANOTHER BOARD. NOTHING CHANGED", NULL, 0, NULL, 0);
             else if (!newer(m)) { message("UP TO DATE", "YOUR TANK HAS THE LATEST", false, "VERSION", NULL, 0, NULL, 0); s.step = STEP_UP_TO_DATE; }
             else if (m->needs_cable || (m->min_from && m->min_from > (uint32_t)PT_RELEASE_NUM))
-                message("NEEDS THE CABLE", "THIS UPDATE REQUIRES", false, "THE CABLE TO INSTALL", NULL, 0, NULL, 0);   /* (2026-10-10: it named the old site before) */
+                message("NEEDS THE CABLE", "THIS UPDATE REQUIRES", false, "THE CABLE TO INSTALL", NULL, 0, NULL, 0);
             else go(STEP_OFFER, UPD_PG_OFFER);
         } else if (st == NET_FAILED) fail(net_port_fail_reason());
         break; }

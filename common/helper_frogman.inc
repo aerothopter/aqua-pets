@@ -1,11 +1,10 @@
-/* ---- the frogman (2026-10-10, item 8; he hung from the wreck's stern that morning) ----
+/* ---- the frogman (item 8) ----
  * A little diver floating SIDEWAYS: horizontal, face forward, air tank on his back (the
  * top), flippers kicking behind him, drifting across the water (helper.c: frogman.x, frogman.yaw -
  * the body thins through a turn, as a fish does), bobbing on the water's slow lift. His
  * arm reaches forward - and every 23 s, for 2.6 s, it goes up and the forearm waves from the
- * elbow. A mist of fine bubbles rises from his mask. The suit is brighter than the wreck's
- * old grey diver: a yellow-and-black banded wetsuit with red fins (each theme had its own:
- * git tag multi-board-multi-theme). Live every frame; the rect he and his mist cover comes back. */
+ * elbow. A mist of fine bubbles rises from his mask. A yellow-and-black banded wetsuit with
+ * red fins. Live every frame; the rect he and his mist cover comes back. */
 static void draw_frogman(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *bx1, int *by1) {
     float clock = t->clock;
     float fx = t->frogman.x, fy = t->frogman.y + sinf(clock * 1.4f) * 2.5f + sinf(clock * 0.6f + 1) * 1.5f;
@@ -55,5 +54,5 @@ static void draw_frogman(ctx_t *c, const tank_t *t, int *bx0, int *by0, int *bx1
     fill_ellipse(c, FX(12.8f), fy - 2, 2.0f * sx + 0.2f, 1.2f, glass, 255);
     px_blend(c, (int)(FX(13.5f) + 0.5f), (int)(fy - 2.5f), 0xffffff, 170);
 #undef FX
-    *bx0 = (int)fx - 46; *bx1 = (int)fx + 46; *by0 = (int)fy - 58; *by1 = (int)fy + 12;   /* 46: room Blackwater's torch beam needed (43), kept */
+    *bx0 = (int)fx - 46; *bx1 = (int)fx + 46; *by0 = (int)fy - 58; *by1 = (int)fy + 12;   /* wider than he is: room for a theme's art */
 }

@@ -1,4 +1,4 @@
-/* The decor (2026-10-21): every static piece the tank holds - the free seagrass
+/* The decor: every static piece the tank holds - the free seagrass
  * beds and the airstone setup places, and the shop's sword plant, castle,
  * coral, reef cluster and wreck - is a row of DECOR[] and an instance in
  * tank_t.decor[]. Decor never moves: it may grow and sway in place, the keeper

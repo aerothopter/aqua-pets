@@ -1,4 +1,4 @@
-/* ---- the castle (2026-09-16, from Strato's castle-v2 mockup) ----
+/* ---- the castle ----
  * A swim-through decoration drawn the way the fish and the fronds are -
  * spans and fills from a little geometry, no bitmap - so it sits in the same
  * water as everything else instead of a pixel-art sprite clashing with it.
@@ -8,7 +8,7 @@
  * draws after the fish every frame, so a fish crossing the arch is tucked
  * behind the jambs and seen through the opening - it swims THROUGH. Stone
  * is a brick-course pattern from a position hash (the pebbled floor's
- * trick), golden-lit from the upper left like the mockup, mossed toward the
+ * trick), golden-lit from the upper left, mossed toward the
  * base, and pre-tinted with the water of its row like the fronds - the gate
  * a touch less than the keep, so the keep reads farther back. Geometry is
  * in px about the centre x on the floor line; ~176 x 150 px, the arch

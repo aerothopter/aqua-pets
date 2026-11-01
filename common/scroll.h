@@ -1,15 +1,15 @@
-/* scroll.h - one list's scroll: the drag, the fling, the ends (2026-10-28).
+/* scroll.h - one list's scroll: the drag, the fling, the ends.
  *
- * A page with more than fits (the shop first; the milestones rows, the
- * settings and a long card to follow) keeps a scroll_t per list and hands
+ * A page with more than fits (the shop, the milestones page's two lists)
+ * keeps a scroll_t per list and hands
  * it the finger every frame: the coordinate along the list (y for a column,
  * x for a row), down or not, and whether the press is on the list. Past
  * SCROLL_SLOP the press is a drag and the list follows the finger; at the
  * lift it carries on at the finger's speed, slowing, and past either end it
  * gives a little and springs back. A press on a list still moving only
  * stops it. Either way scroll_took says the stroke was the list's, so its
- * release is no tap - the platforms keep classifying taps as before and the
- * page's tap call asks.
+ * release is no tap - the platforms classify taps and the page's tap call
+ * asks.
  *
  * Timed by the clock the caller passes, never by calls: the device polls the
  * touch three times a frame, the sim once, and a fling must go as far on

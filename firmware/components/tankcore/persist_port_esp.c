@@ -1,6 +1,6 @@
 /* persist_port_esp.c — progression ports on the device: NVS blob + wall clock.
- * Wall clock: esp time (set from the PCF85063 RTC at boot in Track 4; until
- * then it is 0 on a cold boot, which simply disables the ravenous rule). */
+ * Wall clock: the system time, set at boot (rtc_port); 0 while it is unset,
+ * and with no clock no time away is lived through. */
 #include "progression.h"
 #include "nvs_flash.h"
 #include "nvs.h"

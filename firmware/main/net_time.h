@@ -1,5 +1,5 @@
 /* net_time.h - the time from the internet, for a board with no clock chip
- * (the round 1.75C, 2026-10-03; main.c's "clockless night"). One blocking
+ * (the round 1.75C; main.c's "clockless night"). One blocking
  * call at boot, before the tank exists - the radio never runs beside it:
  * the saved network, one NTP question, the radio off again. */
 #pragma once

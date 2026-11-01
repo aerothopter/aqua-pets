@@ -1,6 +1,6 @@
 # Aqua Pets 🐟
 
-*Aqua Pets was called pocket-tank until 0.4; since 2026-10-10 the build's internal names (`CONFIG_AQUA_PETS_*`, `aqua_pets.bin`, the tools' cache paths) carry the new name too. The save format and the NVS keys are unchanged, so tanks already out there keep their saves.*
+*Aqua Pets was called pocket-tank until 0.4. The save format and the NVS keys keep their old layout on purpose.*
 
 **A tiny language model keeps a fish tank alive on an $8 chip.**
 The ESP32-S3 board, with screen and battery used in this project is actually around $35.
@@ -8,7 +8,7 @@ The ESP32-S3 board, with screen and battery used in this project is actually aro
 A 14-million-parameter transformer, distilled from a 26-billion-parameter
 teacher, runs entirely on an ESP32-S3 microcontroller and makes every
 high-level decision for a small aquarium of virtual fish: when to eat, hide,
-explore, socialize, rest, or flee. No network. No cloud. The whole brain is a
+explore, socialize, rest. No network. No cloud. The whole brain is a
 7.56 MB file read straight from flash, and the tank lives on a 1.8-inch AMOLED
 you can hold in one hand.
 
@@ -22,7 +22,7 @@ the model isn't sure, the fish visibly *hesitates*.
 
 ```
 zone 2 hunger 7 energy 5 stress 2 curiosity 8 bold 4 social 6 stage adult
-trust 6 bored 3 food near 12 friend mid 3 bubble mid 10 reef far 7
+species fish trust 6 bored 3 food near 12 friend mid 3 bubble mid 10 reef far 7
 wall clear last explore time day  ->  seek_food urgency 8
 ```
 
@@ -32,24 +32,13 @@ Got the board? **Install it from your browser** with the installer page in
 `installer/` (see `installer/README.md`), no toolchain needed.
 
 The current release is **v0.3.2** (alpha); the settings page shows the one
-on your tank. What changed in each release:
-the commit history (`git log`) and the release notes on the repository's
-releases page.
+on your tank. What changed in each release: the commit history (`git log`) and
+the release notes on the repository's releases page.
 
-It runs on three Waveshare boards: the 1.8-inch original, the round
-1.75-inch **pendant**, where the tank fills the whole circle like a little
-fishbowl, and the 2.06-inch **watch**, a tall tank you can wear. Same fish,
-same shop, same saves on all three. From 0.3 on a tank updates itself
+It runs on the Waveshare ESP32-S3-Touch-AMOLED-1.8, and a tank updates itself
 over Wi-Fi, so the cable is only for the first install.
 
-*For now (since 2026-10-26) only the 1.8 is built, while new features are
-made; the pendant and the watch will come back.*
-
-| The 1.8 | The pendant | The watch |
-|:---:|:---:|:---:|
-| <img src="docs/media/board-amoled18.webp" width="220" alt="The Waveshare 1.8-inch board from the front: a black rectangle with rounded corners"> | <img src="docs/media/board-round175c.webp" width="220" alt="The Waveshare 1.75C board from the front: a round screen in a silver aluminum ring"> | <img src="docs/media/board-watch206.webp" width="220" alt="The Waveshare 2.06-inch watch on its strap"> |
-
-![The same tank on the 1.8, the pendant and the watch](docs/media/sim-three-boards.png)
+<img src="docs/media/board-amoled18.webp" width="220" alt="The Waveshare 1.8-inch board from the front: a black rectangle with rounded corners">
 
 ## Contents
 
@@ -73,23 +62,23 @@ made; the pendant and the watch will come back.*
 | Model | gemma4:26b | Aqua Pets 14.2M (dim 384, 8 layers, 8 heads) |
 | Parameters | ~26,000,000,000 | 14,190,000, about 1,832× fewer |
 | Size | ~18 GB (Q4_K_M) | 57 MB fp32 → **7.56 MB 4-bit** |
-| Vocabulary | ~262K tokens | **65 tokens** (a closed schema lexicon, ten of them species) |
+| Vocabulary | ~262K tokens | **66 tokens** (a closed schema lexicon, eleven of them species) |
 | Runs on | A desktop GPU | ESP32-S3, from flash, no network |
-| Agreement | | 84% picks the teacher's goal, every species above 78% (the teacher agrees with *itself* 82%) |
+| Agreement | | 83% picks the teacher's goal, every species above 72% (the teacher agrees with *itself* 82%) |
 
-On the real board a decision takes about 3.7 s at 12 tokens per second, with
+On the real board a decision takes about 4 s at 10 to 13 tokens per second, with
 the tank rendering at 25 to 30 fps alongside it on the other core. Trained on
-51,613 teacher-labeled situations. Every measured number, learning curve, and
-the methodology: [docs/stats.md](docs/stats.md).
+52,461 teacher-labeled situations. Every measured number:
+[docs/stats.md](docs/stats.md).
 
 ## How it's put together
 
 Three layers, strictly separated, all in `common/` and compiled unchanged
 into both the simulator and the firmware:
 
-- **Reflex layer** (`tank.c`). Physics, steering, schooling, touch gestures,
-  feeding, the hunger economy, vegetation and algae. Runs every frame and
-  never blocks on the model.
+- **Reflex layer** (`tank.c`, `creature.c`, `decor.c`, `helper.c`). Physics,
+  steering, touch gestures, feeding, the hunger economy, vegetation and algae.
+  Runs every frame and never blocks on the model.
 - **LLM advisor** (`llm/`). A llama2.c-style 4-bit inference engine, a
   word-level tokenizer, and one shared state encoder. Fish are re-asked only
   when their situation meaningfully changes, so up to 25 creatures share one
@@ -107,30 +96,24 @@ layer only ever *performs* what the model chose, or stages presentations
 
 ## What the fish do
 
-Seven goals, from the browser prototype this project distills from:
-`seek_food`, `follow_friend`, `inspect_reef`, `visit_bubbles`, `explore`,
-`rest`, `dart_play`. (An eighth, `flee_shadow`, answered a roaming shadow
-that was removed from the tank in September 2026; the token stays in the
-vocabulary and the model was never taught to say it.) Each fish has five
-drives (hunger, energy, stress, curiosity, boredom), three personality
-traits (bold, sociable, lazy), a trust score toward you, and a life stage.
-All of it is in the state line, so a bold fish and a shy one answer the same
-situation differently, and the model was taught by example rather than by
-rules.
+Seven goals: `seek_food`, `follow_friend`, `inspect_reef`, `visit_bubbles`,
+`explore`, `rest`, `dart_play`. (The vocabulary keeps an eighth, `flee_shadow`,
+that the model is never taught to say.) Each fish has five drives (hunger,
+energy, stress, curiosity, boredom), three personality traits (bold, sociable,
+lazy), a trust score toward you, and a life stage. All of it is in the state
+line, so a bold fish and a shy one answer the same situation differently, and
+the model was taught by example rather than by rules.
 
 **Boredom** is what keeps the tank moving. A fish that has been at the same
 pastime for about a minute goes stale, and the model was taught that a bored
 fish moves on, usually to explore a part of the tank it hasn't seen in a
-while; a fresh fish keeps doing what it was doing. Before this the fish
-would park at the bubble column, or follow each other in circles, for as
-long as you cared to watch. Boredom never outranks hunger, and a bored fish
-at night still rests.
+while; a fresh fish keeps doing what it was doing. Boredom never outranks
+hunger, and a bored fish at night still rests.
 
 The model samples its own distribution instead of always taking the top
 answer. That restores the variety the teacher had and costs nothing on
-survival: a starving fish picks `seek_food` 89% of the time at minimum across
-every personality. When the top two choices are close, the fish pauses for a
-moment before committing.
+survival. When the top two choices are close, the fish pauses for a moment
+before committing.
 
 Fish turn the way real ones do. A fish whose way lies behind it commits to
 turning round instead of flip-flopping: it glances back first, then its
@@ -140,16 +123,16 @@ near level as it rises and sinks.
 
 ![The stats card](docs/media/sim-stats-card.png)
 
-Tap a fish for its stats card, its name at the top. Needs, traits, and trust are revealed as the
-fish shows that side of itself, so a new fish's card is mostly blank. Tap
-the card (or the open water) to put it away.
+Tap a fish for its stats card, its name at the top. Needs, traits, and trust are
+revealed as the fish shows that side of itself, so a new fish's card is mostly
+blank. Tap the card (or the open water) to put it away.
 
 **The main menu.** Press the BOOT key (the small one) for the main menu: TANK
 (the milestones page), UPGRADES (the shop) and SETTINGS across the top, the
 tools below - the SPONGE, the SCISSORS and FEED - standing over the live
-tank the way a fish's card does, with the battery up in the corner. Each page's CLOSE brings you back to the menu;
-BOOT on a page does the same, and BOOT on the menu (or a tap off its tiles)
-goes back to the tank.
+tank the way a fish's card does, with the battery up in the corner. Each page's
+CLOSE brings you back to the menu; BOOT on a page does the same, and BOOT on the
+menu (or a tap off its tiles) goes back to the tank.
 
 ![The main menu](docs/media/sim-menu.png)
 
@@ -161,9 +144,9 @@ scripted, and it is all persisted.
 **Growing up.** A new tank starts with two fry. Feed them and over days they
 grow through juvenile, adult, and elder. A fry is plain; its markings come
 in with its first growth spurt. Adults get a dorsal crest; elders
-get bigger and settle down. Nothing announces it. Fish grow with time, lit
-or not, and at a quarter speed while the tank sleeps; a stage reached in
-the night is the morning's surprise.
+get bigger and settle down. Fish grow with time, lit or not, and at a quarter
+speed while the tank sleeps; a stage reached in the night is the morning's
+surprise.
 
 **Arrivals.** Take good care of the pair and the tank earns more fish, up to
 25 creatures, one at a time (the gates get harder as the tank fills: more
@@ -178,9 +161,8 @@ starts or a fry can be born.
 
 **Trust.** Hold a finger on the glass for three seconds and the fish that
 trust you come over from anywhere in the tank, the most trusting first and
-fastest. Calm holds earn trust (rapping three times scared them off and
-cost it, until 2026-10-28), and the model reads trust as part of every
-decision, so a fish that trusts you acts differently in every situation.
+fastest. A resting finger earns trust, and the model reads trust as part of
+every decision, so a fish that trusts you acts differently in every situation.
 
 **Hunger.** A meal lasts five or six minutes awake. Left alone, the tank
 drops a pellet only when someone is really hungry, so an untended tank hovers
@@ -189,70 +171,66 @@ ravenous: they gather just under the surface where you usually feed them,
 darting back and forth, and go into a frenzy when the pellets land. The tank
 holds off feeding itself while they beg, so the first meal is yours.
 
-**Upkeep.** The sea grass keeps growing, every frond on its own, right up to
-the surface. With the scissors a sideways stroke cuts exactly the fronds
-it crosses at the height of your finger; a sweep along the floor mows a bed
-down to nubs. Algae films the glass over hours, and a drag of the sponge
-across it squeegees it clean. Fish like cover: grass calms them, and only a tank truly
-smothered by two beds at the ceiling stresses them.
+**Feeding is yours if you want it.** AUTO FEED on the settings page turns the
+tank's own pellets off: then every meal is one you gave. Nobody dies of it, but
+a fish left starving in a lit tank slowly loses trust, and feeding it stops the
+loss.
 
-**The tools.** Your bare hands only reach the creatures (since 2026-10-28):
-a tap checks on one, and a held finger draws the trusting ones over. (Two
-taps on the glass flipped the light, three startled the fish, and a finger
-held on a decoration opened its placement page, until then.) Feeding, wiping and trimming are tools on the main menu's
-bottom row. Pick FEED and every tap drops a portion of food at the surface
-over your finger; pick the sponge and your strokes wipe algae; pick the
-scissors and they trim the grass. (Until then a tap at the surface fed, a
-drag down from the top fed, and a bare stroke guessed whether to wipe or
-trim.) While a tool is in your hand the glass takes its work and nothing
-else: no cards, no light, no moving a decoration. A DONE chip sits top left: tap it to put the
-tool back (or pick it again on the menu), or leave it and it goes back by
-itself after two minutes.
+**Upkeep.** The sea grass keeps growing, every frond on its own, up toward the
+surface. With the scissors a sideways stroke cuts exactly the fronds it crosses
+at the height of your finger; a sweep along the floor mows a bed down to nubs.
+Algae films the glass over hours, and a drag of the sponge across it squeegees
+it clean. Fish like cover: grass calms them, and only a tank truly smothered by
+two beds at the ceiling stresses them.
+
+**The tools.** Your bare hands only reach the creatures: a tap checks on one,
+two quick taps set off its trick, and a held finger draws the trusting ones
+over. Feeding, wiping and trimming are tools on the main menu's bottom row. Pick
+FEED and every tap drops a portion of food at the surface over your finger; pick
+the sponge and your strokes wipe algae; pick the scissors and they trim the
+grass. While a tool is in your hand the glass takes its work and nothing else. A
+DONE chip sits top left: tap it to put the tool back (or pick it again on the
+menu), or leave it and it goes back by itself after two minutes.
 
 ![The scissors in hand: DONE at the top left](docs/media/sim-tool-done.png)
 
 **Milestones.** Press BOOT and tap TANK for the milestones page: a row per
-fish with its sprite at its real size, its name and a growth strip, then a
+creature with its sprite at its real size, its name and a growth strip, then a
 badge for each first it has chosen to do: first meal from you, first
-hold-approach, first reef, first bubbles, first follow, first dart. The
-tank's row below tracks the population and the firsts you share: first
-feeding, first trimming, first glass cleaning, first full night's sleep,
-first play session, the tank changed someone. A locked badge is the same
-picture as a gray silhouette; one earned since you last looked wears a
-ring. Tap a badge to read it: a small panel with arrows at its top corners
-that step through the rest of the group without going back to the page (a
-fish's six badges, the tank's six, the fry's gates, or the fish themselves
-from a fish's name); tap anywhere else to dismiss. CLOSE at the foot of the
-page takes you back to the main menu, as the shop's and the settings page's
-own CLOSE do.
+hold-approach, first rest in the seagrass, first bubbles, first follow, first
+dart. The tank's row below tracks the population and the firsts you share: first
+feeding, first trimming, first glass cleaning, first full night's sleep, first
+play session, the tank changed someone, plus a school of ten shrimp and a first
+visit to the reef once you own them. A locked badge is the same picture as a gray
+silhouette; one earned since you last looked wears a ring. Tap a badge to read it:
+a small panel with arrows at its top corners that step through the rest of the
+group without going back to the page; tap anywhere else to dismiss. Tap the tank's
+fish count to see every creature in its own colors, with an outline for each open
+place.
+
+Past six creatures the rows scroll up and down with a thin bar at the right, and
+when the tank's row holds more badges than fit, the next one peeks in at its right
+end: drag it sideways. A teal mark on a bar's end says a badge you haven't seen
+lies past it.
 
 **The next fry.** While the tank can still grow, a NEW FRY row sits under
-the last fish: what the next arrival needs, as badges that light up when
+the last creature: what the next arrival needs, as badges that light up when
 met, with a filling bar under each one still owed. The list is read from
 the same rule that decides a birth, so it is never wrong: at two fish it
 is trust, meals and a calm hold; later the youngest must grow up, and the
 counts rise; and always clean glass and some grass, because no fry is
 conceived in a dirty tank (film on more than 15% of the pane closes the
-gate, and its bar fills as you wipe). Tap a badge for the plain words and where it stands ("ALL FISH
-MUST HAVE TRUST OF AT LEAST 6 OUT OF 10 / LOWEST NOW 4.1"), and HOW? for a
-tip on how to get there. Tap the name for the tally. When every step is
-done, the parents court in the grass and the fry is born within the minute.
+gate, and its bar fills as you wipe). Tap a badge for the plain words and where
+it stands ("ALL FISH MUST HAVE TRUST OF AT LEAST 6 OUT OF 10 / LOWEST NOW 4.1"),
+and HOW? for a tip on how to get there. Tap the name for the tally. When every
+step is done, the parents court in the grass and the fry is born within the minute.
 
 **Rename or sell a fish.** On the milestones page, tap a fish's name to
 open its card. RENAME brings back the letter wheel. SELL, tapped twice,
 trades the fish for sand dollars, and older fish are worth more: 5 for a
-fry, 15 for a juvenile, 30 for an adult, 60 for an elder. A tank keeps at
-least two fish, and after a sale the next fry waits for 12 more meals.
-
-**More badges, and the school at a glance.** Each fish can earn *first rest
-in the seagrass*. The tank can earn *a school of ten shrimp*, and the reef
-badge now belongs to the tank: buy the reef cluster and the fish swim over
-to visit it. When the tank's row holds more badges than fit, the next one
-peeks in at its right end: drag the row sideways to see it (since
-2026-10-28; an arrow paged it before). Past six creatures the rows scroll
-up and down the same way, with a thin bar at the right; a teal mark on a
-bar's end says a badge you haven't seen lies past it. Tap the tank's fish count to see every
-fish in its own colors, with an outline for each open place.
+fry, 15 for a juvenile, 30 for an adult, 60 for an elder (a shop creature fetches
+its price at most). A tank keeps at least two fish, and after a sale the next fry
+waits for 12 more meals.
 
 ![The milestones page](docs/media/sim-milestones.png)
 ![A fish's card: RENAME and SELL](docs/media/sim-fish-card.png)
@@ -262,194 +240,114 @@ fish in its own colors, with an outline for each open place.
 ![The NEW FRY row, and a gate's tip](docs/media/sim-milestones-fry.png)
 ![A gate's HOW? tip](docs/media/sim-fry-how.png)
 
-**Sand dollars.** Caring for the tank earns points, and the shop spends
-them on things for the tank. A meal the fish eat from your hand pays 2; a
-fish growing up pays 5, 10 and 25 for juvenile, adult and elder; a fry
-born 20; a fish that comes to trust you completely 15; every hundred algae
-colonies you wipe away pay 25, and so does every 250 cm of grass you
-cut, again and again. Nothing is ever needed and nothing is lost: a tank with no
-sand dollars is exactly the tank there was before. The coin on the
-milestones page's TANK row shows your balance, and it (or UPGRADES on the
-main menu) opens the shop: a row per item with its price, UNLOCK when you can
-afford it, IN TANK once you own it, and HOW TO EARN for the list. The rows
-are one list (since 2026-10-28; four a page behind arrows before): drag it
-to scroll, flick it to fling, and a thin bar at the right shows where you
-are. Three
-things to buy so far. The **sword plant** (40) is a fourth bed of broad
-leaves on the open floor, trimmed and grown and counted as cover like the
-grass. The **snail** (80) grazes the glass clean cell by cell, crawling
-flat across the pane with its head leading, and walks the floor upright
-when there is nothing to eat, in front of a piece you placed IN FRONT or
-behind it as it pleases; it keeps working while the tank sleeps, so
-the glass is thinner in the morning. It is drawn the way the fish, the
-grass and the castle are, from a little geometry rather than a sprite, lit
-from the upper left and tinted by the water of its row, and it moves like
-a snail: waves run along its foot, its eye stalks sway, its shell rocks
-with the crawl. Tap the snail for its card: a ring
-around it and a tally of the spots of algae it has grazed clean so far,
-night shifts included. The model sees neither: they reach
-the fish the way your own chores do, through cover and the film. Dollars
-earned while you watch show as a small "+N" over the water.
+### Sand dollars and the shop
 
-**Placing what you buy.** A plant is yours to put down. Right after you
+Caring for the tank earns points, and the shop spends them on things for the tank.
+A meal the fish eat from your hand pays 2; a fish growing up pays 5, 10 and 25 for
+juvenile, adult and elder; a fry born 20; a fish that comes to trust you completely
+15; every hundred algae colonies you wipe away pay 25, and so does every 250 cm of
+grass you cut, again and again. Nothing is ever needed and nothing is lost: a tank
+with no sand dollars is a complete tank. Dollars earned while you watch show as a
+small "+N" over the water.
+
+The coin on the milestones page's TANK row shows your balance, and it (or UPGRADES on
+the main menu) opens the shop: a list with a row per item, its price, UNLOCK when you
+can afford it, IN TANK once you own it, and HOW TO EARN for the list. Drag it to
+scroll, flick it to fling, and a thin bar at the right shows where you are.
+
+**Placing what you buy.** A decoration is yours to put down. Right after you
 unlock it the shop closes and a placement page comes up over the live
-water, the same gesture as placing the bubble column: drag it left or
-right along the floor and it follows your finger. A DEPTH bar sets where
-it stands among the fish, and instead of words to decode it shows three
-small pictures of your own first fish with two leaves, swimming over them,
-through them, or behind them: BEHIND, AMONG or IN FRONT. The tank redraws
-as you choose, a line under the bar says what to watch for, and DONE keeps
-it. If you change your mind later, the plant's row in the shop has a MOVE
-button that opens the same page again. The snail is not for placing; it
-goes wherever the algae is.
+water: drag it left or right along the floor and it follows your finger. A DEPTH bar
+sets where it stands among the fish, and instead of words to decode it shows small
+pictures of your own first fish with two leaves. The tank redraws as you choose, a
+line under the bar says what to watch for, and DONE keeps it. A piece's row in the
+shop has a MOVE button that opens the same page again.
 
-**The castle.** The third thing in the shop (150) is a stone castle with
-a swim-through arch: two pointed towers, a crenellated wall, a taller
-rear tower, a brick arch and moss creeping up from a rubble base. It is
-not a sprite. Like the fish and the grass it is drawn from a little
-geometry every time the scene is built, its stone a brick pattern from a
-position hash, lit from the upper left and tinted with the water of each
-row, so it sits in the tank instead of on it. Its placement page has the
-same drag and a DEPTH bar of two choices that mean the plant layer:
-BEHIND puts it behind the grass and the fish, a ruin in the weeds; IN
-FRONT stands it in front of the grass, which stops at its walls, and the
-fish swim through the arch, tucked behind the jambs as they pass. The
-fish do not know it is there. They find the arch by chance, which is most
-of the charm.
+**Selling back.** Anything you own sells back: SELL sits next to MOVE in a piece's
+modal, in the top-left corner of its placement page, and alone on a helper's. It
+takes two taps: the first arms the button and shows the refund, the second sells. You
+get 20% of the price back, the thing leaves the tank, and it is in the shop again at
+full price.
 
-**The wreck.** The eighth thing in the shop (200, 2026-10-10; WRECK in the shop since that night, SHIPWRECK before) is a small
-sunken boat lying on the sand, drawn from geometry like the castle, and a
-different boat in each theme (later that day): Original a planked hull tilted
-up toward the bow, a broken mast with a yard and a rag of sail, a cabin with a
-porthole, an anchor on the sand before the bow with its chain up to the prow;
-Quiet Lagoon an old sailing ship listing on the sand, its stern sunk low with
-the planks gone so the ribs show, the bow risen with a bowsprit, a tilted mast
-broken off short with a yard and a rag of sail, a deckhouse, an anchor off the
-bow; Tidepool Club a cheerful little tug sitting upright -
-cream topsides, a red boot stripe, a teal bottom, a wheelhouse with lit windows,
-an orange funnel, a pennant on the mast, a life ring on the side and an anchor
-hung off the bow; Blackwater (2026-10-12) a sunken galleon: a rounded
-oak hull with barnacles and weed below the waterline, a high stern castle with
-three windows lit amber, a rail, a main mast leaning aft and broken, a foremast
-with a yard and a rag of sail, a bowsprit, two lanterns that light the planks
-and stay lit at night, a breach amidships and a gap in the stern quarter for the
-two holes. Every hull has two big holes (the tug's are brass-rimmed
-portholes): IN FRONT, the fish pass behind the hull and show through them,
-swimming in and out; BEHIND it is a backdrop in the weeds. The octopus, crab
-and lobster den under its holes when there is no reef.
+#### Decor
 
-**The frogman.** The ninth thing (120, 2026-10-10; that morning he hung on a
-line from the wreck's stern) is a little diver who floats sideways, horizontal,
-drifting across the water from glass to glass at a walking pace, turning at
-each end (he thins through the turn, as a fish does), easing to a new lane now
-and then - anywhere from just under the surface to just above the sand since
-2026-10-10 night (a mid-water band before) - bobbing on the water's lift, a mist of fine bubbles rising from his
-mask. His arm reaches forward, and every 23 s it goes up and waves. He wears
-the theme's suit: a yellow-and-black banded wetsuit with red fins in Original,
-turquoise with coral bands and violet fins in Quiet Lagoon, hot pink with lime
-bands and cyan fins in Tidepool Club, and in Blackwater black neoprene with
-high-vis amber bands and fins and an aluminium tank, a torch in his forward
-hand throwing a cone of light ahead of him (2026-10-12). A resident like the snail: bought once,
-never placed or sold.
+Decor stays where you put it. All of it is drawn from a little geometry rather than a
+sprite, lit from the upper left and tinted by the water of its row, so it sits in the
+tank instead of on it.
 
-**The submarine.** The tenth thing (60, 2026-10-10 night) is a little sub
-that cruises the water from glass to glass, anywhere between the surface and
-the sand, propeller turning behind it
-and a stream of bubbles from the stern, easing to a new lane now and then; every
-22-40 s it eases to a halt, a periscope rises from the tower, its head turns to
-look each way, and it sinks before the sub goes on. The hull is the theme's:
-the yellow sub with black trim in Original, a moss-green navy boat with brass in
-Quiet Lagoon, a red-and-white toy with a cyan tower in Tidepool Club, a grey
-steel boat with a black waterline and rust in Blackwater, its portholes lit
-and a headlight cone from the bow (2026-10-12). A resident like the
-frogman - and the two never collide: a lane picked near the other's is pushed
-clear, and when they close nearly level each eases off to the far side.
+- **The sword plant** (40) is a fourth bed of broad leaves on the open floor, trimmed
+  and grown and counted as cover like the grass. It stands BEHIND, AMONG or IN FRONT.
+- **The castle** (150) is a stone castle with a swim-through arch. BEHIND puts it behind
+  the grass and the fish, a ruin in the weeds; IN FRONT stands it in front of the grass,
+  and the fish swim through the arch, tucked behind the jambs as they pass. The fish do
+  not know it is there. They find the arch by chance, which is most of the charm.
+- **The wreck** (200) is a small sunken boat lying on the sand: a planked hull tilted up
+  toward the bow, a broken mast with a rag of sail, an anchor with its chain up to the
+  prow. It has two big holes: IN FRONT, the fish pass behind the hull and show through
+  them; BEHIND it is a backdrop. The octopus, crab and lobster den under its holes when
+  there is no reef.
+- **The coral** (100) is a branching fan in whatever colour you give it, from a row of
+  eight swatches on its placement page. It grows, and slowly: you buy a young but
+  established fan, and over about seventeen days, awake or asleep, the rest of the
+  branches reach out one by one. It tops out about a quarter of the way up the glass.
+  Then, over the following week, a crown of thin tentacles sprouts from the tip and sways.
+- **The reef cluster** (240), the dearest, is a whole mature reef on a pile of stones: a
+  branching coral, four tube sponges, a lobed brain coral and green weed. You buy it big,
+  at 85% of its full size; over two weeks it fills out, and over two more it blooms, up to
+  forty-eight thin tentacles appearing one at a time. Its placement page has a LOOK row of
+  three: REEF, LAGOON and DUSK. Once you own one, the fish's reef is the cluster: they swim
+  over to visit it.
 
-**The coral.** The fourth thing in the shop (100) is a branching coral,
-drawn from a little skeleton of rounded branches on a chunky pixel grid:
-a dark rim on the shaded side, a lit edge toward the light, pale tips,
-and a speckled body in whatever colour you give it. Its placement page
-has the drag, a DEPTH bar of two choices (BEHIND or IN FRONT, like the
-castle's), and a COLOR row of eight swatches; the coral on the floor wears
-the pick as you tap, and the
-shop's MOVE button brings the page back whenever you want a change. It
-also grows, and slowly, which nothing else in the tank does: you buy a
-young but established fan, the trunk and its two low branches, and over
-about seventeen days, awake or asleep, the rest of the branches reach out
-one by one until the fan is complete. It tops out about a quarter of the
-way up the glass and stays there. Then, over the following week, a crown
-of nine thin tentacles sprouts from the tip and sways on the tank clock.
-It is anchored: its base sits down in the pebbles and a low hump of the
-floor's own stones is heaped round it, so the trunk grows out of the floor
-instead of standing on it.
+The coral and the cluster are anchored: their base sits down in the pebbles with a low hump
+of the floor's own stones heaped round it.
 
-**The reef cluster.** The fifth thing in the shop, and the dearest (240),
-sits just below the first four rows (scroll the list down to it). It is a
-whole mature reef on a pile of stones, drawn the same procedural way from
-Strato's cluster art: a branching coral to the left, four tube sponges
-with dark mouths, a lobed brain coral in front, green weed between the
-stones, about twice the coral's footprint. You buy it big, at 85% of its
-full size, because a keeper buying a coral wants something to look at on
-day one; over two weeks it fills out to full size, and over the two weeks
-after that it blooms, up to forty-eight thin tentacles appearing one at a
-time round the tube mouths, the coral's tips and the brain's top, every
-one swaying. Its placement page has the drag, the two depths, and a LOOK
-row of three tiles instead of a colour: REEF is the art's orange, purple
-and cyan; LAGOON is pink, blue and lime; DUSK is magenta, teal and gold.
-It sits in a hump of stones like the coral.
+#### Helpers
 
-**The shrimp school.** The sixth thing in the shop (180), on the second
-page beside the reef. Four cherry shrimp arrive as a loose school, drawn by
-code pixel by pixel like everything else that swims, and turning the same
-way the fish do. They keep to the foot of the grass most of the time,
-wander out onto the sand, and now and then drift slowly up a bed to the top
-of its canopy. They are the tank's cleanup crew: a pellet that sinks below
-the top of the grass is theirs, still falling or resting on the floor
-(pellets now rest there fifteen seconds before they dissolve), and the
-school crowds in to peck it clean. Every ten pellets they eat brings another
-shrimp, up to ten, never two within fifteen minutes. With more than half
-the glass covered in algae they refuse food: they keep to the grass and
-turn away from pellets, so the school stops growing until you wipe the
-glass (it never shrinks). Tap the school for its card: how many, the
-pellets they have eaten, and ten pips toward the next shrimp; tap again to
-put it away.
+Helpers go about their own rules. They are never placed or bred, and the model never sees
+them: they reach the fish the way your own chores do, through cover and the film.
 
-**The sea urchin.** The seventh thing in the shop (120). It lives on the
-sand and nibbles the tallest grass down a little at a time. It never cuts
-the grass short and it leaves the sword plant alone, so there is still
-trimming for you to do. Tap it for its card: how much grass it has eaten so
-far, and whether it is grazing or resting.
+- **The snail** (80) grazes the glass clean cell by cell, crawling flat across the pane
+  with its head leading, and walks the floor upright when there is nothing to eat. Waves
+  run along its foot, its eye stalks sway, its shell rocks with the crawl. Tap it for its
+  card: a tally of the spots of algae it has grazed so far.
+- **The sea urchin** (120) lives on the sand and nibbles the tallest grass down a little
+  at a time. It never cuts the grass short and it leaves the sword plant alone, so there
+  is still trimming for you to do. Tap it for how much it has eaten and what it is up to.
+- **The shrimp school** (180): four cherry shrimp keep to the foot of the grass, wander
+  onto the sand, and now and then drift up a bed to the top of its canopy. They are the
+  cleanup crew: a pellet that sinks below the top of the grass is theirs, and pellets rest
+  on the floor fifteen seconds before they dissolve. Every ten pellets brings another shrimp,
+  up to ten, never two within fifteen minutes. With more than half the glass covered in algae
+  they refuse food, so the school stops growing until you wipe it. Tap the school for its card.
+- **The frogman** (10) is a little diver in a banded wetsuit who floats sideways across the
+  water from glass to glass, easing to a new lane now and then, a mist of bubbles rising from
+  his mask. Every so often his arm goes up and waves.
+- **The submarine** (60) cruises the water the same way, propeller turning; every 22-40 s it
+  eases to a halt, a periscope rises, looks each way, and sinks before it goes on. It and the
+  frogman never collide: when they close nearly level each eases off to the far side.
 
-**The night shift.** The snail and the urchin keep working while the tank
-sleeps. A tank with a snail wakes up with about a third less algae on the
-glass, and a tank with an urchin wakes up to shorter grass. Helpers take
-the edge off a long sleep; they never take the chores away.
+**The night shift.** The snail and the urchin keep working while the tank sleeps. A tank with a
+snail wakes up with about a third less algae on the glass, and a tank with an urchin wakes up to
+shorter grass. Helpers take the edge off a long sleep; they never take the chores away.
 
-**Selling back.** A piece's modal in the shop has SELL next to MOVE for
-anything you own, and its placement page (MOVE opens it) has SELL in the
-top-left corner. (A finger held on a decoration in the tank opened that
-page too, until 2026-10-28.) A sale needs
-two taps: the first arms the button and shows the refund, the second
-sells. You get 20% of the price back, the piece leaves the tank, and it is
-in the shop again at full price. The snail and the shrimp are not for
-sale; they are permanent residents.
+#### Creatures
 
-**New species.** Nine creatures join the classic fish, each a juvenile
-in the shop at 10 sand dollars, bought one at a time (two of a kind breed):
-seahorses, octopuses, pufferfish, anglerfish, electric eels, hammerheads,
-squid, crabs and lobsters. Each comes in four designs, has its own
-temperament, and moves like the real animal: the seahorse holds the grass by
-its tail, the octopus takes the colour of its den, the pufferfish puffs up,
-the anglerfish's lure glows, the eel rises for air, the hammerhead never
-stops, the crab walks sideways. They breed within their kind: the best
-grown pair of one species courts and the fry is theirs, and now and then a
-classic pair's fry hatches as something else entirely, a surprise. A newcomer
-needs a free place in the tank (the shop says NO ROOM otherwise), and the
-tank holds up to 25 creatures. The milestones
-page's rows scroll past six; the card names the species and the design.
+Twelve species join the classic fish, each a juvenile in the shop at 10 sand dollars, bought one
+at a time (two of a kind breed): seahorses, octopuses, pufferfish, anglerfish, electric eels,
+hammerheads, squid, crabs, lobsters, jellyfish, swordfish and sea turtles. Each comes in four
+designs, has its own temperament, and moves like the real animal: the seahorse holds the grass by
+its tail, the octopus takes the colour of its den, the anglerfish's lure glows, the eel rises for
+air, the hammerhead never stops, the crab walks sideways, the jellyfish pulses, the turtle naps on
+the sand. They breed within their kind, and now and then a classic pair's fry hatches as something
+else entirely, a surprise.
+
+**Two quick taps** on a creature set off its trick, if it has one: a pufferfish puffs up, a squid or
+an octopus squirts ink, a seahorse grips a stem, a crab raises its claws and scuttles off, a lobster
+flips its tail, a jellyfish pulses away, an eel sparks.
+
 The whole design is in [docs/species.md](docs/species.md).
 
-![The ten species, one design each](docs/media/sim-species.png)
+![Ten of the kinds, one design each](docs/media/sim-species.png)
 ![At night: the anglerfish's lure, the firefly squid, the eel's spark, the sleepers](docs/media/sim-species-night.png)
 ![The shop's species rows: each creature shown as itself, 10 sand dollars](docs/media/sim-shop-species.png)
 
@@ -462,7 +360,7 @@ The whole design is in [docs/species.md](docs/species.md).
 ![The castle IN FRONT of the grass, a fish in the arch](docs/media/sim-castle.png)
 ![The castle BEHIND the grass](docs/media/sim-castle-behind.png)
 ![Placing the castle: BEHIND or IN FRONT](docs/media/sim-place-castle.png)
-![The coral on the day it is bought, AMONG the grass](docs/media/sim-coral-young.png)
+![The coral on the day it is bought](docs/media/sim-coral-young.png)
 ![The grown coral with its crown of tentacles](docs/media/sim-coral.png)
 ![A violet coral IN FRONT of everything](docs/media/sim-coral-front.png)
 ![Placing the coral: the COLOR row above the water](docs/media/sim-place-coral.png)
@@ -477,155 +375,84 @@ The whole design is in [docs/species.md](docs/species.md).
 ![Placing the reef cluster: the LOOK row](docs/media/sim-place-cluster.png)
 ![SELL armed in the castle's modal](docs/media/sim-shop-sell.png)
 
-**The light.** The settings page's LIGHTS OUT row decides it: NEVER (the
-default) keeps the light on, or step it to a time, 5 seconds up to 30
-minutes. The tank knows when it is being handled (the motion sensor, or a
-touch) and goes dark by itself after that long still, so a tank left on the
-desk is asleep until you pick it up; in the dark the fish rest and the
-palette dims. (Until 2026-10-28 the default was MANUAL: two quick taps on
-the glass turned the light off and on, with a notice the first time.) Two
-quick taps on a creature are its own business: a pufferfish puffs up, a
-squid or an octopus squirts ink, a seahorse grips a stem, a crab raises its
-claws and scuttles off, a lobster flips its tail, a jellyfish pulses away,
-an eel sparks. Six hours of device sleep in one stretch earns the tank its first
-full night's sleep.
+### The tank and its settings
 
-**Feeding is yours if you want it.** The tank drops a pellet now and then
-when someone is hungry, so nobody goes without. AUTO FEED on the settings
-page turns that off: then every meal is one you gave. Nobody dies of it,
-but a fish left starving in a lit tank slowly loses trust, and feeding it
-stops the loss.
+**The light.** The settings page's LIGHTS OUT row decides it: NEVER (the default) keeps the light on,
+or step it to a time, 5 seconds up to 30 minutes. The tank knows when it is being handled (the motion
+sensor, or a touch) and goes dark by itself after that long still, so a tank left on the desk is asleep
+until you pick it up; in the dark the fish rest and the palette dims. Six hours of device sleep in one
+stretch earns the tank its first full night's sleep.
+
+**The night and the battery.** The frame rate drops to 10 fps while the light is out and no finger is on
+the glass, and after two hours of darkness with nothing handling the tank (no touch, no motion; not while
+a cable is charging it, not while a page is up) it takes the same sleep the PWR key does. The PWR key
+brings it back and the night is lived through at that boot.
 
 ![The battery page, charging](docs/media/sim-battery-page.png)
 
-**The battery.** A small battery sits top right whenever the main menu is
-open, and stays up by itself when the charge runs low. On the cable a
-lightning bolt stands beside it, and while it charges a bright band runs
-through the fill, so you never have to tell two colors apart to know it is
-charging. Plug the tank in and the battery shows itself for a few seconds
-to say it noticed. Tap it for the battery page: the charge, whether it is
-charging, about how long it will last (or how long until it is full), how
-long ago it was unplugged, the screen-on time since, and how long a full
-charge lasts. The tank learns those times from its own battery as you use
-it.
+**The battery.** A small battery sits top right whenever the main menu is open, and stays up by itself when
+the charge runs low. On the cable a lightning bolt stands beside it, and while it charges a bright band runs
+through the fill, so you never have to tell two colors apart to know it is charging. Plug the tank in and the
+battery shows itself for a few seconds to say it noticed. Tap it for the battery page: the charge, whether it
+is charging, about how long it will last (or how long until it is full), how long ago it was unplugged, the
+screen-on time since, and how long a full charge lasts. The tank learns those times from its own battery as
+you use it.
 
-**Four themes.** Settings → SETTINGS / THEMES picks the look: Original, Quiet
-Lagoon, Tidepool Club, and since 2026-10-10 Blackwater - the abyss: realistic creatures that glow.
-Near-black water over dark volcanic sand, and the creatures drawn as the real
-animals (countershading, rayed fins, real eyes, scales, suckers, shells) in
-vivid colours lifted from the ones you chose, so they stand off the dark water;
-the castle slot holds a sunken Mayan step pyramid in pale limestone, the wreck
-slot a silver fighter plane, and the reef cluster is a sea fan, tube sponges, a
-staghorn coral and an anemone on basalt (all three redrawn that night to read
-at a glance against the dark water). (A moving caustic light lived in it for a few hours that night and was
-taken out again.) docs/THEMES.md has the details.
+**The settings page.** BRIGHTNESS and VOLUME; LIGHTS OUT; AUTO FEED; ROTATION (the picture turns over when you
+turn the tank over, and this button, a padlock in a turning arrow, locks it the way up it is); UPDATES and RESET
+side by side; ABOUT and CLOSE at the foot. RESET starts the tank over: it opens a NO / YES prompt with a timeout,
+so a stray tap wipes nothing.
 
-*For now (since 2026-10-26) only the Original is built, while new features
-are made; the other three themes will come back.*
+**About.** The ABOUT button shows the game's name, who makes it (Softworkz Pte Ltd), the release and the build id,
+with a little fish crossing above them and bubbles rising, and an underwater jingle that loops while the page is
+up, synthesised on the device (`common/audio.c`: twelve bars of an arpeggio, a hummed melody, a soft pad and bubble
+chirps; nothing in the sound bank). It follows the VOLUME setting.
 
-**One settings page.** Since 2026-10-10 every theme uses the same settings
-layout - the rows of segments and arrows, then (since 2026-10-28) UPDATES and
-RESET side by side under ROTATION, and ABOUT and CLOSE at the foot - drawn in
-the theme's own colours and font. RESET starts the tank over: it
-opens the same NO / YES prompt as the BOOT-and-tap chord, with its timeout, so a
-stray tap wipes nothing.
-
-**About.** The settings page has an ABOUT button (2026-10-10): the game's name, who makes it
-(Softworkz Pte Ltd), the release and the build id, the theme's creature moving
-above them (a fish crossing in Original, a seahorse drifting in Quiet Lagoon, a
-crab scuttling along the foot and raising its claws in Tidepool Club, a moon
-jelly pulsing up the side in Blackwater) and bubbles rising - and an underwater
-jingle that loops while the page is up, synthesised on the device
-(`common/audio.c`: twelve bars of an arpeggio, a hummed melody, a soft pad and
-bubble chirps under a slow wobble and a low-pass; nothing in the sound bank), a
-different tune per theme since the same night: a kalimba at 96 BPM, a slow
-Lydian lullaby at 72, a perky steel-pan tune at 120, sparse minor-key bells at
-60. It follows the
-VOLUME setting. BACK returns to the settings.
-
-**No shake (since 2026-10-28).** A hard shake used to toss every creature
-(2026-10-10). The keeper took it out: no keeper would shake the tank except by
-accident. The IMU still turns the picture and keeps the light on while the
-tank is handled.
-
-**The night and the battery (2026-10-10).** Lights out used to keep the full
-25 fps and never sleep, so a tank forgotten on the desk burned its cell at awake
-rates all night. Now the frame rate drops to 10 fps while the light is out and
-no finger is on the glass, and after two hours of darkness with nothing handling
-the tank (no touch, no motion; not while a cable is charging it, not while a page
-is up) it takes the same sleep the PWR key does: the grace, then the power-off or
-deep sleep. The PWR key brings it back and the night is lived through at that
-boot, as after any sleep.
-
-**Updates over Wi-Fi.** The settings page has an UPDATES button. Tap CHECK
-FOR UPDATES and the tank pauses, turns its radio on and looks for a newer
-release. The first time, it lists the networks it can see; pick yours and
-type the password on the glass. If there is a new version it downloads it,
-checks it and restarts into it, and your fish are right where you left
-them. Below about 20% battery it asks you to plug in first. If an update
-ever goes wrong, the tank goes back to the version it had. The radio is
-only on during a check: the tank itself still runs with no network at all.
-On the watch, settings also has a SCREEN row: NORMAL, or TURNED if you wear
-it with the buttons toward your elbow. The original and the pendant turn
-their picture over by themselves when you turn the tank over; the ROTATION
-button on the settings page (a padlock in a turning arrow) locks the
-picture the way up it is.
+**Updates over Wi-Fi.** The settings page has an UPDATES button. Tap CHECK FOR UPDATES and the tank pauses, turns
+its radio on and looks for a newer release. The first time, it lists the networks it can see; pick yours and type
+the password on the glass. If there is a new version it downloads it, checks it and restarts into it, and your fish
+are right where you left them. Below about 20% battery it asks you to plug in first. If an update ever goes wrong,
+the tank goes back to the version it had. The radio is only on during a check: the tank itself still runs with no
+network at all.
 
 ![The updates page](docs/media/sim-updates.png)
 ![Choosing a network](docs/media/sim-update-networks.png)
 
-**Habits and continuity.** The tank remembers where you feed it and greets
-the light coming on. A real-time clock tells it how long it was off, so a
-tank left dark for a day wakes hungry. One key does all of it: a short
-press on PWR puts the tank to sleep - it saves and the screen goes dark -
-and a press wakes it. Press again within twenty minutes and the tank
-simply resumes where it was, on a tap; after that it powers itself down to
-the board's deepest state (tens of microamps, months on the shelf), and the
-next press wakes it with a one-second boot, the fish having lived through
-the time away: hunger up, energy back, the grass and the algae grown, a
-long night ending in begging at the surface. One thing to know about that
-deepest sleep: the only chip still awake is the power-management chip, and
-its rule is that the key must be held for about an eighth of a second
-before it turns the board on - a quick tap does nothing. Press it like you
-mean it. The tank decides how deep it sleeps; you never do. Holding PWR
-powers it off at once. A short press of BOOT opens the main menu; hold BOOT
-and tap the glass to reset the tank. Flip
-the device and the screen follows.
+**Habits and continuity.** The tank remembers where you feed it and greets the light coming on. A real-time clock
+tells it how long it was off, so a tank left dark for a day wakes hungry. One key does all of it: a short press on
+PWR puts the tank to sleep - it saves and the screen goes dark - and a press wakes it. Press again within twenty
+minutes and the tank simply resumes where it was, on a tap; after that it powers itself down to the board's deepest
+state (tens of microamps, months on the shelf), and the next press wakes it with a one-second boot, the fish having
+lived through the time away: hunger up, energy back, the grass and the algae grown, a long night ending in begging at
+the surface. One thing to know about that deepest sleep: the only chip still awake is the power-management chip, and
+its rule is that the key must be held for about an eighth of a second before it turns the board on - a quick tap does
+nothing. Press it like you mean it. The tank decides how deep it sleeps; you never do. Holding PWR powers it off at
+once. A short press of BOOT opens the main menu; hold BOOT and tap the glass to reset the tank.
 
-**First run.** A new tank, whether a fresh install or a reset, opens with a
-short setup over the live water. A welcome page; then you place the bubble
-column, dragging it left or right across the tank while the bubbles and
-the airstone follow your finger; then each of the two fry in
-turn: the fish being introduced swims a slow loop front and center with a
-ring around it while you name it on an arcade-style letter wheel (touch a
-slot, drag up or down to spin its letter, or tap the chevrons above and
-below it), then you pick its body color from eight swatches and watch the
-fry wear it. Its accent stays a question mark: a fry has no markings yet,
-and they come in as it grows. A page of care tips finishes the tour. The
-light stays on throughout, and the column, the names and the colors you
-chose are saved with the tank.
+**First run.** A new tank, whether a fresh install or a reset, opens with a short setup over the live water. A welcome
+page; then you place the bubble column, dragging it left or right across the tank while the bubbles and the airstone
+follow your finger; then each of the two fry in turn: the fish being introduced swims a slow loop front and center with
+a ring around it while you name it on an arcade-style letter wheel (touch a slot, drag up or down to spin its letter, or
+tap the chevrons above and below it), then you pick its body color from eight swatches and watch the fry wear it. Its
+accent stays a question mark: a fry has no markings yet, and they come in as it grows. A page of care tips finishes the
+tour. The light stays on throughout, and the column, the names and the colors you chose are saved with the tank.
 
 ![Naming a fish on the letter wheel](docs/media/sim-setup-name.png)
 
-**A birth.** Every arrival is an event. The fry hatches low in the nursery
-grass wearing its family's colors, the body of one parent and the markings
-of the other, and the tank stops to introduce it. *A new fry!* rings the
-newcomer wherever it is and names its parents; the next page is the same
-letter wheel, so you name it; the last page shows the fry on its own, as it
-is now, with what it inherited: whose body, whose markings, and how bold
-and sociable it is on bars marked with each parent's own value. Its
-markings, like any fry's, come in as it grows. The welcome is saved with
-the tank until you finish it, so a fry born while you were away is waiting
-for you when you come back.
+**A birth.** Every arrival is an event. The fry hatches low in the nursery grass wearing its family's colors, the body
+of one parent and the markings of the other, and the tank stops to introduce it. *A new fry!* rings the newcomer wherever
+it is and names its parents; the next page is the same letter wheel, so you name it; the last page shows the fry on its
+own, as it is now, with what it inherited: whose body, whose markings, and how bold and sociable it is on bars marked with
+each parent's own value. The welcome is saved with the tank until you finish it, so a fry born while you were away is
+waiting for you when you come back.
 
 ![A new fry: the announcement](docs/media/sim-birth-born.png)
 ![Naming the new fry](docs/media/sim-birth-name_new.png)
 ![The family page: what it inherited](docs/media/sim-birth-family.png)
 
-**Starting over.** Hold BOOT and tap the glass: a *Reset tank?* prompt
-appears over the water with a NO and a YES. YES wipes the save and two new
-fry take the tank, with the first-run setup to name them; NO, a sleep, or
-twenty seconds of silence keep everything.
+**Starting over.** Settings' RESET, or hold BOOT and tap the glass: a *Reset tank?* prompt appears over the water with a NO
+and a YES. YES wipes the save and two new fry take the tank, with the first-run setup to name them; NO, a sleep, or twenty
+seconds of silence keep everything.
 
 ## Try it: PC simulator
 
@@ -643,9 +470,8 @@ cd sim && make && ./fishsim
 
 On macOS the Makefile targets x86_64 by default to match an Intel Homebrew
 SDL2; use `make ARCH=` for a native build. On Linux it builds for the host.
-The trained model
-(`model/out/model_q4.bin` + `tokenizer.bin`) ships in the repo, so the LLM
-brain works out of the box.
+The trained model (`model/out/model_q4.bin` + `tokenizer.bin`) ships in the repo,
+so the LLM brain works out of the box.
 
 On Windows, build in [MSYS2](https://www.msys2.org/)'s **UCRT64** shell
 (the Start menu's "MSYS2 UCRT64", not plain "MSYS2"):
@@ -677,36 +503,27 @@ In the window, the mouse is your finger: click a fish for its stats card
 rest a finger on the glass, two quick clicks on a creature for its trick.
 Feeding, wiping and trimming take the menu's tools (**Space**, then
 FEED, the SPONGE or the SCISSORS): FEED's click drops food, the sponge's
-drag wipes, the scissors' sideways stroke trims. Keys: **F** feed at the
-mouse, **N** light, **A** auto light, **H** handle the tank (moving the
-mouse over the window counts too), **L** switch
-between the rule stub and the LLM brain, **U** overlays, **Space** the BOOT
-key (the main menu), **M** milestones,
-**4** the shop, **D** fifty sand dollars to try it, **5** a pair of the
-next species (free, for a look), **W** the shrimp school
-(again adds one),
-**X** the reset prompt, **S** the first-run setup (or drops a birth's pages), **R** force an arrival
-(the birth flow opens), **Z** jump through seven
-hours of sleep, **G** grow the grass and algae now, **V** volume, **B** the
-low-battery notice, **P** plug or unplug a pretend battery (click the
-battery for its page), **Q** quit.
+drag wipes, the scissors' sideways stroke trims.
+
+Keys: **Space** the BOOT key (the main menu), **M** milestones, **4** the shop,
+**E** update mode, **S** the first-run setup (or drops a birth's pages), **X** the
+reset prompt, **F** feed at the mouse, **D** fifty sand dollars to try the shop,
+**R** force an arrival (the birth flow opens), **N** light, **A** auto light, **H**
+handle the tank (moving the mouse over the window counts too), **L** switch between
+the rule stub and the LLM brain, **U** overlays, **V** volume, **B** the low-battery
+notice, **P** plug or unplug a pretend battery (click the battery for its page),
+**5** a pair of the next species, **C** the castle, **K** the coral, **I** the reef
+cluster, **W** the shrimp, **Y** the urchin (all free, for a look), **Z** jump through
+seven hours of sleep, **G** grow the grass and algae now, **Q** quit.
 
 Flags: `--fresh` starts a new random tank, `--fast N` runs tended time N×
 faster so you can watch fish grow up, `--greedy` disables sampling,
 `--narrate` prints every decision as it's made, `--battery N` starts the
-pretend battery at N%, `--snapshot <prefix>` writes
-PPM frames of the tank, card, milestones page, the shop, the placement
-page, the castle (in front, behind, its page), the battery in each state
-and its page, reset prompt, the setup pages, and the three pages of a birth.
+pretend battery at N%, `--snapshot <prefix>` writes PPM frames of every page.
 
-Headless checks, all of which run in CI-style without a window:
-`--selftest` (reflex layer), `--selftest-llm [min]` (the real model),
-`--selftest-pop` (arrivals, inherited looks, saves, the setup and birth flows), `--selftest-sleep` (sleep metabolism,
-the deep-sleep wake, and ravenous begging), `--selftest-hunger` (the hunger economy),
-`--selftest-tend` (grass, algae, trust holds), `--selftest-shop` (sand
-dollars, the shop, the plant, the snail), `--selftest-battery` (the battery
-page's numbers, and the bolt only on the cable), and `--bench` (render cost).
-`make check` from `sim/` runs every selftest.
+`make check` from `sim/` runs every selftest, headless, without a window (the list is
+`SELFTESTS` in `sim/Makefile`, and one runs alone as `./fishsim --selftest-shop`).
+`--bench` profiles the render cost.
 
 ## Try it: firmware in QEMU
 
@@ -724,35 +541,28 @@ touch ports are stubs in the QEMU overlay; decisions go to the log.
 ## Install from your browser
 
 The easy way onto a board: the browser installer page (`installer/`, hosted
-over HTTPS - `installer/README.md` says how).
-Plug the Waveshare board into your computer, open the page in Chrome or Edge,
-pick your board (the 1.8, the pendant or the watch), click *Install Aqua
-Pets*, pick the port, and watch the bar fill. Then the page asks for your
-Wi-Fi: the tank's screen stays dark while it lists the networks it can see,
-you pick yours and type the password, and the tank connects to check it
-before it starts. That is what lets it update itself later; you can skip
-it and set it up on the tank instead. About
+over HTTPS - `installer/README.md` says how). Plug the Waveshare board into your
+computer, open the page in Chrome or Edge, click *Install Aqua Pets*, pick the
+port, and watch the bar fill. Then the page asks for your Wi-Fi: the tank's screen
+stays dark while it lists the networks it can see, you pick yours and type the
+password, and the tank connects to check it before it starts. That is what lets it
+update itself later; you can skip it and set it up on the tank instead. About
 8 MB goes over in a minute or two, the board reboots on its own, and two fry
 are waiting.
 
-**After that, updates come over Wi-Fi.** 0.3 is the last release that
-needs the cable: a tank on 0.2 installs it from the page once, and from
-then on CHECK FOR UPDATES on the settings page does the rest. Each board
-fetches only its own image, every image is signed, and a tank refuses one
-that is not signed by this project or was built for another board.
-[docs/OTA.md](docs/OTA.md) has the design.
+**After that, updates come over Wi-Fi:** CHECK FOR UPDATES on the settings page
+does the rest. Every image is signed, and a tank refuses one that is not signed by
+this project or was built for another board. [docs/OTA.md](docs/OTA.md) has the design.
 
 **Updating by cable is the same click.** The installer never erases the board: it
 rewrites the app and the model, and the tank's save lives in a part of the
 flash (NVS at `0x9000`) that none of the four parts cover, so your fish,
-their names, trust, history, badges, sand dollars and decorations carry on.
-Every version loads the saves of every earlier one (the save only ever grows
-at the tail, and the one field that went in mid-struct is slid into place on
-load). To start over, hold BOOT and tap the glass for the *Reset tank?*
-prompt; the page also has an "erase and install fresh" button for a board
-that won't get that far. The settings page shows the release at its foot,
-small and dim ("V0.3.2 ALPHA", then the build id), so you can tell what
-you run. It is the same mechanism ESPHome and Home
+their names, trust, history, badges, sand dollars and decorations carry on. Every
+release on save layout 3 loads the saves of the ones before it; a tank saved before
+layout 3 starts fresh. To start over, use RESET on the settings page; the installer
+also has an "erase and install fresh" button for a board that won't get that far. The
+settings page shows the release at its foot, small and dim ("V0.3.2 ALPHA", then the
+build id), so you can tell what you run. It is the same mechanism ESPHome and Home
 Assistant use ([ESP Web Tools](https://esphome.github.io/esp-web-tools/)),
 running entirely in the browser over Web Serial.
 
@@ -767,49 +577,39 @@ vendored flasher). Any HTTPS static host will do, GitHub Pages included;
 One Waveshare board is supported for now: the
 **ESP32-S3-Touch-AMOLED-1.8** (V1 and V2, auto-detected), an ESP32-S3R8 with
 16 MB flash and 8 MB PSRAM, an AMOLED (368×448, shown as a 448×368 tank),
-capacitive touch, an IMU and a PMIC. The round 1.75C pendant and the 2.06
-watch had their own builds until 2026-10-26; they were taken out while
-features are built and will come back (git tag `multi-board-multi-theme`,
-[docs/BOARDS.md](docs/BOARDS.md)). The browser installer above is the
-no-toolchain path; this is the developer one.
+capacitive touch, an IMU and a PMIC. [docs/BOARDS.md](docs/BOARDS.md) has how a
+board is built in. The browser installer above is the no-toolchain path; this is
+the developer one, with ESP-IDF v5.4:
 
 ```bash
-. ~/esp/esp-idf/export.sh
-cd firmware && idf.py build
-idf.py -p /dev/cu.usbmodem* flash
-esptool.py --chip esp32s3 -p /dev/cu.usbmodem* write_flash 0x290000 ../model/out/model_q4.bin
+tools/ota_key.sh            # once: the signing key, in firmware/keys/ (never committed)
+tools/flash.sh --model      # archive the tank's log, build, flash the app and the model
 ```
 
-Every build is signed, so the first build needs a key: `tools/ota_key.sh`
-makes one for you in `firmware/keys/` (never committed). A tank you flash
-with your own key takes over-the-air updates only from images signed with
-that key, not from this project's releases; the browser installer is the
-way onto the release channel.
+`tools/flash.sh` is the only way to flash a running tank ([docs/DEVICE.md](docs/DEVICE.md));
+a blank board starts with [docs/bringup.md](docs/bringup.md), the step-by-step checklist with
+pass signals for each stage. A tank you flash with your own key takes over-the-air updates
+only from images signed with that key, not from this project's releases; the browser
+installer is the way onto the release channel.
 
 The model lives in its own 8 MB raw partition and only needs flashing once.
-[docs/bringup.md](docs/bringup.md) is the step-by-step checklist with pass
-signals for each stage, and [docs/memory_budget.md](docs/memory_budget.md)
-explains where every kilobyte goes. The boot log prints a per-stage frame
-profile and per-decision inference timings, so performance work is
-measurable without instruments.
+[docs/memory_budget.md](docs/memory_budget.md) explains where every kilobyte goes. The boot
+log prints a per-stage frame profile and per-decision inference timings, so performance work
+is measurable without instruments.
 
-**Other boards.** This repo supports those three boards, to keep the project small
-while it is young. Two community ports run the tank elsewhere. They are not
-built or tested here, and they may lag behind this repo:
+**Other boards.** Two community ports run the tank elsewhere. They are not built or tested
+here, and they may lag behind this repo:
 
 - [knoopx](https://github.com/knoopx) ported it to the Waveshare
   **ESP32-P4-WIFI6-Touch-LCD-4B** (4-inch 720×720 MIPI-DSI panel, GT911
   touch, ES8311 audio) in [their fork](https://github.com/knoopx/pocket-tank).
-  It needs ESP-IDF 5.5.
-  Upstream pull request #5 has
-  the details.
+  It needs ESP-IDF 5.5. Upstream pull request #5 has the details.
 - [lmoiseichuk](https://github.com/lmoiseichuk) ported it to the 2.8-inch
   **ES3C28P "cheap yellow display"** (ESP32-S3, 320×240 ILI9341 IPS panel,
   FT6336 touch, ES8311 audio), with every page laid out for the smaller
   screen, in
   [their fork](https://github.com/lmoiseichuk/pocket-tank-cyd/tree/feature/cyd_ES3C28P).
-  Upstream pull request #10 has
-  the details.
+  Upstream pull request #10 has the details.
 
 ## Train your own
 
@@ -821,105 +621,64 @@ fresh situations. It builds on a clone of
 [karpathy/llama2.c](https://github.com/karpathy/llama2.c) in
 `model/llama2.c/`.
 
-Step-by-step commands: [docs/pipeline.md](docs/pipeline.md). Two things the
-project learned the hard way, both documented there and in
-[docs/stats.md](docs/stats.md): the teacher prompt is the DNA of the whole
-dataset (one sentence moved a goal from 45% of labels to 14%), and a
-seven-minute prompt check before an overnight run is always worth it.
+Step-by-step commands: [docs/pipeline.md](docs/pipeline.md); a whole data cycle:
+[docs/retrain.md](docs/retrain.md). Two things the project learned the hard way, both
+documented there: the teacher prompt is the DNA of the whole dataset (one sentence moved a
+goal from 45% of labels to 14%), and a prompt check before an overnight run is always worth it.
 
 ## Layout
 
-- `common/` — everything shared verbatim by sim and firmware: `tank.c`
-  (reflex layer, the snail), `render.c` (RGB565 software renderer, stats
-  card, milestones page, the shop, the reset prompt and its pixel font),
-  `progression.c` (the long game, the sand dollars and persistence),
-  `icons.c` (baked pixel art), `audio.c` (the sound mixer), `notice.c` (the
-  milestone and low-battery announcements), `update.c` (the update pages
-  and their flow), `llm/` (4-bit engine, word
-  tokenizer, the shared encoder)
-- `sim/` — the LVGL + SDL2 simulator, its persistence port, and the self-tests
-- `firmware/` — ESP-IDF app: display, touch, battery, IMU, RTC and audio
-  ports for the three Waveshare boards, the on-device advisor scheduler,
-  update mode and its Wi-Fi port, the QEMU harness, and the partition table
-- `model/` — the frozen [state/goal schema](model/schema.md), trace
-  generation, training, evaluation, probes, and the 4-bit export
-- `installer/` — the browser installer page and the vendored ESP Web Tools
-  bundle; `tools/make_installer.py` assembles the upload folder
-- `tools/` — the icon baker, the sound bank builder, the installer
-  assembler, the release manifest maker, the touch calibration fitter, the
-  three-board picture sheet, and a serial bench client
-- `assets/icons/` — the pixel-art source for the stats card, the badges,
-  the shop and the snail
+- `common/` — everything shared verbatim by sim and firmware: `tank.c` (the reflex layer),
+  `creature.c` / `creatures.inc` (every creature's rules and art), `decor.c` and `helper.c`
+  (the static pieces and the helpers, with their `.inc` art), `glass.c` (the glass's shape),
+  `render.c` (the RGB565 software renderer and its pages), `setup.c` (first run, the birth flow,
+  placing a piece), `progression.c` (the long game, the sand dollars and persistence),
+  `scroll.c` (a list's scroll), `icons.c` (baked pixel art), `audio.c` (the sound mixer),
+  `notice.c` (the announcements), `update.c` (the update pages and their flow), `devices/` (the
+  board's numbers), `llm/` (4-bit engine, word tokenizer, the shared encoder)
+- `sim/` — the LVGL + SDL2 simulator, its ports, and the self-tests
+- `firmware/` — ESP-IDF app: display, touch, battery, IMU, RTC and audio ports, the on-device advisor
+  scheduler, update mode and its Wi-Fi port, the QEMU harness, and the partition table
+- `model/` — the frozen [state/goal schema](model/schema.md), trace generation, training, evaluation,
+  probes, and the 4-bit export
+- `installer/` — the browser installer page and the vendored ESP Web Tools bundle;
+  `tools/make_installer.py` assembles the upload folder
+- `tools/` — the icon baker, the sound bank builder, the installer assembler, the release manifest
+  maker, the flash tools, the touch calibration fitter, the picture sheet, and a serial bench client
+- `assets/icons/` — the pixel-art source for the stats card, the badges and the shop
 - `assets/sounds/` — the cues (16 kHz mono) and their levels
 
 ## Documentation
 
-- [docs/stats.md](docs/stats.md) — every measured number, dated
+- [docs/progression.md](docs/progression.md) — population, growth, trust, chores, milestones, the shop
+- [docs/species.md](docs/species.md) — the creatures and helpers: breeding, designs, how each one moves
+- [docs/stats.md](docs/stats.md) — every measured number
 - [docs/pipeline.md](docs/pipeline.md) — teacher to flashable binary
+- [docs/retrain.md](docs/retrain.md) — the retrain runbook, and what is queued
 - [model/schema.md](model/schema.md) — the state encoding and goal output
-- [docs/progression.md](docs/progression.md) — the progression contract:
-  growth, hunger, trust, upkeep, sleep, breeding
-- [docs/progression-next.md](docs/progression-next.md) — the design and the
-  evidence behind it
-- [docs/retrain-v3.md](docs/retrain-v3.md) — the schema v3 retrain runbook
-- [docs/retrain-v4.md](docs/retrain-v4.md) — the schema v4 (boredom) retrain runbook and its numbers
-- [docs/retrain-v5.md](docs/retrain-v5.md) — the schema v5 (species) retrain runbook; the numbers are in docs/stats.md
-- [docs/species.md](docs/species.md) — the ten species: the shop, breeding, designs, how each one moves
+- [docs/BOARDS.md](docs/BOARDS.md) — what is shared, where a board may differ, how a release keeps it to its own image
+- [docs/THEMES.md](docs/THEMES.md) — what a theme is
 - [docs/DEVICE.md](docs/DEVICE.md) — what is in flight on the device, and the flash rule
-- [docs/BOARDS.md](docs/BOARDS.md) — the three boards: what is shared, where one may differ, how a release keeps each to its own image
-- [docs/board-amoled-1.75c.md](docs/board-amoled-1.75c.md) — the pendant's bring-up notes
-- [docs/board-amoled-2.06-watch.md](docs/board-amoled-2.06-watch.md) — the watch's bring-up notes
-- [docs/OTA.md](docs/OTA.md) — updates over Wi-Fi: the partition table, update mode, signing, the manifest
+- [docs/OTA.md](docs/OTA.md) — updates over Wi-Fi: update mode, signing, the manifest
 - [docs/AUDIO.md](docs/AUDIO.md) — the sound design: the cues, the asset pipeline, the power rules
 - [docs/memory_budget.md](docs/memory_budget.md) — flash, PSRAM, and SRAM plan
 - [docs/bringup.md](docs/bringup.md) — hardware bring-up checklist
 
 ## Status
 
-- ✅ Model: schema v5 (species, boredom, no shadow), 14.2M student, 4-bit export, evaluated
+- ✅ Model: schema v5 (species, boredom), 14.2M student, 4-bit export, evaluated
 - ✅ Simulator: the full tank with progression, self-tests, snapshots
-- ✅ Firmware: running on the real board at 25 to 30 fps and 3.7 s per
-  decision, with touch, auto-rotation, a battery gauge and log (tap the
-  battery for its page; on the cable it wears a bolt), and one
-  key for sleep and wake (a 20 min nap window, then the board powers itself
-  off to tens of microamps; from there a held press wakes it)
-- ✅ The living tank: growth, arrivals with courtship, trust, the hunger
-  economy, upkeep chores, milestones, the reset prompt, the first-run setup
-  (place the bubbles, a letter wheel to name each fry, a body color to pick),
-  births announced and named with a family page, a sleep that lives
+- ✅ Firmware: running on the real board at 25 to 30 fps and about 4 s per decision, with touch,
+  auto-rotation, a battery gauge and log, and one key for sleep and wake
+- ✅ The living tank: growth, arrivals with courtship, trust, the hunger economy, upkeep chores,
+  milestones, the first-run setup, births announced and named with a family page, a sleep that lives
   through the night at the next boot, fish that get bored and go exploring
-- ✅ Sound: the board's own little speaker plays cues for what you do (a
-  feed, the light, a trim, a card) and for the fish (eating, a fish coming
-  to your finger), plus a welcome, a birth fanfare and
-  milestone chimes with an on-screen announcement; the codec is only
-  powered while the tank is in your hands, and a low-battery notice keeps
-  the gauge on screen until it is charged; a settings page (from the
-  milestones page) for brightness and volume, with a mute
-- ✅ The light follows the hand: an optional idle rule (the motion sensor
-  and touch) puts a tank left on the desk to sleep; always on by default
-- ✅ Sand dollars: care earns points, the shop spends them; a sword plant,
-  an algae-grazing snail, a swim-through castle, a sunken wreck (a different boat in each theme), a drifting frogman and a cruising submarine with a periscope; twelve species besides the fish, the swordfish (2026-10-10 night) and the sea turtle (2026-10-11; it naps on the sand and surfaces for a breath) the latest; what you buy you place yourself,
-  (four themes: Original, Quiet Lagoon, Tidepool Club and the realistic
-  Blackwater; for now only the Original is built)
-  where along the floor and whether it stands behind, among or in front
-  of the fish
-- ✅ Browser installer: one click from Chrome or Edge, from the hosted
-  installer page, with a board to pick; a cable update is the same click
-  and never erases a tank
-- ✅ v0.2.0 (alpha), the first numbered release: fish that turn like fish,
-  the fish's name on its card, a shrimp school that eats what falls and
-  multiplies, and a fry's welcome that comes before its badges
-- ✅ v0.3 (alpha): two more boards (the round pendant and the watch),
-  updates over Wi-Fi with signed, per-board images, a sea urchin that keeps
-  the grass down, a snail that cleans overnight, a sponge and scissors, and
-  fish you can rename or sell
-- ✅ New species: seahorses, octopuses, pufferfish, anglerfish,
-  electric eels, hammerheads, squid, crabs and lobsters, one at a time from
-  the shop, breeding within their kind, up to 25 creatures a tank, and a
-  model (v5j) that knows each one's species, the jellyfish included
-  ([docs/species.md](docs/species.md))
-- 🚧 Next: more to unlock: more plants, corals, and more tank maintenance
-  critters
+- ✅ Sound: the board's own little speaker plays cues for what you do and for the fish, plus a
+  welcome, a birth fanfare and milestone chimes with an on-screen announcement
+- ✅ Sand dollars: care earns points, the shop spends them on decor you place yourself, helpers and
+  twelve species that breed within their kind, up to 25 creatures a tank
+- ✅ Browser installer and signed updates over Wi-Fi
+- 🚧 Next: more to unlock: more plants, corals, and more tank maintenance critters
 - 🚧 Next: more achievements and milestones
 
 ## The video series

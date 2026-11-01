@@ -1,9 +1,9 @@
 /* advisor.h — deliberative layer interface.
  *
  * The tank calls a plugged-in advisor_fn (see tank.h) on a slow cadence.
- * advisor_rules is the reflex-only stub ported from the prototype's
- * chooseCompanionGoal(): personality-driven, no model. The firmware swaps in
- * an LLM-backed advisor with the same signature (Track 3). */
+ * advisor_rules is the reflex-only stub: personality-driven, no model. The
+ * platforms plug in the LLM-backed advisor with the same signature
+ * (sim/advisor_llm.c, firmware/main/advisor_llm_esp.c). */
 #ifndef ADVISOR_H
 #define ADVISOR_H
 

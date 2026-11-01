@@ -6,14 +6,12 @@ on battery. It asks the director for `batlog` and `state` and writes both to
 docs/batlog/<YYYY-MM-DD_HHMM>.txt (committed history: every night's numbers
 stay readable after the log itself is gone). Exits 1 if the tank is not on
 USB, if the device on the port does not answer as the tank's director, or if
-several boards are plugged in and TANK_PORT does not name the tank (2026-10-01:
-a second board took the tank's old port, and first-by-name was the wrong one) - a flash with no preflight is how the first full deep-sleep night was
-lost on 2026-09-15 (the RTC log was wiped by the reflash before anyone read
-it). The log now survives resets (batlog.c, RTC_NOINIT), but a power-off or
-a PMIC cut still clears it; the archive is the record.
+several boards are plugged in and TANK_PORT does not name the tank. The log
+survives resets (batlog.c, RTC_NOINIT), but a power-off or a PMIC cut clears
+it; the archive is the record.
 
   tools/preflight.py              # archive + print the summary lines
-  tools/preflight.py --quiet      # archive only (flash.sh)
+  tools/preflight.py --quiet      # archive only
 """
 import os, sys, time, datetime
 import serial

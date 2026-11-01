@@ -1,4 +1,4 @@
-/* update_mode.h - update mode on the tank (docs/OTA.md, 2026-09-30).
+/* update_mode.h - update mode on the tank (docs/OTA.md).
  *
  * The settings page's CHECK FOR UPDATES does not start the radio: the tank
  * saves, main.c calls update_mode_request, and the board restarts. At the
@@ -18,7 +18,7 @@
 void update_mode_request(void);            /* save the tank FIRST; this restarts the board */
 bool update_mode_pending(void);            /* at boot: asked for? (reads and clears the word) */
 void update_mode_run(uint16_t *fb);        /* the loop; returns on BACK, restarts on an install */
-/* Provisioning at install (2026-10-03). A boot the installer page caused
+/* Provisioning at install. A boot the installer page caused
  * (a reset over USB) on a tank with no network saved does not start the
  * tank yet: the glass stays black, the radio is free, and the page's Wi-Fi
  * step gets the real network list and a real connection test. The same

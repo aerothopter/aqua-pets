@@ -1,249 +1,277 @@
-# Progression design — locked decisions (2026-08-20)
+# Progression
 
-Decisions made with Strato. This is the contract for the progression layer;
-implementation lands across sim (Track 2 polish) and firmware (Tracks 3/4).
+The layer that makes a tank grow over weeks: population, growth, trust, chores,
+milestones, sand dollars and the shop. The code is `common/progression.c` (the
+rules and the save) over `common/tank.c` and `common/creature.c` (what the
+creatures do). Creatures are `fish_t` in code.
 
-## Core principle
+## The core principle
 
-**The tank is shaped by attention, never ruined by absence.** Fish never die.
-If left unattended, progression plateaus — nothing decays into guilt. A desk
+**The tank is shaped by attention, never ruined by absence.** Nothing dies. Left
+alone, progression plateaus and nothing decays into guilt. It is a desk
 companion, not a demanding pet.
 
-## Persistence & stats UI
+**No ambient UI.** Stats are shown on demand: a tap on a creature brings up its
+card. Milestones live on their own page, never over the tank.
 
-- Fish stats/traits/age/history persist in NVS flash (hundreds of bytes).
-- **No ambient UI clutter.** Stats are revealed on demand only:
-  - tap a fish → its stat card, **visual only** (bars/icons, no tiny digits), or
-  - a global UI toggle to show/hide overlays.
-- *Sim implementation (2026-08-20):* click a fish → selection ring in its body
-  color + card (border = fish color as its identity, six bars with legend dots:
-  hunger/energy/stress/curiosity/bold/social, stage pips 1–4). Click again or
-  elsewhere to dismiss; `U` hides all overlays. Sleep visual: resting fish at
-  night close their eyes. Same renderer code carries to the device; touch maps
-  to the click path.
-- Milestones live in a **separate view**, never the main tank.
+**The model owns the decisions.** Everything here either changes the numbers the
+model reads or presents what it chose. Nothing overrides a goal it picked.
 
-## Real-time continuity (RTC)
+## Population
 
-*Implemented 2026-08-21 in `common/progression.c` (ravenous rule on boot when the
-save is ≥1 h old; sim: file + wall clock; device: NVS + esp time, RTC hookup in
-Track 4).*
+A new tank is **two fry of contrasting personality** (`tank_new_population`:
+bold at least 0.45 apart, sociable at least 0.3). The other 23 places
+(`N_FISH_MAX` 25, `POP_CAP`) fill two ways: **arrivals**, which care earns, and
+the **shop**, which sells one juvenile of a species at a time.
 
-Keep it simple — one rule:
-- Off for **≥1 hour** → on boot the fish are **visibly ravenous**: they wait
-  near the surface and chase the first pellets aggressively.
-- After the **first feeding**, behavior returns to normal. No other offline
-  simulation, no accumulated penalties.
+**A tank keeps two** (`FISH_KEEP_MIN`): breeding takes a pair. The state line's
+`friend` field is the only thing that encodes population, and a lone creature hears
+`friend none`. The training data has carried a `lonely` case since schema 3 (a starving
+fish with no friend in view chose `seek_food` at 0.98 when last probed, on the v4
+model), so one creature is not out of distribution, but the shipped model has not been
+probed for it. Run `model/probe_dist.py`'s `friend none` check before building on a tank
+of one ([retrain.md](retrain.md)).
 
-## Growth (the Tamagotchi moment)
+### Arrivals
 
-*Implemented 2026-08-21: stage from tended age (fry→juv 20 min, adult 90 min,
-elder 8 h; lights-off pauses aging), size = stage scale × meal bonus; silent.*
+An arrival takes every **care gate** for the tank's current size, plus a clean
+glass, a nursery bed and a pair to court. Gates count care, never time alone
+(`care_gates`).
 
-- Well-fed fish visibly grow; colors richen with health; fins elaborate with
-  age. All procedural sprite parameters.
-- Stage changes should feel like **discovered surprises** — no announcements,
-  the player notices. Stages: fry → juvenile → adult → elder.
+| creatures now | grow (the youngest) | meals | also |
+|---|---|---|---|
+| 2 | - | 12 | every creature's trust at 6; one calm hold-approach |
+| 3 | to juvenile | 40 | CHANGE: the youngest's drift pressure reaches 0.11 |
+| 4 | to adult | 80 | every creature's trust at 7 |
+| 5 | to adult | 140 | every creature's trust at 8 |
+| 6 | to adult | 200 | every creature's trust at 8 |
+| 7 and up | to adult | 270, then ~+70 a place (1490 at 24) | every creature's trust at 9 |
 
-## Hunger meter
+Every arrival also needs:
 
-- Hunger is a first-class pressure: it **mechanically scales food-pursuit
-  aggression in the reflex layer** (speed and how little the fish brakes on
-  approach), regardless of which brain chose seek_food. Implemented in
-  `sim/tank.c` (2026-08-20); the ravenous-boot behavior falls out of it.
-- UI: exposed as a simple visual meter only when the stats UI is revealed.
-- *Economy retuned 2026-09-01* (`tank.c` HUNGER_*/TRICKLE_*): a meal lasts
-  ~5-6 min awake, the tank's trickle is hunger-gated and per-second, so an
-  untended awake tank hovers between fed and peckish and **ravenous begging
-  is the after-sleep / long-absence event only**. `--selftest-hunger`.
-- *AUTO FEED (0.3.2, settings, saved in the save's spare byte at 1674)*: OFF
-  stops the tank's own trickle and the two pellets a give-up used to drop -
-  feeding is the keeper's alone. Nobody dies of it: the fish beg once, give
-  up, and go hungry quietly until the keeper feeds. A fish starving (hunger
-  8.5+) in a lit tank for more than 5 min loses a point of trust per 20 min,
-  down to a floor of 2 (`STARVE_*`, progression.c); dark, the count holds.
+- **GLASS:** film on no more than `ALGAE_DIRTY` (15%) of the glass. A fry already
+  staged is not held back by it, or a night's film would keep it from ever landing
+  on a morning.
+- **GRASS:** a bed at `VEG_NURSERY` or taller to be born in.
+- **A pair:** two of one species (`pick_parents`, the species' best pair, grown
+  first and then by trust). A tank with no two of a kind has no fry to court or list.
+
+The milestones page's NEW FRY row lists the gates (`progression_next_fry`), and its
+HOW? button says how to move each one (`progression_fry_tip`). Both read the same
+table as the rule, so they cannot disagree with it.
+
+**The tell and the spawning.** One condition shy of an arrival, with a nursery, the
+parents-to-be start courting: a few seconds of circling down in the fronds every
+minute or so. Once every gate is met the arrival is staged. After
+`SPAWN_WAIT_MIN_S`..`MAX_S` awake seconds the pair swims into the nursery and circles
+there, and after `SPAWN_DANCE_S` together the fry is born between them, lit or dark.
+A page over the tank holds it (`ui_cover`). A tank put to sleep first has its fry at
+the wake.
+
+**The birth flow** (`setup.c`) opens over the live tank: A NEW FRY!, then its name
+on the letter wheel, then the family page. The debt rides in the save until the
+keeper finishes it.
+
+**Inheritance.** Bold and sociable are the parents' average with a nudge; the body
+colour comes from one parent and the markings from the other. A species keeps a
+parent's design 80% of the time. A classic fish's fry hatches as a new species 4% of
+the time (`SP_MUTATE_P`).
+
+**Selling a creature** (its card's SELL, two taps): 5 / 15 / 30 / 60 sand dollars by
+stage, a species' creature at most its shop price. The tank always keeps two, a fry
+still owed its welcome holds every sale, and the slot is earned again: the next fry
+waits for `SELL_FRY_MEALS` (12) more meals.
+
+## Growth
+
+Stages run fry → juvenile → adult → elder at 30 min, 3 h and 24 h of grown life
+(`STAGE_*_AGE`). Every awake second counts, lit or dark; a slept span counts at
+`SLEEP_GROWTH_FRAC` (0.25). Size is the stage's scale (0.55 / 0.78 / 1.04 / 1.23)
+times up to 1.18 for meals eaten. Reaching a stage shows as a brief notice.
 
 ## Trait drift
 
-*Implemented 2026-08-21: bold drifts down under sustained stress, up when fed
-and calm; social drifts up while following friends, down while solo exploring —
-one trait unit per ~6 h of pressure. Trust (touch) also persists.*
+Bold and sociable creep with experience, while the light is on (`progression_tick`):
 
-- In, but **kept simple**: two drifting traits only — **bold** and **social**
-  (0–9). Slow drift (days), small event-driven nudges, always recoverable.
-- These traits enter the model's state string (schema v2) so the LLM expresses
-  personality; this is the core LLM-over-rules advantage.
+| pressure | moves | rate (a whole 0..1 trait per `DRIFT_HOURS`, 2 h) |
+|---|---|---|
+| stress over 7 | bold down | full |
+| hunger under 4 and stress under 2 | bold up | half |
+| following a friend | sociable up | half |
+| exploring | sociable down | a fifth |
 
-## Touch interactions (trust)
+Both enter the model's state line, so the model expresses the drift as behaviour,
+and the model's response has cliffs a keeper can see: a very social fish starts
+following friends, a very bold one starts darting. Traits clamp to 0.05..0.95, but
+`drift_acc` counts all the pressure, clamp or not, so a fry born on a clamp can still
+earn the CHANGE gate. "The tank changed someone" is a bold or sociable 0.11 from
+where it started.
 
-*Implemented 2026-08-21 in `common/tank.c` (tank_touch_hold/tap); sim mouse
-and device FT3168 (`firmware/main/touch_port_ft3168.c`) feed the same state
-machine.*
+## Trust and touch
 
-- **Tap-and-hold** (settled, ~3 s of contact — 2026-08-30): fish swim toward
-  the held spot (trust-gated approach; a strongly hungry fish ignores the
-  finger). The 3 s gate keeps taps/card-taps from twitching the school.
-- (**Aggressive taps** - three quick taps made the fish near them flee, and
-  more taps kept them fleeing until a cooldown - went on 2026-10-28, the
-  keeper's call: no keeper would rap the glass on purpose; the species'
-  reactions to it are double-tap tricks now, docs/species.md. So did the
-  double-tap's light, and the hold on a decoration that opened its placement
-  page: the shop's MOVE does that.)
-- Tap reactions are reflex-layer, not model decisions.
+Trust is 0..10: 5 for a new creature, 4 for an arrival or a bought juvenile. Two
+things move it:
 
-## Upkeep chores (2026-08-30, `tank_veg_bed`/`tank_grow_algae` in tank.c)
+- **A resting finger** raises every creature's trust by 0.02 a second, wherever the
+  finger is (`HOLD_RADIUS` covers the glass).
+- **Going hungry with AUTO FEED off:** a creature at hunger 8.5 or more in a lit tank
+  loses a point per 20 minutes after a 5 minute grace, down to 2.
 
-- **Vegetation is alive**: the three beds keep growing — up toward the
-  surface (fastest during device drowse). **Every frond has its own height**
-  (2026-09-04, `tank_t.veg_h`): a sideways stroke that starts on a bed cuts
-  exactly the fronds it crosses, at the height where the finger crosses
-  them — a flick takes one or two at that height, a sweep along the floor
-  mows the bed toward **nubs, never bare** (little bits of green always
-  remain). Fish swim slower inside a canopy. **Height is
-  growth** (2026-09-04): a bed at growth g stands g of the way from the
-  floor to the surface — only the tank ceiling limits it, every bed alike.
-  Comfort band (2026-09-04 rework — fish LIKE cover): any canopy calms
-  (stress decays faster with more grass, faster again for a fish tucked
-  inside one); a fully
-  scalped tank (no bed past `VEG_BARE`) is a **mild** unease that lifts the
-  moment one tuft regrows; only a tank being **smothered** presses back —
-  the second-tallest bed past `VEG_SMOTHER` (85% of the way to the surface,
-  i.e. at least two beds crowding the ceiling), ramping to the full press
-  at 100%. One bed at the ceiling is just a good place to hide. Stress is
-  already in the schema, so the model reacts without any schema change.
-- **Algae films the glass** over hours (2x during drowse), dappled from the
-  corners/edges in; a **drag across the glass squeegees it clean**. Film
-  steps run through `tank_t.algae_acc` awake AND asleep — the device
-  drowses in 30 s slices and the old per-call `(int)(30 / 120)` had been
-  truncating every overnight step to zero (fixed 2026-09-04).
-- Tank milestones: first trimming, first glass cleaning.
-- Tank milestone "a school of ten shrimp" (2026-09-30): the shrimp school reaches SHRIMP_MAX.
-  Its badge shows only once shrimp are bought, past the sixth on the TANK row, which then
-  scrolls sideways (2026-10-28; six badges a page behind an arrow before).
-- (Neither chore counted toward the tap burst, so they never startled; the tap burst went with the triple tap, 2026-10-28.)
+**Bare hands only reach the creatures:**
 
-## Sand dollars and the shop (2026-09-15, `progression.c` SD_*, `render_shop`)
+| gesture | what it does |
+|---|---|
+| tap on a creature or helper | its card |
+| two quick taps on a creature | its trick, if it has one (8 of the 13 kinds: [species.md](species.md)) |
+| hold (~3 s of contact) | creatures with trust 4 or more come over, unless hunger is 7.5 or more |
 
-The points layer over the chores and the care. **Care earns sand dollars,
-the shop spends them** on things for the tank; nothing is ever lost and
-nothing is ever needed - a tank with no dollars is exactly the tank there
-was before.
+A creature that was out in the tank when the draw began and comes all the way in
+earns its first hold-approach. The reactions are reflex-layer, not model decisions,
+and the model never sees a finger.
 
-- **Earned** (one table, `SD_*` in progression.h): a meal (a fish ate from
-  a keeper feeding) 2; a fish reaching juvenile / adult / elder 5 / 10 / 25;
-  a fry born 20; a fish at full trust (10.0) 15, once; every 100 algae
-  colonies removed 25; every 250 cm of grass cut 25 (2362 px). The chore counts
-  repeat: they are the standing income. Detected from what the tank already
-  counts, against a paid ledger in the save - nothing pays twice, and a
-  tank saved before the shop is back-paid once for the stages, the trust
-  and the hundreds it already had (meals are adopted, not back-paid).
-- **A colony** is a connected patch of film whose last cell went under the
-  keeper's wipe; the grass counts px of frond actually cut, 24 px to the
-  tank's inch (PX_PER_CM = 24 / 2.54). The shop's line reads "+25  250 CM OF
-  GRASS CUT" since 2026-09-29: "100 IN OF GRASS CUT" read as the word "in" to
-  a UK keeper (issue #9), and "TRIMMING THE GRASS" (no unit) read as 25 for
-  any trim. The snail's grazing counts for neither.
-- **The shop** opens from the sand dollar on the milestones page's TANK row.
-  Items: the SWORD PLANT (40) - a fourth bed of broad leaves on the open
-  floor, trimmed and grown and counted as cover like the grass - and the
-  SNAIL (80) - a rule-based grazer on the glass that thins the film cell by
-  cell, awake and through a night of drowse. Both are in the tank for good.
-  The model sees neither (schema v4 is frozen); they reach the fish through
-  cover and the film, as the keeper's own chores do.
-- **Placing a piece (2026-09-16).** A bought decoration is the keeper's to
-  place: right after the purchase the shop closes and the PLACE THE SWORD
-  PLANT page comes up over the live tank (`setup_begin_place`, the bubble
-  column's page reworked) - a finger on the water drags the plant to that x
-  (`tank_decor_set`, clamped inside the visible window), a DEPTH bar of
-  three picture tiles - the keeper's first fish drawn over two leaves,
-  between them, behind them - picks BEHIND / AMONG / IN FRONT (behind the
-  fish and the grass / woven with them like the grass beds / over everything;
-  the tank redraws live and a hint line says what to watch for), DONE saves.
-  The owned plant's shop modal carries MOVE, which opens the same page again.
-  The spot and the layer ride in the save (`plant_x`, `plant_z`); older saves
-  read the default spot, AMONG. The snail is not placeable - it goes where
-  the film is.
-- Dollars earned during play show as a small "+N" toast over the live tank.
-- **The species (2026-10-05, [species.md](species.md)).** Items 7..15
-  (`SD_ITEM_SP_*`, `SD_ITEM_SP_FIRST` + species - 1) are the nine new
-  creatures, one juvenile a purchase, 10 sand dollars each
-  (`SD_PRICE_SP_*`, since 2026-10-07; a pair at 140..400 before that).
-  `progression_buy` needs one free place (`progression_has_room_one`: n + 1 <=
-  POP_CAP) and adds it by the reef (`tank_add_species_n`), as
-  juveniles: their clocks start at STAGE_JUV_AGE and the juvenile stage pay
-  is marked paid. The item's bit means "some of this species are in the
-  tank" (`progression_species_sync`, on load, after a sale, a birth and a
-  buy): the last one sold clears it and a surprise hatched in the tank sets
-  it; the bit never locks the row - a species sells whenever there is room,
-  and the modal counts how many of its kind are here. The rows and the modal
-  say NO ROOM / THE TANK IS FULL when the tank cannot take one more. Not
-  placeable, not sold back as things: a creature is sold from its card like
-  a fish, for its shop price at most.
+**The tools** come from the main menu, and a tool in hand owns the glass until its
+chip's DONE (or 2 minutes untouched):
 
-## IMU (motion)
+| tool | what it does |
+|---|---|
+| FEED | a tap drops a portion of three pellets at the surface over it; five portions fit |
+| SPONGE | a stroke wipes the film along its path |
+| SCISSORS | a mostly sideways stroke cuts every frond it crosses, at the height it crosses it |
 
-- **All-or-nothing**: only ship if it can be dialed in — tilting the tank must
-  redirect bubbles and adapt physics convincingly. If the board can't do it
-  well, skip the feature entirely. Prototype in firmware before committing.
+## Hunger
 
-## Light discipline / sleep
+A meal lasts about 5-6 awake minutes. Hunger scales how hard a fish goes for food,
+whichever brain chose `seek_food`: a peckish one saunters, a starving one charges.
 
-- **The keeper runs the light (2026-09-15).** By default (settings LIGHTS
-  OUT = NEVER, since 2026-10-28) the light stays on. (Until then the default
-  was MANUAL: a double-tap on the glass turned it off and another on, the
-  state saved, with a notice the first time; the keeper took the double-tap
-  out, and a MANUAL save loads as NEVER.) The 240 s day/night cycle is gone
-  (a saved override had frozen a tank in permanent day).
-  The keeper can opt into AUTO: then the light is on while the device is
-  handled - moved (the IMU's motion detector) or touched - and goes off
-  after the idle time (15 s by default, `tank_handled`). A tank left on the
-  desk goes dark and the fish sleep; a pick-up or a touch lights it.
-  A setup page or prompt holds
-  the light on (`hold_light`); the director's `light` / `auto` are the only
-  override, never saved. The settings page's LIGHTS OUT is one row since
-  0.3.2: a value between two arrows, AUTO (`light_auto`, the idle rule)
-  after 5 s, 15 s, 30 s, 1, 3, 5, 10 or 30 min still (`LIGHT_IDLE_CHOICES`,
-  `light_idle_s`; until 0.3.2 a swipeable number 5..999 s - a save from
-  then keeps its seconds and shows as the nearest choice), then NEVER (the
-  default; DOUBLE-TAP came first until 2026-10-28). The save's
-  `light_manual_off` and `light_tip_seen` bytes are written as 0 and read
-  no more (the layout keeps them).
-- Light off → fish retreat to the **seaweed/reef corner** and enter visible
-  sleep mode. Obvious, readable behavior.
-- Doubles as a **stasis/pause mode**: light off ≈ pausing the tank without
-  powering down. (Trait drift pauses while dark; growth does not.)
-- The tank milestone that lived here, "first quiet night" (every fish asleep
-  under the cycle), is now **"first full night's sleep"**: one stretch of
-  device sleep of at least `FULL_NIGHT_S` (6 h), credited at the wake
-  (`progression_slept`).
+The tank's own **trickle** is hunger-gated and per-second: while someone is at 7.5 or
+more and fewer than two pellets are live, it drops one about every 7 s. An untended
+tank cycles between fed and peckish and never reaches ravenous while awake
+(`--selftest-hunger`). The keeper's pellets are what make a creature full.
 
-## Breeding
+**Ravenous** is the after-sleep event. When everyone is at 8.5 or more with empty
+water, they beg at the surface over the keeper's usual feeding spot and the trickle
+holds off, so the keeper's pellets are the event. Live pellets bring a dash. If
+nobody comes within 150 s they give up and the tank feeds itself.
 
-*Not implemented yet — one design implication surfaced 2026-08-21: the model's
-vocabulary is closed (58 tokens) and fish are identified by name in the state
-line, so a fry needs a name token the model was trained on. Options: (a) add a
-5th name to the lexicon now and include 5-fish scenes in the next data cycle
-(cheap: regen + retrain), or (b) keep the fry reflex-only (follows a parent,
-no advisor) until it matures into a vacated/known name. Decide before breeding
-is built.*
+**AUTO FEED off** (settings) stops the trickle. Nobody dies of it: they beg once,
+give up, and go hungry quietly until the keeper feeds, losing trust as above.
 
-- **Conservative and special.** Two well-fed, mature fish can breed — a rare
-  "I didn't know they could do that" moment, not an economy.
-- Population: 4 fish + **at most 1 fry** until that fry matures. Hard cap.
-- Scripted/reflex-orchestrated event, not a model decision (no new goal enum).
+## Upkeep
 
-## Model impact (schema v2 — pending approval)
+Chores are feedback, not punishment, and they earn sand dollars.
 
-Only three additions to the state line; everything else above is reflex-layer:
+**The grass.** Three beds, plus the shop's sword plant, grow upward: from nubs to
+their ceilings in ~45 h awake or ~20 h asleep. Every frond has its own height and its
+own ceiling (a hashed 0.72..0.95 of the way to the surface), so a grown bed is a ragged
+skyline. The scissors never cut below nubs. The grass is a comfort system; stress is
+already in the schema, so the model reacts with no schema change:
 
-```
-bold <0-9> social <0-9> stage <fry|juv|adult|elder>
-```
+- **Any canopy calms,** more for a creature tucked inside one.
+- **No cover** (every bed under `VEG_BARE`) is a mild unease, gone once one tuft regrows.
+- **Smothered** (the second-tallest bed past 85% of its ceiling) is real stress. One
+  bed at its ceiling is just a good place to hide.
 
-- Teacher prompt v2 describes how personality and life stage shade decisions;
-  traits randomized during trace generation so the student learns the whole
-  personality space.
-- Ravenous-boot needs no schema change (it's hunger 9 + reflex urgency).
-- Sleep needs no schema change (`time night` already exists; teacher prompt
-  gains "fish rest by the reef at night").
-- Cost: ~+6 tokens per state line; one overnight regen + one retrain.
+**The film.** Algae claims the glass in steps, one per 4 min awake and one per 3 min
+asleep, from the edges in, up to 30% of the cells; existing cells only thicken past
+that. A night lands near the 15% gate. The sponge wipes it.
+
+The **snail** and the **urchin** ([species.md](species.md)) lighten both chores, awake
+and through the night, and never count as the keeper's.
+
+## The light and time away
+
+**The light** is the settings page's LIGHTS OUT: NEVER by default (it stays on), or
+AUTO after 5 s, 15 s, 30 s, 1, 3, 5, 10 or 30 min still. With AUTO it is on while the
+device is handled (moved, or touched) and goes off after the idle time. A setup page
+or a prompt holds it on. In the dark the creatures rest by the reef and sleep; trait
+drift pauses but growth does not. The director and the sim can override it, never
+saved.
+
+**Time away.** A boot or a wake lives through the stretch since the save, capped at a
+week (`progression_slept`, `tank_tick_sleep`): hunger rises 0.8 an hour, energy
+returns, stress goes, the grass and the film grow and the helpers graze, one
+`SLEEP_SLICE_S` at a time. So a long absence ends in ravenous begging by itself, and a
+tank whose cell died overnight still gets its night. One stretch of 6 h earns "first
+full night's sleep". Without a clock the tank simply resumes.
+
+## Milestones
+
+Firsts are **detected from what the creatures actually did**, so when one lands is
+earned and differs per tank. A badge earned since the keeper last closed the page wears
+a ring.
+
+| | badges |
+|---|---|
+| a creature's six | first meal from you, first hold-approach, first rest in the seagrass, first bubbles, first follow, first dart |
+| its growth strip | reached juvenile, adult, elder |
+| the tank's | first feeding, first trimming, first glass cleaning, first full night's sleep, first play session (two darting at once), the tank changed someone |
+| the tank's, once the thing is bought | a school of ten shrimp, first visit to the reef |
+| the population strip | a pair, a trio, a quartet, a quintet, a sextet |
+
+Personality sliders on the card are revealed by the same bits: you learn a creature by
+watching it.
+
+## Sand dollars and the shop
+
+Care earns sand dollars and the shop spends them. Nothing is ever needed: a tank with
+no dollars is a complete tank. A "+N" toast shows what lands during play. The ledger is
+saved, so nothing pays twice.
+
+| earned by | dollars |
+|---|---|
+| a meal (a creature ate from a keeper's feeding) | 2 |
+| reaching juvenile / adult / elder | 5 / 10 / 25 |
+| a fry born | 20 |
+| full trust (10.0), once a creature | 15 |
+| every 100 algae colonies wiped (a colony is a connected patch whose last cell went under the keeper's sponge) | 25 |
+| every 250 cm of grass cut (24 px to the tank's inch) | 25 |
+
+| the shop | price | |
+|---|---|---|
+| sword plant | 40 | a fourth bed of broad leaves, trimmed and counted as cover like the grass |
+| snail | 80 | helper: grazes the glass |
+| castle | 150 | a swim-through arch |
+| coral | 100 | grows for a month, in the keeper's colour |
+| reef cluster | 240 | arrives mature, then blooms; three looks; becomes the fish's `reef` |
+| shrimp | 180 | helper: a school that multiplies on pellets |
+| sea urchin | 120 | helper: nibbles the tall grass |
+| wreck | 200 | a sunken boat with holes to swim past |
+| frogman | 10 | helper: a drifting diver |
+| submarine | 60 | helper: cruises and raises a periscope |
+| a species' juvenile | 10 | one a purchase, as often as there is room; two of a kind breed |
+
+The model sees none of the decor or helpers directly. They reach the creatures through
+cover and the film, and the reef cluster through the `reef` sighting.
+
+**Placing a piece.** After a purchase (or the shop's MOVE) the placement page opens over
+the live tank: a finger on the water drags the piece, a DEPTH bar picks BEHIND / IN FRONT
+(and AMONG for the plant) and the tank redraws live. MIDDLE is a split: half the piece
+behind the creatures, half in front.
+
+**Selling a piece or a helper** takes two taps on SELL: 20% of the price back to the
+balance (not earnings), the thing gone, and a rebuy starts fresh.
+
+## Why the model and not rules
+
+Progression pushes the numbers the model reads, lets the keeper see it read them, and
+uses its distribution for variety. `model/probe_dist.py` reproduces the measurements;
+[stats.md](stats.md) has the shipped model's.
+
+- **Identity is continuous conditioning.** Bold, sociable and stage shape a joint
+  function over every situation, from prose in the teacher's prompt, with no code.
+- **Sampling.** The goal is sampled from the model's own softmax at T = 1. About 1
+  decision in 5 differs from greedy, almost always to the teacher's own second choice,
+  and survival decisions are essentially untouched.
+- **Hesitation.** A low-confidence switch shows as a pause and a glance at the
+  runner-up's target. A rule engine has no runner-up to glance at.
+- **Fry are erratic** because the model is less sure about them. Elders settle.
+
+The model's goal is never altered; only its certainty is shown.
+
+## Saves
+
+One blob in NVS (`tank`/`save`), layout 3. Saves go out on events, coalesced to at
+least 30 s apart, plus a 10-minute heartbeat. The layout is locked: a new field only
+goes at the end of `save_t` (`SAVE LAYOUT LOCK` in `common/progression.c`), a new decor
+kind or helper is a record, and `--selftest-saves` holds every layout 3 save to the
+promise. Earlier layouts start a fresh tank.

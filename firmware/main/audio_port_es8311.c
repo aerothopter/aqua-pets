@@ -41,11 +41,11 @@ static volatile bool s_sleep_req, s_warm_req;
 static int64_t s_quiet_since;
 static int s_volume = 2;
 static int16_t s_buf[BLOCK];
-/* cold-start settle, tunable live (director `snd settle <codec ms> <amp ms>`,
-   `snd idle <s>`) until the bench says what the DAC and the NS4150B need */
+/* cold-start settle, what the DAC and the NS4150B need; tunable live
+   (director `snd settle <codec ms> <amp ms>`) */
 static int s_settle_codec_ms = 150, s_settle_amp_ms = 100;
 /* the codec + amp need > 250 ms from cold and a tap's dwell cannot hide
-   that (a cold card cue was lost), so the port stays warm while the tank is
+   that, so the port stays warm while the tank is
    HANDLED: any touch or IMU motion (main.c -> audio_port_prewarm) brings it
    up and restarts this idle clock, and it goes down idle_us after the last
    touch, motion or sound - on a table, silent. 0 = warm while awake
@@ -56,13 +56,13 @@ static uint32_t now_ms(void) { return (uint32_t)(esp_timer_get_time() / 1000); }
 
 static void amp(bool on) { gpio_set_level(PIN_AMP_EN, on); }
 
-/* Deep sleep (2026-09-16, the night the tank died): the I2S lines and the
+/* Deep sleep: the I2S lines and the
  * amp's CTRL are the ESP's outputs into ICs that stay powered on VCC3V3 all
  * night (the codec's DVDD/PVDD, the NS4150B). In deep sleep an un-held
  * digital pad is neither driven nor pulled - and esp-idf isolates the REST
  * of the digital pads only once digital hold is on (sleep_gpio.c: without
  * it "the bottom current of deep sleep will be higher than light sleep",
- * which is exactly what the batlog measured: ~15 mA vs the drowse's 4.7).
+ * which is exactly what the batlog measured: ~15 mA vs light sleep's 4.7).
  * So before esp_deep_sleep_start: each of these a plain GPIO, driven low,
  * held. The codec is already down (audio_port_sleep) and the wake is a
  * reboot; audio_port_init releases the holds before the drivers claim the
@@ -102,12 +102,12 @@ static void bring_up(void) {
     write_silence(s_settle_codec_ms);         /* the DAC's vmid / reference settle (fast charge, then normal) */
     codec_port_settled();
     amp(true);
-    write_silence(s_settle_amp_ms);           /* the NS4150B's own start-up (pop suppression): an 80 ms card
-                                                 cue landed inside it at 30 ms, and mostly still at 30+40 */
+    write_silence(s_settle_amp_ms);           /* the NS4150B's own start-up (pop suppression): a short cue
+                                                 inside it is lost */
     s_up = true; s_quiet_since = 0;
     s_warm_req = false;                         /* every prewarm asked for while this came up (the tank asks each frame it is
-                                                   handled) is answered: left standing, it brought the port straight back up
-                                                   after its next down - at a sleep, for the whole sleep (2026-10-01) */
+                                                   handled) is answered: left standing, it would bring the port straight back up
+                                                   after its next down - at a sleep, for the whole sleep */
     ESP_LOGI(TAG, "up in %lld ms%s", (esp_timer_get_time() - t0) / 1000, ok ? "" : " (codec writes FAILED)");
 }
 /* power down: amp -> zeros -> clocks off -> codec down -> rail */

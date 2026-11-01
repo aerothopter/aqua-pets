@@ -1,5 +1,5 @@
 #!/bin/bash
-# run_v5_overnight.sh — the schema v5 data cycle (species), unattended (docs/retrain-v5.md).
+# run_v5_overnight.sh — the schema v5 data cycle (species), unattended (docs/retrain.md).
 # Launch with nohup; everything logs to out/v5_overnight.log.
 #
 #   nohup ./run_v5_overnight.sh > /dev/null 2>&1 &
@@ -79,4 +79,4 @@ ls -la out/model_q4_v5m.bin out/model_v5m.bin out/tokenizer_v5.bin | tee -a "$LO
 log "--- probe (distribution, + the species panel) ---"
 $PY probe_dist.py --schema 5 --ckpt out/ckpt_v5m.pt --data out/v5m_clean.jsonl 2>&1 | grep -v Warning | tee -a "$LOG"
 
-log "=== v5 overnight DONE. Next: docs/retrain-v5.md acceptance (eval.py per species) + ship. ==="
+log "=== v5 overnight DONE. Next: docs/retrain.md acceptance (eval.py per species) + ship. ==="

@@ -1,17 +1,15 @@
 """pt_boards.py - the boards a release ships for, and which one an image is.
 
-0.3.0 ships one image per board (docs/BOARDS.md). The image says which board
+A release ships one image per board (docs/BOARDS.md). The image says which board
 it is for: a marker right after its app descriptor (firmware/main/
 net_port_esp.c, common/version.h PT_BOARD_MARKER_OFFSET), so the release tools
 read the board from the image itself - a mixed-up build dir can never publish
-the 1.8's image under the bowl's name.
+one board's image under another's name.
 """
 import os, sys
 
 # id (PT_BOARD, common/devices/<board>.h), the maker's name, the sdkconfig fragment on top of
-# sdkconfig.defaults (None = the 1.8, the default build). One board for now (2026-10-26): the
-# 1.75C (round175c, sdkconfig.round) and the 2.06 (watch206, sdkconfig.watch) are at git tag
-# multi-board-multi-theme.
+# sdkconfig.defaults (None = the 1.8, the default build). One board for now (docs/BOARDS.md).
 BOARDS = [
     ("amoled18",  "Waveshare ESP32-S3-Touch-AMOLED-1.8",  None),
 ]

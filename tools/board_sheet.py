@@ -4,15 +4,13 @@
 Runs one picture-writing mode of the simulator on each board's build and
 pastes the pictures of the same name into one PNG per name, each cut to the
 shape of its glass, so what the bezel hides is hidden here too. One board for
-now (2026-10-26): the 1.8. The bowl (the 1.75C, fishsim-round, a circle) and
-the watch (the 2.06, fishsim-watch, corners of 100) are at git tag
-multi-board-multi-theme; a board brought back is a row in BOARDS. Look at the
+now, the 1.8; a board brought back is a row in BOARDS. Look at the
 sheets before anything is flashed (docs/BOARDS.md): a page that is right on
 one board and cut, shifted or crowded on another shows at a glance.
 
-  aqua-pets/tools/board_sheet.py --selftest-card       # the fish card, armed, the rename page
-  aqua-pets/tools/board_sheet.py --snapshot 20         # every page the snapshot mode draws
-  aqua-pets/tools/board_sheet.py --out /tmp/x --selftest-card
+  tools/board_sheet.py --selftest-card       # the fish card, armed, the rename page
+  tools/board_sheet.py --snapshot 20         # every page the snapshot mode draws
+  tools/board_sheet.py --out /tmp/x --selftest-card
 
 The mode is any simulator flag that takes a path prefix as its next argument
 and writes <prefix>_<name>.ppm files; anything after it is passed on. The
@@ -50,7 +48,7 @@ def read_ppm(path):
 
 
 def on_glass(x, y, w, h, radius):
-    if radius is None:                             # the bowl: the circle inscribed in the frame
+    if radius is None:                             # a round glass: the circle inscribed in the frame
         r = w / 2.0
         return (x + 0.5 - r) ** 2 + (y + 0.5 - h / 2.0) ** 2 <= r * r
     cx = radius if x < radius else w - radius if x >= w - radius else None

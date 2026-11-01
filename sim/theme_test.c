@@ -1,7 +1,6 @@
 /* Theme regression tests run headlessly on every board, through real touch/save/render paths.
- * One theme for now (2026-10-26): the Original. The picker, the theme switches and the themed
- * castle's mask went with the other three (git tag multi-board-multi-theme); the loops over
- * THEME_COUNT stay, so a theme brought back is tested here again. */
+ * One theme for now, the Original (docs/THEMES.md); the loops over THEME_COUNT stay, so a theme
+ * brought back is tested here again. */
 #define _POSIX_C_SOURCE 200809L
 #include "render.h"
 #include "progression.h"
@@ -46,7 +45,7 @@ static void shot(const char *prefix,const char *page,int theme) {
 static void settings_open(tank_t *t) {
     render_settings_leave(); render_settings(t,fb,TANK_W,60,1);
 }
-/* Native art sheets exercise every new drawing path and the shared cache. */
+/* Native art sheets exercise every creature, helper and effect's drawing path and the shared cache. */
 static int art_sheets(const tank_t *base,const char *prefix) {
     int bx,by,bw,bh;render_settings_bounds(&bx,&by,&bw,&bh);
     for(int id=0;id<THEME_COUNT;id++) {
@@ -228,7 +227,7 @@ int selftest_themes(const char *prefix) {
     for (int id=0;id<THEME_COUNT;id++) {
         t.theme=id; settings_open(&t); shot(prefix,"settings",id);
         CHECK(t.n_fish==count && t.fish[0].color==body && t.fish[0].trust==6.25f && t.sd_balance==173 && !strcmp(t.fish[0].name,"miso"),"the settings page preserves the simulation");
-        /* one layout for every theme (2026-10-10): the Original's rows and foot, in the theme's colours.
+        /* one layout for every theme: the Original's rows and foot, in the theme's colours.
            BRIGHTNESS between arrows, VOLUME segments, LIGHTS OUT, AUTO FEED, then ABOUT, RESET, CLOSE */
         {
             CHECK(tap(&t,PAGE_X+SETP_NEXT_X,PAGE_Y+SET_ROW1_Y+10,&v)==SET_TAP_BRIGHT && v==70,"brightness up a step");
@@ -268,8 +267,8 @@ int selftest_themes(const char *prefix) {
         CHECK(a->w==icon_shop_shark.w && a->h==icon_shop_shark.h,"icon extent unchanged");
         CHECK(id || a==&icon_shop_shark,"Original assets preserved");
     }
-    /* a save from a themed tank (Quiet Lagoon 1, Tidepool Club 2, Blackwater 3: retired 2026-10-26) or
-       with an unknown ID loads as the Original, the tank kept */
+    /* a save holding a reserved theme ID (1, 2, 3) or an unknown one loads as the Original, the tank
+       kept */
     t.theme=0; render_use_theme(0);
     static const int retired[]={1,2,3,255};
     for (int i=0;i<4;i++) {

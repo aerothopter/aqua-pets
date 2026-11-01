@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""draw_species_icons.py - the shop's nine species icons (2026-10-05), drawn
+"""draw_species_icons.py - the shop's species icons, drawn
 as 32x32 pixel art from shapes: each layer a flat colour with a light edge
 up-left and a dark edge down-right, and a dark outline round the whole -
 the three-tone style of the hand-drawn assets/icons. Writes
@@ -191,7 +191,7 @@ d.line((15, 8, 11, 2), 1); d.line((17, 8, 21, 2), 1)
 d = I.layer(0x101010, shade=False); dots(d, [(14, 9), (18, 9)])
 icons['shop_lobster'] = I
 
-# swordfish (2026-10-10 night): side-on, the long bill out front, the sickle dorsal, the lunate tail
+# swordfish: side-on, the long bill out front, the sickle dorsal, the lunate tail
 I = Icon()
 d = I.layer(0x5f7f99)
 d.polygon([(6, 17), (10, 12), (17, 10), (22, 12), (25, 16), (22, 20), (17, 22), (10, 21)], 1)   # the body
@@ -204,7 +204,7 @@ d = I.layer(0xffffff, shade=False); dots(d, [(21, 14)])
 d = I.layer(0x101010, shade=False); dots(d, [(22, 14)])
 icons['shop_swordfish'] = I
 
-# turtle (2026-10-11): side-on, the domed shell with its scutes, the head out on the right, the paddles
+# turtle: side-on, the domed shell with its scutes, the head out on the right, the paddles
 I = Icon()
 d = I.layer(0x8fb45c)                                                                  # the skin: far paddle, tail, rear paddle
 d.polygon([(10, 20), (14, 21), (18, 27), (12, 26)], 1)

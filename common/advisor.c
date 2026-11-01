@@ -1,4 +1,4 @@
-/* advisor.c — rule-based advisor stub (prototype chooseCompanionGoal). */
+/* advisor.c — rule-based advisor stub (advisor.h). */
 #include "advisor.h"
 
 /* stateless PRNG: advisor must not mutate the tank */

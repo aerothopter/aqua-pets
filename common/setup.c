@@ -36,8 +36,8 @@ static float s_px, s_py;       /* press point */
 static float s_ly;             /* last y, for the wheel */
 static float s_acc;            /* vertical travel toward the next step */
 static bool  s_spun;           /* this press has turned the wheel (or moved the column): no tap on release */
-static bool  s_sell_armed;     /* the placement page's SELL tapped once (2026-09-24) */
-/* the legacy keyboards (setup.h, SETUP_KBD_*) */
+static bool  s_sell_armed;     /* the placement page's SELL tapped once */
+/* the kept keyboards (setup.h, SETUP_KBD_*) */
 static int  s_kbd;             /* the name page's design: the wheel unless the director says otherwise */
 static bool s_typed;           /* this name page: the keeper has typed (the default is gone) */
 static int  s_kb_page;         /* SETUP_KBD_PAGES: 0 = A-M, 1 = N-Z */
@@ -53,7 +53,7 @@ static int  place_y(void) { return s_item == 3 ? SETUP_PLACE_CORAL_Y : s_item ==
 static const char *fish_name(const tank_t *t, int i) { return i >= 0 && i < t->n_fish ? t->fish[i].name : "?"; }
 static void stage(tank_t *t);
 static void tidy_name(tank_t *t, int fish);
-/* the species' words (2026-10-05): what a creature is called on these pages
+/* the species' words: what a creature is called on these pages
    - "FRY" for the classic fish, else its species ("SEAHORSE") - with its article */
 static bool is_species(const fish_t *f) { return f->species > SP_FISH && f->species < SP_COUNT; }
 static const char *kind_word(const fish_t *f) { return is_species(f) ? SPECIES[f->species].name : "FRY"; }
@@ -138,7 +138,7 @@ int  setup_slot(void)   { return s_slot; }
 void setup_set_keyboard(int mode) { s_kbd = mode == SETUP_KBD_GRID || mode == SETUP_KBD_PAGES ? mode : SETUP_KBD_WHEEL; s_typed = false; s_kb_page = 0; }
 int  setup_keyboard(void) { return s_kbd; }
 
-/* ---- the legacy keyboards: geometry and hit test as they were on 2026-09-13 ----
+/* ---- the kept keyboards (setup.h, SETUP_KBD_*): geometry and hit test ----
  * GRID: A-Z in 7 columns at a 50 x 38 px pitch, the last row V..Z + a
  * double-width DEL. PAGES: 5 x 3 cells at 72 x 80, the page's 13 letters,
  * then DEL, then the flip in the corner. Both: a tap anywhere over the block
@@ -461,8 +461,7 @@ static void dots(uint16_t *fb, int stride, int y) {
     for (int i = 0; i < n; i++) render_rect(fb, stride, x0 + i * 10, y, 6, 3, i == cur ? C_EDGE : C_DIM);
 }
 /* a ring round a fish where it swims: the fish is in the TANK, the drawing on
-   the page - on a glass the page does not start at (the bowl, the watch) the
-   ring sat PAGE_X / PAGE_Y off its fish until 2026-10-01 */
+   the page, so this crosses the coordinate spaces (PAGE_X / PAGE_Y) */
 static void fish_ring(uint16_t *fb, int stride, const fish_t *f, float r, uint32_t rgb) {
     render_ring(fb, stride, f->x - PAGE_X, f->y - PAGE_Y, r, rgb);
 }
@@ -493,8 +492,6 @@ static void leaf_glyph(uint16_t *fb, int stride, int cx, int y_bot, int h, uint3
         render_rect(fb, stride, cx - w / 2, y_bot - i, w, 1, rgb);
     }
 }
-/* a little castle for the castle's depth tiles: two towers, a wall with
- * merlons, the arch - the stone tones of the real one */
 /* a little coral for its depth tiles: a trunk and four branches, rounded
  * with 2 px blocks, in the keeper's colour with a lit tip */
 static void coral_glyph(uint16_t *fb, int stride, int cx, int y_bot, uint32_t rgb) {
@@ -517,7 +514,7 @@ static void cluster_glyph(uint16_t *fb, int stride, int cx, int y_bot, const clu
     coral_glyph(fb, stride, cx - 9, y_bot - 4, sc->coral);
     render_rect(fb, stride, cx - 4, y_bot - 12, 12, 8, sc->brain); render_rect(fb, stride, cx - 2, y_bot - 14, 8, 2, sc->brain);
 }
-/* a little shipwreck for its depth tiles (2026-10-10): a tilted hull with two holes, a mast stump */
+/* a little shipwreck for its depth tiles: a tilted hull with two holes, a mast stump */
 static void wreck_glyph(uint16_t *fb, int stride, int cx, int y_bot) {
     const uint32_t wood = 0x6b4e35, dark = 0x3a2a1c, hole = 0x0b1a22;
     for (int i = 0; i < 12; i++) render_rect(fb, stride, cx - 20 + i * 3 + (i < 2 ? 2 - i : 0), y_bot - 14 + (i > 9 ? i - 9 : 0), 3, 12 - (i < 2 ? 2 - i : 0) - (i > 9 ? i - 9 : 0), wood);
@@ -525,6 +522,8 @@ static void wreck_glyph(uint16_t *fb, int stride, int cx, int y_bot) {
     render_rect(fb, stride, cx - 11, y_bot - 11, 5, 5, hole); render_rect(fb, stride, cx + 5, y_bot - 12, 6, 6, hole);
     render_rect(fb, stride, cx - 1, y_bot - 28, 2, 14, dark); render_rect(fb, stride, cx - 5, y_bot - 24, 10, 1, dark);
 }
+/* a little castle for the castle's depth tiles: two towers, a wall with
+ * merlons, the arch - the stone tones of the real one */
 static void castle_glyph(uint16_t *fb, int stride, int cx, int y_bot, uint32_t wall, uint32_t roof) {
     const uint32_t tower = 0x87795f, dark = 0x0b1a22, trim = 0xc25f38;
     render_rect(fb, stride, cx - 14, y_bot - 14, 29, 15, wall);
@@ -551,7 +550,7 @@ static void stones_glyph(uint16_t *fb, int stride, int cx, int y_bot) {
 /* a depth tile: the plant's - two leaves and the keeper's first fish, in
  * the order the choice means - BEHIND (the plant behind the fish): leaves,
  * then the fish over them; AMONG: one leaf, the fish, the other leaf; IN
- * FRONT: the fish, then both leaves over it. The castle's (2026-09-16):
+ * FRONT: the fish, then both leaves over it. The castle's:
  * the castle and two leaves - BEHIND: the castle, the leaves over it; IN
  * FRONT: the leaves, the castle over them (its depths mean the plant layer).
  * k is the decor kind (decor.h) */
@@ -670,7 +669,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         char title[40]; snprintf(title, sizeof title, "PLACE THE %s", SD_ITEMS[s_item].name);
         text_c(fb, stride, CX, SETUP_Y + 7, 2, C_CAPT, title);
         render_button(fb, stride, SETUP_TOP_NEXT_X, SETUP_TOP_BTN_Y, SETUP_TOP_BTN_W, SETUP_BTN_H, C_GO, C_GO_E, "DONE", 2);
-        /* SELL, top left (2026-09-24): a tap arms it and names the refund, a
+        /* SELL, top left: a tap arms it and names the refund, a
            second tap sells the piece back to the shop and closes the page */
         if (s_sell_armed) { char ok[16]; snprintf(ok, sizeof ok, "+%d OK?", progression_sell_value(s_item));
                             render_button(fb, stride, SETUP_TOP_BACK_X, SETUP_TOP_BTN_Y, SETUP_TOP_BTN_W, SETUP_BTN_H, C_GO, C_GO_E, ok, 2); }
@@ -700,8 +699,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
             }
         } else if (s_item == 3) {
             /* the coral: no hint line - a COLOR row instead (the fish colour
-               page's swatches, shorter), the pick ringed, the hint under the
-               row's caption */
+               page's swatches, shorter), the pick ringed */
             uint32_t rgb = tank_coral_rgb(t);
             render_rect_blend(fb, stride, -PAGE_X, SETUP_COL_Y - 22, TANK_W, SETUP_COL_H + 30, C_PANEL, 110);   /* a band the swatches read on, like the colour page's */
             render_text(fb, stride, SETUP_COL_X + 2, SETUP_COL_Y - 18, 2, C_CAPT, "COLOR");
@@ -722,7 +720,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         chevron(fb, stride, (int)((x0 + x1) * 0.5f), FLOOR - 34, true, C_EDGE);
         text_c(fb, stride, CX, 296, 2, C_CAPT, "DRAG IT LEFT OR RIGHT");
     } else if (page_is_name() && s_kbd) {
-        /* the two rejected designs, drawn as they were: a panel over the tank,
+        /* the two kept keyboards: a panel over the tank,
            the name as underlined slots (the next free one blinks; an untouched
            default sits dimmed, as a placeholder does), the keys */
         const fish_t *f = &t->fish[page_fish()];
@@ -731,7 +729,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         char ncap[40]; name_caption(ncap, sizeof ncap, t);
         text_c(fb, stride, CX, SETUP_Y + (grid ? 12 : 7), 2, C_CAPT, ncap);
         if (grid) render_creature_preview(fb, stride, SETUP_X + 88, SETUP_Y + 72, 2.0f * 22 / fmaxf(22, render_species_half_len(f->species)),
-                                          f->species, f->variant, f->color, f->fin, f->accent, clock);   /* an eel fits the box (2026-10-05) */
+                                          f->species, f->variant, f->color, f->fin, f->accent, clock);   /* an eel fits the box */
         const int SL = 22, NX = grid ? SETUP_X + 160 : CX - FISH_NAME_MAX * SL / 2 + 2, NY = grid ? SETUP_Y + 58 : SETUP_TOP_BTN_Y + (SETUP_BTN_H - 28) / 2;
         int n = name_len(f);
         for (int i = 0; i < FISH_NAME_MAX; i++) {
@@ -797,7 +795,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         char cap[FISH_NAME_MAX + 16]; snprintf(cap, sizeof cap, "A COLOR FOR %s", f->name);
         text_c(fb, stride, CX, SETUP_Y + 7, 2, C_CAPT, cap);
         nav(fb, stride, true, "NEXT", false);
-        /* (a species' creature - never one of the founding pair today, but a
+        /* (a species' creature - never one of the founding pair, but a
            director's tank may stage one - picks among its species' four
            designs instead: the body swatches are the designs' bodies, and a
            design brings its own markings) */
@@ -827,7 +825,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         fish_ring(fb, stride, f, r, f->color);
         fish_ring(fb, stride, f, r + 8, C_EDGE);
         render_rect_blend(fb, stride, -PAGE_X, 92, TANK_W, 116, C_PANEL, 150);
-        /* (2026-10-05) a species' newborn is named for what it is - "A NEW
+        /* a species' newborn is named for what it is - "A NEW
            SEAHORSE!" - and a surprise (a classic pair's fry hatched as a
            species, SP_MUTATE_P) gets its own announcement */
         char head[40], l1[FISH_NAME_MAX * 2 + 24], l2[40];
@@ -857,7 +855,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
         text_c(fb, stride, CX, SETUP_Y + 20, 3, C_TEXT, f->name);
         float ps = f->size * 2.0f;                                   /* a portrait, twice life size (a fry) ... */
         if (ps > 1.2f) ps = 1.2f;                                    /* ... but a juvenile's ring must clear the name */
-        float ru = render_fish_ring_r(f) / f->size;                  /* a long creature (an eel) to the same ring (2026-10-05) */
+        float ru = render_fish_ring_r(f) / f->size;                  /* a long creature (an eel) to the same ring */
         if (ps * ru > 1.2f * 17) ps = 1.2f * 17 / ru;
         render_ring(fb, stride, CX, SETUP_FAM_PORTRAIT_Y, ru * ps + 6, f->color);
         render_fish_portrait(fb, stride, CX, SETUP_FAM_PORTRAIT_Y, ps, f, clock);
@@ -894,7 +892,7 @@ void render_setup(const tank_t *t, uint16_t *fb, int stride, float clock) {
     } else {                                                        /* SETUP_PG_CARE */
         panel(fb, stride);
         text_c(fb, stride, CX, SETUP_Y + 22, 3, C_TEXT, "CARING FOR THEM");
-        static const char *const ls[] = {          /* (2026-10-28: feeding, wiping and trimming are the menu's tools) */
+        static const char *const ls[] = {          /* (feeding, wiping and trimming are the menu's tools) */
             "TAP A FISH TO CHECK ON IT",
             "HOLD A FINGER AND THEY VISIT",
             "THE MENU HOLDS YOUR TOOLS:",

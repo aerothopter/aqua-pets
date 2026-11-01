@@ -3,19 +3,19 @@
  * mouse: press+release < 350 ms with < 24 px displacement = tap (fingertips
  * roll and this panel is 322 ppi); held > 300 ms = hold; every touched
  * frame streams to tank_touch_drag (the SPONGE's stroke wipes algae, the
- * SCISSORS' trims the grass; bare hands neither since 2026-10-28, and a
- * drag down from the top no longer feeds - the FEED tool's tap does). Fish taps hit-test each creature's own reach (tank_fish_hit_r) against the press-time fish
- * snapshot AND the current position - fish move during a tap. While the stats
- * card is up, a tap anywhere on empty glass dismisses it (hunting the same
- * fish again to close it was the old, cumbersome way) and does nothing else.
+ * SCISSORS' trims the grass; bare hands neither; the FEED tool's tap feeds).
+ * Fish taps hit-test each creature's own reach (tank_fish_hit_r) against the
+ * press-time fish snapshot AND the current position - fish move during a tap.
+ * While the stats card is up, a tap anywhere on empty glass dismisses it and
+ * does nothing else.
  * While the battery pill shows (main.c says so each frame), a tap on it -
  * RENDER_BAT_HIT, the pill plus a fingertip's slop - opens the battery page;
- * any release closes that page (2026-09-24).
+ * any release closes that page.
  * Coordinates are mapped from the portrait panel to the landscape tank.
- * The ROUND board (1.75C, 2026-10-01) has a CST9217 instead, read here
+ * The ROUND board (1.75C) has a CST9217 instead, read here
  * directly over I2C; its panel px go through the display port's view
  * (display_port_panel_to_tank) and everything after that is the same.
- * The WATCH (2.06, 2026-10-02) has the FT3168 of the 1.8's V1 board, its
+ * The WATCH (2.06) has the FT3168 of the 1.8's V1 board, its
  * reset on a GPIO. */
 #include "touch_port.h"
 #include "display_port.h"
@@ -45,7 +45,7 @@ static float s_lx, s_ly;                          /* LAST touched position (rele
 static float s_fx[N_FISH_MAX], s_fy[N_FISH_MAX];  /* fish positions at press time */
 static int s_sel = -1; static int64_t s_sel_us;   /* tapped fish -> stats card */
 static bool s_ms;                                 /* milestones page up (its CLOSE returns to the main menu) */
-static bool s_menu;                               /* the main menu up (2026-10-21: BOOT's page; a tap off its grid ends it) */
+static bool s_menu;                               /* the main menu up (BOOT's page; a tap off its grid ends it) */
 static bool s_cf; static int64_t s_cf_us; static int s_cf_ans;   /* reset confirm prompt */
 static bool s_set;                                /* settings page up (CLOSE returns to the main menu) */
 static bool s_shop;                               /* the shop page up (CLOSE returns to the main menu) */
@@ -60,8 +60,7 @@ static bool s_bat; static int64_t s_bat_us;       /* the battery page up, and si
 static bool s_inverted;                           /* screen 180-flipped: mirror into tank space */
 /* Fingers land a little BELOW where the eye aims - the pad rolls onto the
  * glass under the fingertip (phones shift their hit targets down for the
- * same reason; Strato saw it on the swatch rows, 2026-09-13). Reported
- * points move UP by this many px in displayed space; director `touch bias
+ * same reason). Reported points move UP by this many px in displayed space; director `touch bias
  * <px>` tunes it live. */
 static int s_bias_y = 10;
 void touch_port_set_bias(int px) { s_bias_y = px; }
@@ -90,7 +89,7 @@ static bool cst9217_init(void) {
     ESP_LOGI(TAG, "CST9217 ready");
     return true;
 }
-/* the night (2026-10-02): the chip's own sleep instead of its reset held low
+/* the night: the chip's own sleep instead of its reset held low
  * all night - SensorLib's sequence: D1 1E twice opens command mode (0002
  * echoes 1E), D1 01 the debug mode (echoes 01), then D1 05 sleeps it. The
  * grace left it in reset, so it is let out and given its boot first. Only a
@@ -116,15 +115,12 @@ bool touch_port_deep_sleep(void) {
     return ok;
 }
 /* A press is one press: the chip answers some reads mid-touch with nothing (no
- * new report ready, or a NACK while it scans), and taken at their word each
- * was a lift - one finger down read as two taps (Strato, 2026-10-01). So the
- * finger is DOWN until no report has shown it for CST_LIFT_US; between
- * reports the last position stands.
- * 2026-10-03, Strato: "double taps don't always turn the light off" on the
- * round board. That silence also swallowed the gap between two quick taps
- * (one long press), and at 17 fps it was 65-95 ms before a lift showed. So a
- * real report with no finger in it (byte 6 = AB) is a lift at once - only
- * silence (no report ready, a NACK) is bridged. Director `touch lift <ms>` /
+ * new report ready, or a NACK while it scans), and taken at their word one
+ * finger down would read as two taps. So the finger is DOWN until no report
+ * has shown it for CST_LIFT_US; between reports the last position stands.
+ * That silence must not swallow the gap between two quick taps, so a real
+ * report with no finger in it (byte 6 = AB) is a lift at once - only silence
+ * (no report ready, a NACK) is bridged. Director `touch lift <ms>` /
  * `touch said on|off` tune both live; the stroke log tells them apart. */
 #define CST_LIFT_US 60000
 static int  s_lift_us = CST_LIFT_US;              /* silence this long inside a press = a lift */
@@ -214,7 +210,7 @@ static bool panel_read(uint16_t *x, uint16_t *y) {
     if (!s_tp) return false;
     esp_lcd_touch_point_data_t pt; uint8_t n = 0;
     esp_lcd_touch_read_data(s_tp);
-    if (esp_lcd_touch_get_data(s_tp, &pt, &n, 1) != ESP_OK || n == 0) return false;   /* (2026-10-28: was get_coordinates) no points = no finger */
+    if (esp_lcd_touch_get_data(s_tp, &pt, &n, 1) != ESP_OK || n == 0) return false;   /* no points = no finger */
     *x = pt.x; *y = pt.y;
     s_seen_us = esp_timer_get_time();
     return true;
@@ -238,21 +234,20 @@ bool touch_port_init(void) {
     return true;
 }
 
-/* panel -> tank space, CALIBRATED (2026-09-30). Nine crosshairs on Strato's
- * V2 board (CST816), a press each, the panel's report against the target
+/* panel -> tank space, CALIBRATED. Nine crosshairs on a V2 board (CST816), a
+ * press each, the panel's report against the target
  * (update mode's `ota calib`; the log fits the map):
  *
  *   target x   48  224  400      reported  22  218  424   (means over 3 rows)
  *   target y   40  184  328      reported  23  192  351   (means over 3 cols)
  *
- * so reported = 1.142 x - 33 and 1.138 y - 22 (with the old 10 px y bias
- * already inside the reported y): the panel stretches ~14% about the top
- * left. A tap at the bottom right read 25 px right and 25 px low - "aim
- * slightly left", "fingers land low near the bezel". Inverted: the same map
- * on the mirrored raw values (the panel's geometry does not turn with the
- * picture). The V1 board (FT3168) was never measured: the old bias only.
+ * so reported = 1.142 x - 33 and 1.138 y - 22 (with the 10 px y bias already
+ * inside the reported y): the panel stretches ~14% about the top left, a tap
+ * at the bottom right reading 25 px right and 25 px low. Inverted: the same
+ * map on the mirrored raw values (the panel's geometry does not turn with the
+ * picture). The V1 board (FT3168) has not been measured: the bias only.
  *
- * The round board (CST9217), 2026-10-01: 63 presses on its 3 x 3
+ * The round board (CST9217): 63 presses on its 3 x 3
  * (tools/touch_calib.py, docs/touch/), the bias inside as above:
  *
  *   target y  110  233  356      reported  114  243  374   (sd 4..10 px a row)
@@ -263,7 +258,7 @@ bool touch_port_init(void) {
  * the taps' own scatter - a fingertip lands within a millimeter, 10 px on
  * this glass - so x is left as the panel says.
  *
- * The watch (FT3168), 2026-10-01: 45 presses on its 3 x 3, WORN on the
+ * The watch (FT3168): 45 presses on its 3 x 3, WORN on the
  * wrist and tapped with the other hand's finger (two sittings), the bias
  * inside:
  *
@@ -279,32 +274,28 @@ bool touch_port_init(void) {
 #define CAL_X_GAIN 1.142f
 #define CAL_X_OFF  33.0f
 #define CAL_Y_GAIN 1.138f
-#define CAL_Y_OFF  32.0f     /* (22 until 2026-10-04: the finger's landing is CAL_LAND deeper than the bias, below - upright the same map) */
+#define CAL_Y_OFF  32.0f     /* the fit's 22 + CAL_LAND: the finger's landing is CAL_LAND deeper than the bias, below */
 #define CAL_R_Y_GAIN 1.059f
-/* The bowl turned over (2026-10-04, 27 presses, held in the hand, the picture
+/* The round board turned over (27 presses, held in the hand, the picture
  * turned): every press read 22 px LOW on the picture as shown (y = 0.977 t +
  * 27.6, rms 5; x within its scatter). Upright, the panel's own offset and the
- * finger's low landing were one number (+7 raw) and could not be told apart;
+ * finger's low landing are one number (+7 raw) and cannot be told apart;
  * turned over the landing changes sign and they can: the panel reports 15 px
- * HIGH and a finger lands ~22 px low (the bias alone says 10). The same two
- * numbers also give the 10-01 turned-over sitting, taken when the turn came
- * before the map (+2 predicted, +0.1 measured). So on the bowl the landing is
- * the bias + CAL_LAND more and the offset carries the panel's 15: upright
- * the map is the one fitted on 10-01, (raw - 7) / 1.059, to the pixel.
- * The 1.8 (V2) turned over, the same evening (27 presses, a second board):
- * 19 px low over the two rows its panel reaches, which is the same finger -
- * a landing of 21 px, the panel 33 high - so CAL_LAND is the calibrated
- * boards' and the 1.8's offset carries the rest (upright unchanged). Checked
- * with a fresh turned sitting on each at a landing of 22: the bowl +1 px, the
- * 1.8 -5 on the rows its panel reaches - so 20 it is, between the two (the
- * bowl +3, the 1.8 -2 by the arithmetic; the taps scatter 5..10). Turned over,
+ * HIGH and a finger lands ~22 px low (the bias alone says 10). So on the round
+ * board the landing is the bias + CAL_LAND more and the offset carries the
+ * panel's 15: upright the map is the fitted one, (raw - 7) / 1.059, to the
+ * pixel.
+ * The 1.8 (V2) turned over (27 presses): 19 px low over the two rows its panel
+ * reaches, which is the same finger - a landing of 21 px, the panel 33 high -
+ * so CAL_LAND is the calibrated boards' and the 1.8's offset carries the rest
+ * (upright unchanged). 20 px of landing sits between the two boards' fresh
+ * sittings (the round +3, the 1.8 -2; the taps scatter 5..10). Turned over,
  * the 1.8's panel runs out ~50 px above the picture's foot: a press aimed
  * lower reads there. */
 #define CAL_LAND     10.0f
 #define CAL_R_Y_OFF  13.0f
 #define CAL_W_X_GAIN 0.963f
-/* The watch TURNED (settings SCREEN, worn buttons toward the elbow), 2026-10-04,
- * 27 presses worn: y on the cross (+1), x 17 px RIGHT of it. The other hand's
+/* The watch TURNED (worn buttons toward the elbow), 27 presses worn: y on the cross (+1), x 17 px RIGHT of it. The other hand's
  * finger comes at a worn watch from the same side whichever way round it is
  * strapped, and lands ~8 px toward that side: upright that was inside the
  * fit's 14.8, turned it doubles. So x has a landing of its own, turned with
@@ -342,9 +333,7 @@ static void map_touch(uint16_t px, uint16_t py, float *tx, float *ty) {
     int fx = (int)px - ox, fy = (int)py - oy;
     /* the raw report in tank space AS IF UPRIGHT: the calibration below is the
      * panel's own stretch, fitted upright, so it is undone in that frame and the
-     * 180-degree turn comes after it (cal_view). Until 2026-10-02 the turn came
-     * first, and a turned picture's taps were off by the fit's asymmetry: ~15 px
-     * on the watch, ~20 at the top of the bowl, ~2 on the 1.8. */
+     * 180-degree turn comes after it (cal_view). */
     int rx = TANK_W - 1 - fy, ry = fx;
     if (board_is_round()) {                           /* square panel, no turn: the display port's view of the frame, undone */
         float fx, fy; display_port_panel_to_tank(px, py, &fx, &fy);
@@ -356,16 +345,12 @@ static void map_touch(uint16_t px, uint16_t py, float *tx, float *ty) {
     if (ry > s_raw_y1) s_raw_y1 = ry;
     cal_view((float)rx, (float)ry, tx, ty);
 }
-/* The STROKE's reach to the glass (2026-10-01). The panel's report runs out
+/* The STROKE's reach to the glass. The panel's report runs out
  * before the glass does: its raw 0..max lands, through the map above, on x
  * 29..420 and y 11..333 - a finger on the outer 29 px (the bottom 35) reads
  * as the limit, never beyond. Taps want exactly that map (the crosshairs),
- * but a scrub could no longer reach the film in the edge cells and a slash
- * stopped short of a bed's outer frond and of the floor (Strato: "difficult
- * if not impossible to scrub algae which sits too close to the glass edge",
- * "the farthest left and most far right seagrass fronds cannot be clipped").
- * Before the calibration the stretched report overshot to the edge on its
- * own. So the stream to tank_touch_drag - and nothing else - is stretched
+ * but a scrub must reach the film in the edge cells and a slash a bed's outer
+ * frond and the floor. So the stream to tank_touch_drag - and nothing else - is stretched
  * over the last EDGE_BAND_* px inside each limit so the limit lands on the
  * glass (EDGE_SNAP_* short of it already does: a pad at the bezel does not
  * drive the report to its very end). A stroke keeps the finger's own
@@ -381,9 +366,8 @@ static void map_touch(uint16_t px, uint16_t py, float *tx, float *ty) {
  * One exception to the ramp, x only: travel TOWARD a side wall is stretched
  * from its first px. A swipe at a wall frond is a short thing in the report -
  * the pad runs into the bezel and its center stops 15..25 px short of the
- * limit - so it never travelled far enough to open the ramp, or to be a
- * slash at all (Strato's log, 2026-10-01: starts at x 43..71, lifts at
- * 39..53, 4..20 px apart). The price: within the band, a tap that rolls 8 px
+ * limit - so it would never travel far enough to open the ramp, or to be a
+ * slash at all. The price: within the band, a tap that rolls 8 px
  * toward the wall on a tall frond can snip it. */
 #define EDGE_BAND_X   44.0f
 #define EDGE_SNAP_X    8.0f
@@ -432,7 +416,7 @@ static void stroke_point(bool landed, float tx, float ty, float *dx, float *dy) 
     if (*dy < 0) *dy = 0;
     if (*dy > TANK_H - 1) *dy = TANK_H - 1;
 }
-static bool s_upd; static int s_upd_act;                 /* the UPDATES page (2026-09-30) */
+static bool s_upd; static int s_upd_act;                 /* the UPDATES page */
 bool touch_port_read_raw(float *x, float *y) {
     uint16_t px[1], py[1];
     if (!panel_read(px, py)) return false;
@@ -464,12 +448,12 @@ void touch_port_poll(tank_t *t) {
         if (r) ESP_LOGI(TAG, "settings: %s %d", r == SET_TAP_CLOSE ? "CLOSE" : r == SET_TAP_BRIGHT ? "brightness" : r == SET_TAP_VOLUME ? "volume"
                                                   : r == SET_TAP_LIGHT ? "lights out" : r == SET_TAP_SCREEN ? "screen (1 = turned)"
                                                   : r == SET_TAP_FEED ? "auto feed (1 = on)" : r == SET_TAP_ROTATE ? "rotation (1 = locked)" : r == SET_TAP_ABOUT ? "about (1 = up)" : r == SET_TAP_RESET ? "reset" : "idle seconds", v);
-        if (r == SET_TAP_CLOSE) { s_set = false; s_menu = true; s_back = true; }   /* back to the main menu (2026-10-21); the release is spent */
+        if (r == SET_TAP_CLOSE) { s_set = false; s_menu = true; s_back = true; }   /* back to the main menu; the release is spent */
         else if (r == SET_TAP_UPDATES) { s_set = false; s_upd = true; s_back = true; ESP_LOGI(TAG, "updates page up"); }
         else if (r == SET_TAP_RESET) { s_set = false; s_back = true; touch_port_confirm_open(); ESP_LOGI(TAG, "settings: RESET - the confirm prompt is up (NO / YES, it times out)"); }
         else if (r == SET_TAP_BRIGHT || r == SET_TAP_VOLUME || r == SET_TAP_LIGHT || r == SET_TAP_IDLE || r == SET_TAP_FEED || r == SET_TAP_ROTATE || r == SET_TAP_ABOUT) { s_set_what = r; s_set_val = v; }
     }
-    if (s_shop && !s_cf && !su) render_shop_touch(tx, ty, touched, (uint32_t)(now / 1000));   /* the shop's list scrolls (2026-10-28); its taps at the release, below */
+    if (s_shop && !s_cf && !su) render_shop_touch(tx, ty, touched, (uint32_t)(now / 1000));   /* the shop's list scrolls; its taps at the release, below */
     if (s_ms && !s_cf && !su) render_milestones_touch(t, tx, ty, touched, (uint32_t)(now / 1000));   /* the milestones page's lists too */
     if (s_upd && !s_cf && !su) {                             /* the UPDATES page: CHECK (main restarts), FORGET, CLOSE */
         int r = updates_page_touch(tx, ty, touched);
@@ -488,7 +472,7 @@ void touch_port_poll(tank_t *t) {
             else ESP_LOGI(TAG, "setup done: %s + %s", t->fish[0].name, t->fish[1].name);
         }
     }
-    { int rf = setup_take_renamed();                         /* a rename closed (2026-10-01): back to the milestones page, the fish's card up */
+    { int rf = setup_take_renamed();                         /* a rename closed: back to the milestones page, the fish's card up */
       if (rf >= 0) { s_ms = true; s_menu = false; s_set = false; s_shop = false; s_sel = -1; render_milestones_show_fish(t, rf); } }
     bool modal = s_ms || s_menu || s_set || s_shop || s_cf || su || s_bat || s_upd;   /* a page or a prompt owns the glass */
     if (touched) {                                           /* stroke = wipe/slash, reaching the glass (stroke_point above) */
@@ -499,12 +483,10 @@ void touch_port_poll(tank_t *t) {
         s_dlx = dx; s_dly = dy; s_frames++;
         s_lx = tx; s_ly = ty; if (!modal) tank_touch_drag(t, dx, dy);
     }
-    /* (a still finger 700 ms on a piece opened its placement page until 2026-10-28: the shop's MOVE does) */
     if (touched && !modal && now - s_press_us > 300000 && fabsf(ty - s_py) < 30) tank_touch_hold(t, tx, ty);
     if (!touched && s_down) {
-        /* release: classify with the LAST touched position (the old code fell
-           back to the PRESS position here, so dx/dy were always 0 - every
-           quick swipe read as a tap and the drag-feed could never fire) */
+        /* release: classify with the LAST touched position, so a quick swipe
+           does not read as a tap */
         float dx = s_lx - s_px, dy = s_ly - s_py;
         int64_t held_us = s_seen_us - s_press_us;      /* the finger's own time on the glass: the lift's bridge is not the keeper's */
         if (s_log) ESP_LOGI(TAG, "stroke: raw %d,%d | press %.0f,%.0f -> lift %.0f,%.0f | lands %.0f,%.0f, drag x %.0f..%.0f, ends %.0f,%.0f | %d frames %d ms%s | scissors %s%s%s, travel %.0f",
@@ -529,34 +511,34 @@ void touch_port_poll(tank_t *t) {
         }
         if (s_bat) { s_bat = false; ESP_LOGI(TAG, "battery page closed"); goto released; }   /* any release closes it */
         if (held_us < 350000 && dx * dx + dy * dy < 24 * 24) {
-            if (notice_current()) {                                 /* (the lights-out notice lets its tap through: notice.h) */
+            if (notice_current()) {                                 /* a tap closes an announcement and goes no further */
                 bool took = notice_dismiss(); ESP_LOGI(TAG, "tap closed the announcement"); if (took) goto released; }
             if (s_set || s_upd || s_back) { s_back = false; goto released; }   /* the settings / updates page had the glass (their touch calls above) */
             if (s_shop) {                                           /* the shop: a row's modal, UNLOCK, HOW TO EARN, CLOSE */
                 int r = render_shop_tap(t, s_px, s_py);
                 ESP_LOGI(TAG, "shop tap at %.0f,%.0f -> %s", s_px, s_py, r == SHOP_TAP_CLOSE ? "CLOSE" : r >= SHOP_TAP_SELL ? "SELL" : r >= SHOP_TAP_MOVE ? "MOVE" : r >= SHOP_TAP_BUY ? "UNLOCK" : r == SHOP_TAP_KEPT ? "modal" : "nothing");
-                if (r == SHOP_TAP_CLOSE) { s_shop = false; render_shop_leave(); s_menu = true; }   /* back to the main menu (2026-10-21) */
+                if (r == SHOP_TAP_CLOSE) { s_shop = false; render_shop_leave(); s_menu = true; }   /* back to the main menu */
                 else if (r >= SHOP_TAP_BUY) s_shop_act = r;   /* main.c buys (and plays the cue) or opens the placement page */
                 goto released;
             }
-            if (s_menu) {                                           /* the main menu (2026-10-21): a page, a tool, or off the grid */
+            if (s_menu) {                                           /* the main menu: a page, a tool, or off the grid */
                 int r = render_menu_tap(t, s_px, s_py);
                 ESP_LOGI(TAG, "menu tap at %.0f,%.0f -> %s", s_px, s_py, r == MENU_TAP_TANK ? "TANK" : r == MENU_TAP_UPGRADES ? "UPGRADES" : r == MENU_TAP_SETTINGS ? "SETTINGS"
                          : r == MENU_TAP_SPONGE ? "SPONGE" : r == MENU_TAP_SCISSORS ? "SCISSORS" : r == MENU_TAP_FEED ? "FEED" : r == MENU_TAP_BATTERY ? (s_pill ? "the pill: battery page" : "off the grid: closed")
                          : r == MENU_TAP_CLOSE ? "off the grid: closed" : "nothing");
                 if (r == MENU_TAP_TANK || r == MENU_TAP_UPGRADES || r == MENU_TAP_SETTINGS) {
                     s_menu = false; s_ms = r == MENU_TAP_TANK; s_shop = r == MENU_TAP_UPGRADES; s_set = r == MENU_TAP_SETTINGS;
-                } else if (render_menu_tool(r) >= 0) {             /* the SPONGE, the SCISSORS, FEED (2026-10-28) */
+                } else if (render_menu_tool(r) >= 0) {             /* the SPONGE, the SCISSORS, FEED */
                     int tl = render_menu_tool(r);
                     tank_set_tool(t, t->tool == tl ? TOOL_HAND : tl); s_menu = false;   /* the same tool again: back to bare hands */
-                } else if (r == MENU_TAP_BATTERY) {               /* the pill (2026-10-28: it shows with the menu): its page, if it shows */
+                } else if (r == MENU_TAP_BATTERY) {               /* the pill (it shows with the menu): its page, if it shows */
                     s_menu = false; if (s_pill) { s_bat = true; s_bat_us = now; }
                 } else if (r == MENU_TAP_CLOSE) s_menu = false;
                 goto released;
             }
             if (s_ms) {                                             /* the page: badges open a modal, the CLOSE
-                                                                       button ends it, the brightness row cycles */
-                int r = render_milestones_tap(t, s_px, s_py);     /* CLOSE / SETTINGS / the sand dollar, detail modal, nothing */
+                                                                       button ends it */
+                int r = render_milestones_tap(t, s_px, s_py);     /* CLOSE / the sand dollar, detail modal, a fish's card's buttons, nothing */
                 ESP_LOGI(TAG, "page tap at %.0f,%.0f (release %.0f,%.0f) -> %s", s_px, s_py, s_lx, s_ly,
                          r >= MS_TAP_SELL ? "SELL (a fish's card)" : r >= MS_TAP_RENAME ? "RENAME (a fish's card)" :
                          r == MS_TAP_CLOSE ? "CLOSE" : r == MS_TAP_SETTINGS ? "SETTINGS" : r == MS_TAP_SHOP ? "SHOP" : r == MS_TAP_KEPT ? "detail" : "nothing");
@@ -576,14 +558,14 @@ void touch_port_poll(tank_t *t) {
                 progression_ack_milestones(t); render_milestones_leave();   /* everything shown is now "seen" */
                 goto released;
             }
-            if (t->tool != TOOL_HAND) {                      /* a tool in hand owns the glass (2026-10-04): its chip's DONE, or the tool's own tap */
+            if (t->tool != TOOL_HAND) {                      /* a tool in hand owns the glass: its chip's DONE, or the tool's own tap */
                 s_sel = -1;
                 if (render_tool_chip_hit(t, s_px, s_py)) { tank_set_tool(t, TOOL_HAND); ESP_LOGI(TAG, "tool chip tapped at %.0f,%.0f: back to bare hands", s_px, s_py); }
-                else if (t->tool == TOOL_FEED) { tank_touch_tap(t, s_px, s_py); ESP_LOGI(TAG, "tap at %.0f,%.0f: FEED drops a portion", s_px, s_py); }   /* (2026-10-28) */
+                else if (t->tool == TOOL_FEED) { tank_touch_tap(t, s_px, s_py); ESP_LOGI(TAG, "tap at %.0f,%.0f: FEED drops a portion", s_px, s_py); }
                 else ESP_LOGI(TAG, "tap at %.0f,%.0f ignored: a tool is in hand (DONE first)", s_px, s_py);
                 goto released;
             }
-            if (s_pill && RENDER_BAT_HIT(s_px, s_py)) {      /* the battery pill, while it shows: its page (2026-09-24) */
+            if (s_pill && RENDER_BAT_HIT(s_px, s_py)) {      /* the battery pill, while it shows: its page */
                 s_bat = true; s_bat_us = now; s_sel = -1;
                 ESP_LOGI(TAG, "battery pill tapped at %.0f,%.0f: battery page up", s_px, s_py);
                 goto released;
@@ -593,8 +575,7 @@ void touch_port_poll(tank_t *t) {
                 ESP_LOGI(TAG, "tool chip tapped at %.0f,%.0f: back to bare hands", s_px, s_py);
                 goto released;
             }
-            if (s_sel >= 0 && !render_card_is_helper(t, s_sel) && RENDER_CARD_HIT(s_px, s_py)) {   /* a tap ON the card puts it away
-                ESP_LOGI(TAG, "card tap at %.0f,%.0f -> card down", s_px, s_py);         (2026-10-21: the pages are the BOOT key's menu) */
+            if (s_sel >= 0 && !render_card_is_helper(t, s_sel) && RENDER_CARD_HIT(s_px, s_py)) {   /* a tap ON the card puts it away */
                 s_sel = -1; goto released;
             }
             /* fish first; only an empty tap reaches the water. Each creature's
@@ -614,8 +595,8 @@ void touch_port_poll(tank_t *t) {
                 if (d2 < bd) { bd = d2; best = i; }
             }
             if (best >= 0) {
-                /* two quick taps on the same creature (2026-10-10): its trick - the puffer puffs, the squid
-                   and the octopus ink - and the card stays down; any other creature: the card up, then down */
+                /* two quick taps on the same creature: its trick, if its kind has one (the row's poke), and
+                   the card stays down; any other creature: the card up, then down */
                 static int s_poke_fish = -1; static int64_t s_poke_us;
                 bool again = best == s_poke_fish && now - s_poke_us < 500000;
                 s_poke_fish = best; s_poke_us = now;
@@ -626,8 +607,7 @@ void touch_port_poll(tank_t *t) {
                 if (s_sel != was) s_sel_us = now;
                 ESP_LOGI(TAG, "%s tapped: card %s", HELPER[hk].name, s_sel >= 0 ? "up" : "down"); }
             else if (s_sel >= 0) s_sel = -1;   /* card up: a tap on empty glass just
-                                                  dismisses it - it is NOT a tank tap
-                                                  (no feed, no light-toggle burst) */
+                                                  dismisses it - it is NOT a tank tap */
             else tank_touch_tap(t, s_px, s_py);
         }
     }
@@ -645,7 +625,7 @@ void touch_port_dismiss(void) { s_sel = -1; if (s_ms) render_milestones_leave();
 bool touch_port_updates(void) { return s_upd; }
 void touch_port_show_updates(bool on) { s_upd = on; if (on) { s_ms = false; s_menu = false; s_set = false; s_shop = false; s_sel = -1; s_bat = false; } }
 
-/* ---- the main menu (2026-10-21) ---- */
+/* ---- the main menu ---- */
 bool touch_port_menu(void) { return s_menu; }
 void touch_port_show_menu(bool on) {
     if (on) { if (s_ms) render_milestones_leave(); if (s_shop) render_shop_leave(); s_ms = false; s_set = false; s_shop = false; s_upd = false; s_sel = -1; s_bat = false; }

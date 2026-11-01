@@ -10,7 +10,7 @@ and print what the tank says back. The firmware's director console
   tools/director.py --watch           # just stream the log
 
 A plain open leaves the tank running; forcing DTR/RTS low on open RESETS
-the chip (USB-Serial-JTAG auto-reset), so don't. Port: first /dev/cu.usbmodem*,
+the chip (USB-Serial-JTAG auto-reset), so don't. Port: the one /dev/cu.usbmodem*,
 or -p PATH / TANK_PORT (required when several boards are plugged in). -t SECONDS how long to listen for the reply (default 2)."""
 import os, sys, glob, time, argparse
 import serial

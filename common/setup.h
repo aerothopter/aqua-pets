@@ -1,9 +1,9 @@
-/* setup.h — first-run setup (2026-09-13): the welcome, a name and colours for
+/* setup.h — first-run setup: the welcome, a name and colours for
  * each of the two fry, then the care tips - for a fresh install and after a
  * reset. Platform-agnostic: the state machine, the gestures, the hit
- * geometry and the drawing all live here (the reset prompt kept its state in
- * each platform's touch code; a five-page flow would have been written
- * twice), built on render.h's UI primitives over the LIVE tank - the fish
+ * geometry and the drawing all live here (a multi-page flow in each
+ * platform's touch code would be written twice), built on render.h's UI
+ * primitives over the LIVE tank - the fish
  * keep swimming behind the pages and wear the colours as they are picked.
  *
  * The platforms do three things: setup_begin when progression says the flow
@@ -13,14 +13,14 @@
  * render_tank while setup_active. Every other gesture is swallowed while it
  * is up. No timeout: it waits for the keeper.
  *
- * PLACE THE BUBBLES (2026-09-13, Strato's idea): right after the welcome,
+ * PLACE THE BUBBLES: right after the welcome,
  * over the live tank - a finger anywhere on the water drags the bubble
  * column to that x (tank_set_bubble_x keeps it clear of the grass corner the fish rest by); a translucent stripe marks the column, the airstone at its foot
  * moves with it, the bubbles already rising shift as one.
  *
- * Naming (third design, Strato: "seeing the fish while naming it is very
- * important" - and a keyboard's keys are too small for a 35 mm glass): NO
- * panel - the tank stays in view with a ring around the fish being named -
+ * Naming (seeing the fish while naming it matters, and a keyboard's keys are
+ * too small for a 35 mm glass): NO panel - the tank stays in view with a ring
+ * around the fish being named -
  * and seven big letter slots across the middle, arcade high-score style.
  * Touch a slot to pick it, then drag up / down on it (or tap the chevrons
  * above and below) to spin its letter through blank, A..Z. A blank at the
@@ -28,8 +28,8 @@
  * if nothing is left. Targets are a slot wide (44 px) and the whole band
  * tall, so nothing here needs aim.
  *
- * THE BIRTH FLOW (2026-09-14, Strato: an arrival "will be an exciting event
- * for the player"): when progression says a fry is owed its welcome
+ * THE BIRTH FLOW (an arrival is an event): when progression says a fry is
+ * owed its welcome
  * (progression_newborn), setup_poll_birth opens three pages over the live
  * tank - A NEW FRY! (the announcement: the fry ringed wherever it hatched,
  * its parents named), NAME THE NEW FRY (the letter wheel, as in the first
@@ -39,13 +39,11 @@
  * fry's look is its family's (tank_add_fish). DONE clears the debt and
  * saves the name; a cancel (director `setup off`, sim S) leaves it owed, so
  * it returns at the next boot. */
-/* PLACE A PIECE (2026-09-16, Strato: a bought plant or decoration "should
- * allow the player to place the piece wherever they like ... similar to the
- * bubble column placement experience", plus a z-layer): one page over the
- * live tank, opened by the platform right after a purchase (and by the
- * shop's MOVE button for a piece already in the tank). A finger on the
+/* PLACE A PIECE: one page over the live tank, the bubble column's way plus a
+ * depth, opened by the platform right after a purchase (and by the shop's
+ * MOVE button for a piece already in the tank). A finger on the
  * water drags the piece to that x (tank_decor_set clamps it inside the
- * window); a BACK / MIDDLE / FRONT row under the title picks its depth -
+ * window); a BEHIND / AMONG / IN FRONT bar under the title picks its depth -
  * the tank redraws live, so the fish and the grass show the choice at
  * once; DONE saves. A translucent stripe marks the piece's footprint, a
  * chevron at its foot. */
@@ -63,12 +61,11 @@ void setup_begin_birth(tank_t *t, int slot);   /* the birth flow for the fry in 
  * slot it opened for, or -1 */
 int  setup_poll_birth(tank_t *t);
 /* a fry's welcome is up, or owed and about to open (it is born mid-frame,
- * the flow opens after): the notices wait for it (2026-09-29). A welcome the
+ * the flow opens after): the notices wait for it. A welcome the
  * director dropped is not due - it returns at the next boot. */
 bool setup_birth_due(void);
 void setup_begin_place(tank_t *t, int item);   /* the placement page for SD item `item` (placeable ones only) */
-/* RENAME A FISH (2026-10-01, Strato: "when you tap a fish and see its card
- * there should be a change name button"): the letter wheel again, one page
+/* RENAME A FISH (the fish card's RENAME): the letter wheel again, one page
  * over the live tank with the fish ringed on its stage - the name page of
  * the first run and the birth flow, CANCEL / DONE on top. DONE keeps the
  * name and saves it (nothing left = the preset's again); CANCEL, or a flow
@@ -84,13 +81,12 @@ bool setup_is_place(void);               /* the placement page */
 int  setup_item(void);                   /* the placement page's SD item (-1 = none) */
 int  setup_fish(void);                   /* the fish the current page is about (-1 = none) */
 void setup_cancel(tank_t *t);            /* drop the pages; the save still says pending */
-/* the name page's two REJECTED designs of 2026-09-13, kept to be shown (the
- * episode 6 shoot; director `kbd`): 1 = the first cut, a 7 x 4 grid of 46 x 34
- * px keys on a panel with BACK / NEXT under it ("rarely" hittable, DEL kept
- * landing on NEXT); 2 = the second, 5 x 3 keys of 66 x 74 px over half the
- * alphabet, a corner key flipping A-M / N-Z, the nav on top (hittable, but the
- * panel still hid the fish). 0 = the letter wheel, the design that shipped.
- * Not saved: a boot is always the wheel. */
+/* the name page's design: 0 = the letter wheel, what a keeper sees. 1 and 2
+ * are two keyboards the wheel beat, kept to be shown (director `kbd`): 1 = a
+ * 7 x 4 grid of 46 x 34 px keys on a panel with BACK / NEXT under it (too
+ * small to hit); 2 = 5 x 3 keys of 66 x 74 px over half the alphabet, a corner
+ * key flipping A-M / N-Z, the nav on top (hittable, but the panel hides the
+ * fish). Not saved: a boot is always the wheel. */
 enum { SETUP_KBD_WHEEL, SETUP_KBD_GRID, SETUP_KBD_PAGES };
 void setup_set_keyboard(int mode);
 int  setup_keyboard(void);
@@ -124,7 +120,7 @@ enum { SETUP_PG_RENAME = SETUP_PG_PLACE + 1 };
 #define SETUP_HIT_DOWN  4                /* ... previous */
 #define SETUP_HIT_SLOT0 10               /* + 0..FISH_NAME_MAX-1: pick that slot */
 #define SETUP_HIT_BODY0 40               /* + swatch 0..LOOK_N-1 */
-#define SETUP_HIT_KEY0  100              /* legacy keyboards only: + 0..25 = A..Z, + SETUP_KEY_DEL, + SETUP_KEY_PAGE */
+#define SETUP_HIT_KEY0  100              /* the kept keyboards only: + 0..25 = A..Z, + SETUP_KEY_DEL, + SETUP_KEY_PAGE */
 #define SETUP_KEY_DEL   26
 #define SETUP_KEY_PAGE  27
 #define SETUP_KEY_N     28
@@ -161,7 +157,7 @@ enum { SETUP_PG_RENAME = SETUP_PG_PLACE + 1 };
 #define SETUP_SLOT_Y   150
 #define SETUP_ARROW_GAP 40
 #define SETUP_SPIN_PX   30                                 /* drag travel per letter */
-/* the colour page (third design too): no panel, the live FRY wears the pick
+/* the colour page: no panel, the live FRY wears the pick
  * with a ring round it; one row of 8 body swatches, 42 x 60 px at a 46 px
  * pitch, a tall band around it so a low-landing finger still hits; the
  * accent is a "?" - a fry's markings come in as it grows */
@@ -183,9 +179,7 @@ enum { SETUP_PG_RENAME = SETUP_PG_PLACE + 1 };
 #define SETUP_FAM_VALUE_X    (SETUP_X + 150)
 #define SETUP_FAM_BAR_W      200
 #define SETUP_FAM_BAR_H      8
-/* the placement page's DEPTH control (second design, 2026-09-16 - Strato:
- * "initially i thought 'back' button referred to menu navigation .. the
- * z-layer targeting and buttons are a bit ambiguous"): ONE outlined bar of
+/* the placement page's DEPTH control: ONE outlined bar of
  * three joined segments under a DEPTH caption - the settings page's idiom,
  * a setting with three values, not three buttons - each segment a picture
  * tile (two small leaves and the keeper's first fish, drawn in that order:
@@ -196,7 +190,7 @@ enum { SETUP_PG_RENAME = SETUP_PG_PLACE + 1 };
  * water below SETUP_PLACE_Y is the drag zone. */
 #define SETUP_DEPTH_SEG_W  110
 #define SETUP_DEPTH_W      (DECOR_Z_N * SETUP_DEPTH_SEG_W)      /* the plant's three segments; the castle's two (BEHIND / IN
-                                                             * FRONT, Strato: no AMONG) are centred the same way - setup.c
+                                                             * FRONT) are centred the same way - setup.c
                                                              * sizes the bar from tank_decor_z_count */
 #define SETUP_DEPTH_X      ((PAGE_W - SETUP_DEPTH_W) / 2)
 #define SETUP_DEPTH_Y      (SETUP_TOP_BTN_Y + SETUP_BTN_H + 24)
@@ -204,7 +198,7 @@ enum { SETUP_PG_RENAME = SETUP_PG_PLACE + 1 };
 #define SETUP_DEPTH_TILE_H 40
 #define SETUP_DEPTH_HINT_Y (SETUP_DEPTH_Y + SETUP_DEPTH_H + 8)
 #define SETUP_PLACE_Y      (SETUP_DEPTH_HINT_Y + 20)
-/* the coral's placement page (2026-09-23) trades the hint line for a COLOR
+/* the coral's placement page trades the hint line for a COLOR
  * row: CORAL_N swatches at the colour page's pitch, shorter (42 x 26), the
  * chosen one ringed; the coral on the floor below wears the pick at once.
  * The drag zone starts under the row. */
@@ -215,7 +209,7 @@ enum { SETUP_PG_RENAME = SETUP_PG_PLACE + 1 };
 #define SETUP_COL_X   ((PAGE_W - (SETUP_COL_N - 1) * SETUP_COL_PX - SETUP_COL_W) / 2)
 #define SETUP_COL_Y   (SETUP_DEPTH_Y + SETUP_DEPTH_H + 22)
 #define SETUP_PLACE_CORAL_Y (SETUP_COL_Y + SETUP_COL_H + 8)
-/* the reef cluster's page (2026-09-24): a LOOK row of CLUSTER_SCHEME_N tiles
+/* the reef cluster's page: a LOOK row of CLUSTER_SCHEME_N tiles
  * in the COLOR row's place, each three bands (the coral, the tubes, the
  * brain) over the look's name; SETUP_HIT_COLOR0 + i picks it */
 #define SETUP_LOOK_N   CLUSTER_SCHEME_N

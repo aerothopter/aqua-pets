@@ -1,8 +1,8 @@
 /* rtc_port_pcf85063.c — PCF85063 RTC (I2C 0x51) -> system wall clock.
  * At boot: if the RTC holds a plausible time, set the system clock from it;
  * if it is unset (year < 2024, e.g. first power-up), seed it from the firmware
- * build time so the ravenous-boot rule has a clock from day one. The
- * progression save stamps clock_port_now_unix(); nothing else needs RTC. */
+ * build time so the tank has a clock from day one. The save's stamp, the
+ * battery page and the battery log read it through clock_port_now_unix(). */
 #include "rtc_port.h"
 #include "driver/i2c_master.h"
 #include "esp_log.h"

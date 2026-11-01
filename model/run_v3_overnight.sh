@@ -1,5 +1,5 @@
 #!/bin/bash
-# run_v3_overnight.sh — the schema v3 data cycle, unattended (docs/retrain-v3.md
+# run_v3_overnight.sh — the schema v3 data cycle, unattended (docs/retrain.md
 # steps 1-3). Launch with nohup; everything logs to out/v3_overnight.log.
 #
 #   nohup ./run_v3_overnight.sh > /dev/null 2>&1 &
@@ -54,4 +54,4 @@ ls -la out/model_q4_v3.bin out/model_v3.bin out/tokenizer_v3.bin | tee -a "$LOG"
 log "--- probe (distribution) ---"
 $PY probe_dist.py --schema 3 2>&1 | grep -v Warning | tee -a "$LOG"
 
-log "=== v3 overnight DONE. Next: docs/retrain-v3.md step 3 eval (--teacher) and step 4 ship. ==="
+log "=== v3 overnight DONE. Next: docs/retrain.md acceptance (--teacher) and ship. ==="

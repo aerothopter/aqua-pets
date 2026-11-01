@@ -1,9 +1,8 @@
 /* devices/amoled18_layout.h - the 1.8's pages: every page number that
- * differs between boards (refactor phase 4d, 2026-10-23; device.h names this
- * file DEVICE_LAYOUT, render.h and update.h include it and hold the shared
- * numbers). PAGE coordinates unless a line says the frame's. The 1.8 is the
- * reference: the other boards' layouts are its pages drawn in from their
- * glass. */
+ * differs between boards (the board's header names this file DEVICE_LAYOUT;
+ * render.h and update.h include it and hold the shared numbers). PAGE
+ * coordinates unless a line says the frame's. The 1.8 is the reference: a
+ * board with a smaller glass draws these pages in from its edges. */
 #ifndef AQUA_PETS_LAYOUT_H
 #define AQUA_PETS_LAYOUT_H
 
@@ -29,7 +28,7 @@
 #define MSP_BADGE_DX  40
 #define MSP_FISH_X    52                /* a row's portrait */
 #define MSP_TB_X1     436               /* the TANK row's badges scroll out to here (the glass; a seventh peeks in past the sixth) */
-#define MSP_CLOSE_X   324               /* the CLOSE button, bottom right, inside the bezel curve; clear of the brightness row's number */
+#define MSP_CLOSE_X   324               /* the CLOSE button, bottom right, inside the bezel curve */
 #define MSP_CLOSE_Y   312
 #define MSP_CLOSE_SLOP 8                /* CLOSE's tap reaches this far left of it */
 
@@ -38,8 +37,8 @@
 #define SHP_CLOSE_X   MSP_CLOSE_X
 #define PAGE_BAR_X    428               /* a page's list's scroll bar (scroll.h): right of the shop's buttons and the badges (they end at 416) */
 
-/* the settings page (2026-10-28: no title; UPDATES and RESET a row of their
- * own under ROTATION, the foot ABOUT and CLOSE) */
+/* the settings page: no title; UPDATES and RESET a row of their own under
+ * ROTATION, the foot ABOUT and CLOSE */
 #define SET_ROW1_Y    26             /* BRIGHTNESS (its arrows clear of the top right corner's curve) */
 #define SET_ROW2_Y    72             /* VOLUME */
 #define SET_NOTE_Y    108            /* "FISH ARE QUIET AT NIGHT" */

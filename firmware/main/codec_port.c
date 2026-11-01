@@ -20,7 +20,7 @@ bool codec_port_present(void) { return s_dev != NULL; }
 
 /* the powered-down set: state machine off + blocks in reset, clocks off,
    analog down with vref and vmid off, DAC down (the reference suspend
-   sequence, ending where 2026-09-13's measurement left it: SYS0D F8) */
+   sequence, ending at SYS0D F8) */
 static bool power_down_regs(void) {
     static const uint8_t seq[][2] = {
         { 0x32, 0x00 }, { 0x17, 0x00 }, { 0x0E, 0xFF }, { 0x12, 0x02 }, { 0x14, 0x00 }, { 0x0D, 0xFA },
