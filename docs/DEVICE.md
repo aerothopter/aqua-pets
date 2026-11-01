@@ -41,9 +41,9 @@ Everything needed is committed.
 **Flashed 2026-10-28 20:40** on the keeper's machine: `main` at a93c056, app only (archive `docs/batlog/2026-10-28_2040.txt`).
 
 - **App:** save layout 3, the 1.8 alone and the Original theme alone.
-- **Signed with the keeper's own key** (`tools/ota_key.sh`, `firmware/keys/ota_signing_key.pem`), not the one the public releases
-  are signed with. This tank refuses any over-the-air image signed with another key until it is flashed by cable. Back the key up
-  off this disk.
+- **Signed with the keeper's key** (`tools/ota_key.sh`, `firmware/keys/ota_signing_key.pem`), the one key every aerothopter build
+  signs with: CI holds it as the `OTA_SIGNING_KEY` secret. This tank refuses any over-the-air image signed with another key until
+  it is flashed by cable. Back the key up off this disk.
 - **Model partition:** v5j with its trailer (written 2026-10-23 by `tools/flash.sh --model`).
 - **The tank from before layout 3:** NVS, otadata and both app slots are backed up raw in
   `~/.cache/aqua-pets/backup-2026-10-23_2056/` on the keeper's machine (not in git). Written back together, they are that old tank.

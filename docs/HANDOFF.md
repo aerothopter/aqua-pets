@@ -13,6 +13,33 @@ Open, in no fixed order. A finished item leaves this list, and its entry below s
   shipped line: `gen_traces.py`, `eval.py` and `probe_dist.py` default to 2, `fold_traces.py` and `prompt_check.py` to 3. Their help text
   and `teacher_vs_student.py`'s default state line (v2) change with them.
 
+## 2026-10-31: one signing key: the keeper's, for the tank and for CI
+
+**What was found.** `firmware/keys/ota_signing_key.pem` is the keeper's own key, so it stays and no new one was made:
+- It was created on this machine on 2026-10-23 at 20:51, in the session that logged "a NEW signing key", and git has never tracked it.
+- Its modulus (ends `422e247d6d90c643`) differs from mediacutlet's v0.3.9.5 release (`9f781b2d6ee1b7e3`). fiatminimalist publishes no
+  releases to compare.
+- The build on the tank's build path is signed with it. A new key would have meant another cable flash for no gain.
+- The installer site's image (a93c056) is signed with another key (`c8fcab4528179c99`). `main`'s guard still names fiatminimalist, so
+  on aerothopter a missing secret falls through to the throwaway key. That run cannot show which: job logs need a login.
+
+**Why the secret must come first.** `docs-pass`'s guard fails the installer on aerothopter with no secret, and the merge touches its paths.
+
+**Proof.** On `docs-pass`: `make check-all`, encoder agreement, batched vs sequential and `compileall` all pass locally. The merge is a
+fast-forward. The firmware builds on ESP-IDF 5.4.4 (CI uses 5.4.1) and that image is signed with this key. CI has not run on `docs-pass`:
+no PR, and `checks` only runs on PRs and `main`.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes | not retaken: no pixel can have changed | built, signed with the keeper's key | not flashed; what is on the tank is still 2026-10-28 20:40 | - |
+
+**Open.**
+- Set `OTA_SIGNING_KEY` on aerothopter to this key's PEM. It could not be set or read from here: no `gh`, no login.
+- Check that the key has a backup off this disk.
+- Anything installed from the site before the secret is set carries the other key, and needs one more cable install to take updates.
+
 ## 2026-10-31: aerothopter publishes; the workflows' and `model/`'s comments
 
 **What changed.**
@@ -940,57 +967,3 @@ Firmware against cd65114: every section byte for byte the same on each board
 (watch `.dram0.bss` 60,168; the app 0x271000), and the same warnings.
 
 **Next:** 4b, one glass module (refactor-plan.md).
-
-## 2026-10-23: where things stand (end of session; phase 4 next)
-
-**The branches.** Nothing is merged or pushed. They stack:
-- `refactor/decor` (phase 1)
-- `refactor/helpers`, on top of it (phase 2, and the plan's move into the repo)
-- `refactor/creatures`, on top of that (phase 3: 11 commits, the 3.0 oracle
-  through the draw table)
-
-`main` is still at 5dcbee3. Phase 4 can go on a new `refactor/devices` from
-`refactor/creatures`.
-
-**The plan** is `docs/refactor-plan.md`. Phases 1-3 are written as built, and
-phase 4 (device headers, one glass module, per-device layout sections) as
-first planned. Its line numbers have drifted, so look the places up again.
-
-**How each step was checked** (so phase 4 can do the same):
-- Record both oracles on the commit before the change, in a sandboxed HOME
-  (memory: the sim's real save). Then compare after:
-  - `./fishsim --golden-decor` (363 lines a board)
-  - `./fishsim --golden-creatures` (309)
-  - and both again on `fishsim-round` / `fishsim-watch`
-- A pure step matches line for line. Phase 4 touches geometry, so expect it
-  to be the first step whose oracle *should* move on some boards. Explain
-  every line that does.
-- `make check-all`: 18 selftests a board, 54 runs, all passing at cd65114.
-- Firmware: ESP-IDF 5.4.4 at `C:\esp\v5.4.4` (profile
-  `C:\Espressif\tools\Microsoft.v5.4.4.PowerShell_profile.ps1`). Each board is
-  built with `idf.py -B <dir> -DSDKCONFIG=<dir>\sdkconfig
-  "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults[;sdkconfig.round|watch];<throwaway
-  key overlay>" build`. The overlay sets `CONFIG_SECURE_BOOT_SIGNING_KEY` to a
-  key made with `espsecure.py generate_signing_key --version 2 --scheme
-  rsa3072`, kept outside the repo. Such images must never be flashed. At
-  cd65114 every board builds: the app is 0x271000 of 0x280000 (2% free),
-  watch `.dram0.bss` is 60,168, and there are 3 deprecation warnings.
-- Pictures: no Python 3 on this machine, so `tools/board_sheet.py` has not
-  run. `--snapshot` PPMs, joined side by side, have stood in for it.
-
-**Open, gathered from the entries below:**
-- Not flashed, on any board, since before phase 1. The first real flash
-  (`tools/flash.sh`) is the layout 3 save test: the board's tank starts
-  fresh, then a reboot should restore it. Check the watch's internal heap at
-  boot (2026-10-22 entries). The phase 3b+ entry notes that the device's
-  float contraction can't be proven by the sim's oracles.
-- The app slot is 98% full (2026-10-22 measurement: sdkconfig trims free 127
-  KB, tankcore at -Os 128 KB more). Phase 4 should not grow it.
-- The keeper is drawing the menu and trait icons. `assets/icons/*.png` show
-  as modified in the tree: his work in progress, never staged by these
-  commits. When done, `tools/gen_icons.py` regenerates `common/icons.c`.
-- The three themes' looks functions are the only species switches left in
-  the drawing. A new species is a SPECIES[] row and its hooks, a
-  CREATURE_DRAW[] row, and a case in each of those three.
-- `docs/media/sim-stats-card.png` still shows the card's old MORE button
-  (2026-10-21).
