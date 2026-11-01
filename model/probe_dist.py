@@ -1,5 +1,5 @@
 """probe_dist.py — probe the student's goal *distribution* (not just argmax) on real and synthetic states.
-Runs on CPU with the shipped word-level v2 checkpoint (ckpt_v2w.pt), ~1 min.
+Runs on CPU with the checkpoint for --schema (v5: ckpt_v5j.pt, the shipped model), ~1 min.
 Numbers feed docs/progression.md and docs/stats.md. Run: .venv/bin/python model/probe_dist.py"""
 import sys, os, json, random, math, argparse
 MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -120,7 +120,7 @@ if _args.schema >= 4:
     p,_ = goal_probs(S(hunger=9, food="near 12", bored=9, last="seek_food")); print(f"    P(seek_food)={p[0]:.2f}  {fmt(p)}")
     print("  P(flee_shadow) anywhere above (should be ~0): the goal token is in the vocab, never a label")
 if _args.schema >= 5:
-    # v5: each species at its own mid-range traits (common/tank.c SPECIES[]),
+    # v5: each species at its own mid-range traits (common/creature.c SPECIES[]),
     # the same content / night / starving states - the species word must move
     # the distribution its own way, never past hunger
     RANGES = {"fish": (5, 5, 6), "seahorse": (2, 6, 4), "octopus": (5, 1, 8), "puffer": (4, 3, 7), "angler": (6, 1, 2),

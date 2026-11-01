@@ -18,34 +18,35 @@ tools/make_installer.py                            # -> installer/dist/
 python3 -m http.server -d installer/dist 8765      # local check at http://localhost:8765
 ```
 
-The local installer uses a cream and lagoon-green layout with previews of the themes
+The page uses a cream and lagoon-green layout with previews of the themes
 (only the Original is built for now: docs/THEMES.md). It requires an explicit board choice
 before enabling Install, and validates the selected manifest. ESP Web Tools and
 all artwork are served locally, with no external runtime dependencies.
 
 `installer/dist/` is the whole thing: `index.html`, `manifest.json`,
 `manifest-erase.json`, `firmware/*.bin` (bootloader, partition table, app,
-model), `vendor/`. The offsets in the manifests come from the build's
-`flasher_args.json` and from `firmware/partitions.csv`, and the page carries
-the git version. It is gitignored: rebuild it for every release.
+otadata, model, model trailer), `vendor/`. The offsets in the manifests come
+from the build's `flasher_args.json` and from `firmware/partitions.csv`, and the
+page carries the release and build id. It is gitignored: rebuild it for every
+release.
 
 ## Updating never erases (the two manifests, and one patched line)
 
-The tank's save lives in NVS at `0x9000`; the four parts sit at `0x0`,
-`0x8000`, `0x10000` and `0x290000`, so a plain write of the four leaves it
-alone and the tank carries on after an update (`tools/flash.sh` does the same
-writes every day). The catch was in the dialog: ESP Web Tools 10.4.0 has no
-manifest option for "install, don't erase" on a device without Improv.
+The tank's save lives in NVS at `0x9000`. The six parts sit at `0x0`, `0x8000`,
+`0x10000`, `0x290000`, `0xA8F000` and `0xA90000`, so a plain write of them leaves
+it alone and the tank carries on after an update (`tools/flash.sh` does the same
+writes). The catch is in the dialog: ESP Web Tools 10.4.0 has no manifest option
+for "install, don't erase" on a device without Improv.
 `new_install_prompt_erase: true` asks (checkbox off by default), and without
 it the dialog erases the chip first, unconditionally. So:
 
-- `manifest.json` (the red button) carries `"never_erase": true` and
+- `manifest.json` (the **Install update** button) carries `"never_erase": true` and
   `make_installer.py` patches the copied `install-dialog-*.js` at assembly:
   the two click handlers that read `_startInstall(!0)` (erase) become
   `_startInstall(!this._manifest.never_erase)`. The build fails loudly if
   the handler text is not found exactly twice, so a vendor upgrade can't
   ship an erasing page by accident. `vendor/` itself stays pristine.
-- `manifest-erase.json` (the "Erase the board and install fresh" button)
+- `manifest-erase.json` (under **Install fresh / erase options**)
   is the same parts with the erase question, for a board that is stuck or
   a keeper who wants a clean flash. The on-device reset (hold BOOT, tap the
   glass) is the normal way to start over and needs no page.
@@ -73,46 +74,47 @@ What guards it:
 - **Boot never erases on a guess** (main.c `nvs_start`): only an NVS that
   can't mount at all ("no free pages") is erased, and a raw copy goes to the
   front of the unused `storage` partition first (`esptool read_flash
-  0xA90000 0x6000`); any other init error runs the tank without saving and
+  0xD20000 0x6000`); any other init error runs the tank without saving and
   leaves the flash alone. A save that exists but won't read turns saving
   off until a reset, so it is never overwritten by a fresh tank.
 
 ## It updates itself (GitHub Pages)
 
-`.github/workflows/installer.yml` in the PUBLIC repo builds the firmware
-with ESP-IDF v5.4.1 on every push to `main` that touches `firmware/`,
-`common/`, `model/out/`, `installer/` or the assembler, runs
-`tools/make_installer.py`, and deploys the folder to
-**https://aquapets.com/install/**. Pages serves HTTPS with
-`Access-Control-Allow-Origin: *`, so the copy on stratobuilds.com points
-its button at that manifest:
+`.github/workflows/installer.yml` builds the firmware with ESP-IDF v5.4.1 on every
+push to `main` that touches `firmware/`, `common/`, `model/out/`, `installer/`,
+the assembler or the workflow. In `aerothopter/aqua-pets` (the workflow's guards) it
+then runs `tools/make_installer.py` and deploys the folder to
+**https://aquapets.com/install/**; in any other repo the job stops at the compile
+check. The build signs with the `OTA_SIGNING_KEY` secret. Without that secret the
+build fails in `aerothopter/aqua-pets`; any other repo builds with a throwaway key,
+and an image signed with it can never take an update over the air.
+
+Pages serves HTTPS with `Access-Control-Allow-Origin: *`, so a page on another
+site can point its button at that manifest:
 
 ```
 tools/make_installer.py --manifest-url https://aquapets.com/install/manifest.json --out /tmp/site
 ```
 
-and that `index.html` PLUS its `vendor/esp-web-tools-<tag>/` folder live on
-the site - the never-erase patch is in the vendor's dialog bundle. An old
-`vendor/` next to the new manifest erased every install without asking
-(the 09-11 upload, found 2026-09-18), and the host serves `.js` with a
-year's max-age, so the folder name now carries the patched dialog's hash.
-(The old one-command upload to stratobuilds.com, `tools/publish_site_installer.sh`,
-was retired on 2026-10-04 and removed on 2026-10-10.)
-The page fetches the manifest on load and shows the version and build date of what it will actually flash,
-so pushing to the public repo is the whole release step: no upload, no
-cache purge. (Manual failure mode: the Actions run is red - `gh run list
---repo fiatminimalist/aqua-pets`.)
+That `index.html` and its `vendor/esp-web-tools-<tag>/` folder go up together,
+because the never-erase patch is in the vendor's dialog bundle: an old `vendor/`
+next to a new manifest erases every install without asking. Hosts serve `.js`
+with a year's max-age, so the folder name carries the patched dialog's hash.
 
-## Android, and the local server's certificate (2026-10-10)
+The page fetches the manifest on load and shows the version and build date of
+what it will actually flash, so pushing is the whole release step: no upload, no
+cache purge. If a release does not appear, the Actions run is red: `gh run list
+--repo aerothopter/aqua-pets`.
+
+## Android, and a local server's certificate
 
 Chrome on Android installs through WebUSB (the vendored web-serial-polyfill) and
-shows a USB chooser on Install - but Chrome refuses every permission prompt on a
-page it opened through a certificate warning, so a self-signed server must be
-TRUSTED by the phone first. The local `serve.py` now presents a CA certificate
-whose Subject Alternative Names are the machine's addresses (192.168.88.216,
-100.66.66.66, 127.0.0.1, flux, localhost; regenerate it with openssl and a SAN
-config if the addresses change) and serves it at `/aqua-pets-installer.crt`. The
-page's Android section links it with the install steps (Settings → Security →
+shows a USB chooser on Install, but Chrome refuses every permission prompt on a
+page it opened through a certificate warning. A self-signed server must therefore
+be TRUSTED by the phone first: it presents a CA certificate whose Subject
+Alternative Names are the machine's addresses, and serves it at
+`/aqua-pets-installer.crt`. The server is not in this repo. The page's Android
+section links that certificate with the install steps (Settings → Security →
 Install a certificate → CA certificate) and has a **Test USB access** button that
 runs the chooser alone and says in words what happened. A public HTTPS host with
 a real certificate needs none of this.
@@ -123,13 +125,12 @@ Web Serial needs a secure context, so the page must be on **HTTPS** (or
 `localhost`). Any static host works; the manifest and the `.bin` files must be
 fetchable from the page's origin (or send CORS headers).
 
-**stratobuilds.com (WordPress behind Cloudflare):** upload `installer/dist/`
-as a folder next to WordPress, e.g. `public_html/aqua-pets/`, and link
-`https://stratobuilds.com/aqua-pets/`. Being a plain folder it is outside
+**WordPress behind Cloudflare:** upload `installer/dist/` as a folder next to
+WordPress, e.g. `public_html/aqua-pets/`. Being a plain folder it is outside
 WordPress, so themes, caching and security plugins don't touch it. Things to
 check once:
 
-- Open the page, the button must say *Install Aqua Pets*, not the red
+- Open the page and choose a board: the button must say *Install update*, not the
   unsupported text. If it never appears, Cloudflare's Rocket Loader is
   rewriting the module script: exclude `/aqua-pets/*` from it (a
   Configuration Rule), or turn it off.
@@ -141,56 +142,27 @@ check once:
   purge `/aqua-pets/*` (the manifest carries the version, so a stale
   cache shows an old version string on the page).
 
-**GitHub Pages** (the public repo) is the other easy option: push `dist/` to
-a `gh-pages` branch or a `docs/installer/` folder. Pages serves HTTPS and
-`Access-Control-Allow-Origin: *`, so the button can even live on a WordPress
-page (Custom HTML block with the `<script type="module">` tag and the
+**GitHub Pages** is what the workflow above uses. The button can also live on a
+WordPress page (Custom HTML block with the `<script type="module">` tag and the
 `<esp-web-install-button manifest="https://...manifest.json">` element)
-while the binaries stay on GitHub.
+while the binaries stay on Pages.
 
 ## What the user sees
 
 Click → the browser's port picker (`USB JTAG/serial debug unit`) → *Install
 Aqua Pets* → "Do you want to install Aqua Pets <version>?" → a progress
-bar over the four parts → *Installation complete*, and the board resets into
-the tank: fresh on a blank board, the same tank on one that had it. The
-"start over" button adds the erase question (tick *Erase device*). The page's
-"If something's off" section covers the usual snags: a sleeping tank hides
-its USB port (press PWR), holding BOOT while plugging in forces download
-mode, Linux group permissions, charge-only cables, and an optional esptool
-backup of the save area for the cautious.
+bar over the parts → *Installation complete*, and the board resets into
+the tank: fresh on a blank board, the same tank on one that had it. The erase
+option adds the erase question (tick *Erase device*). The page's steps and its
+**Cannot connect?** section cover the usual snags: a sleeping tank hides its USB
+port (press PWR), holding BOOT while plugging in forces download mode, a USB-C
+cable must carry data, other tabs or serial monitors can hold the port, and Linux
+may need serial-port permissions.
 
-## Verified
+## Testing a build
 
-The artifact set in `dist/firmware/` at the manifest's offsets was written to
-the real board with `esptool.py write_flash` (the exact operation ESP Web
-Tools performs, from the same files), and the tank booted; the page, manifest
-and vendor bundle were checked from a local server. The browser's own port
-picker is a native dialog, so the click-through itself is a human test.
-
-## Local theme build (2026-10-09)
-
-Built all three boards with the cached `espressif/idf:v5.4.1` image. Build outputs
-are in `~/.cache/aquapets-idf/build/{amoled18,round175c,watch206}`. Assemble with:
-
-```sh
-python3 tools/make_installer.py \
-  --build-dir ~/.cache/aquapets-idf/build/amoled18 \
-  --board-build ~/.cache/aquapets-idf/build/round175c \
-  --board-build ~/.cache/aquapets-idf/build/watch206
-```
-
-The existing server at `~/.cache/aquapets-installer/serve.py` serves
-`installer/dist` on `0.0.0.0:8765` (HTTP) and `0.0.0.0:8766` (HTTPS).
-Use `https://100.66.66.66:8766` over Tailscale or
-`https://192.168.88.216:8766` on the LAN. HTTPS uses the machine's existing
-self-signed certificate; the client must accept/trust that certificate.
-An alternative is `ssh -N -L 8765:127.0.0.1:8765 alvin@100.66.66.66`, then
-`http://localhost:8765` on the client. Plain remote HTTP cannot use Web Serial.
-
-The artifact set was checked for valid RSA signatures, correct board markers,
-partition fit and NVS preservation. All three signed apps are 2,428,928 bytes,
-leaving 192,512 bytes in each app slot. The local build is `jelly-d226e71952`;
-it adds the approved jellyfish to Original, Quiet Lagoon and Tidepool Club, with pulsing movement, growth, feeding and breeding. Buy it on Upgrades page 5 for 10 sand dollars. The approved Living Lagoon artwork and other creature behaviours are retained. `installer/dist/SHA256SUMS`
-records the served binary hashes. These checks do not claim a physical flash
-or device boot; the USB selection and flashing are performed by the user.
+Write the artifact set in `dist/firmware/` to a board at the manifest's offsets
+with `esptool.py write_flash`: it is the operation ESP Web Tools performs, from the
+same files. Check the page, manifest and vendor bundle from a local server. The
+browser's port picker is a native dialog, so the click-through itself is a human
+test.

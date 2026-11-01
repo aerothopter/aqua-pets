@@ -9,11 +9,11 @@ asks Ollama (gemma4:26b, structured output) for a goal, and appends
   python3 gen_traces.py --count 1000            # query Ollama, append to out/traces.jsonl
 
 Stdlib only. schema.md is the v5 line; the default is the v2 line; `--schema 3` emits the v3 line
-(no fish names, + trust 0-9, tanks of 2-6 fish); `--schema 4` (2026-09-14) drops
-the shadow - the predator left the game on 2026-09-13 - and adds `bored 0-9`,
+(no fish names, + trust 0-9, tanks of 2-6 fish); `--schema 4` drops
+the shadow - there is no predator in the game - and adds `bored 0-9`,
 how stale the fish's current activity is, so the teacher can push a fish out of
 a rut (the bubble-column and follow-the-friend loops seen on the device).
-`--schema 5` (2026-10-05, docs/species.md) adds `species <word>` after `stage`:
+`--schema 5` (docs/species.md) adds `species <word>` after `stage`:
 tanks of 2-10 creatures of ten species (the classic fish ~1/3), each rolled
 inside its species' trait ranges and living its species' situations (the
 anglerfish on the floor, the seahorse in the grass, the eel rising for air).
@@ -44,14 +44,14 @@ GOALS = [
 GOALS_V4 = [g for g in GOALS if g != "flee_shadow"]   # no shadow, nothing to flee
 # the pastimes boredom accrues on (rest counts by day only; eating never)
 LEISURE = ["visit_bubbles", "follow_friend", "explore", "dart_play", "inspect_reef"]
-# boredom dynamics, per sim tick (~a frame); mirrors common/tank.c BORED_*
+# boredom dynamics, per sim tick (~a frame); mirrors common/tank.h BORED_*
 BORED_PER_TICK, BORED_NEW_GOAL, BORED_NEW_ZONE, BORED_RELIEF_PER_TICK = 0.08, 4.0, 1.5, 0.15
 
 
 TEACHER = "ollama"  # set by --teacher; "rules" = rules_goal() (smoke tests only)
 
-# v5: the species, in common/tank.h species_t order. The numbers mirror
-# common/tank.c SPECIES[] (bold lo/hi, social lo/hi, curiosity, lazy, speed_k);
+# v5: the species, in common/creature.h species_t order. The numbers mirror
+# common/creature.c SPECIES[] (bold lo/hi, social lo/hi, curiosity, lazy, speed_k);
 # habitat is where the sim keeps it (docs/species.md "How they move").
 #   token     bold        social      cur  lazy speed habitat
 SPECIES = {
@@ -65,11 +65,11 @@ SPECIES = {
     "squid":    (0.30, 0.60, 0.70, 0.95, 6.0, 0.3, 0.65, "school"),
     "crab":     (0.40, 0.80, 0.20, 0.50, 6.5, 0.5, 0.50, "floor"),
     "lobster":  (0.50, 0.85, 0.05, 0.25, 5.5, 0.6, 0.40, "floor"),
-    "jellyfish": (0.10, 0.40, 0.40, 0.75, 5.0, 0.7, 0.40, "drift"),   # appended 2026-10-09 (vocab id 65)
+    "jellyfish": (0.10, 0.40, 0.40, 0.75, 5.0, 0.7, 0.40, "drift"),   # vocab id 65
 }
 SPECIES_TOKENS = list(SPECIES)
 FISH_SHARE = 1 / 3          # the classic fish's share of v5 creatures (the old behaviour stays the anchor)
-FOCUS, FOCUS_SHARE = None, 0.0   # --focus: a species added later gets a run of its own (the jellyfish, 2026-10-09)
+FOCUS, FOCUS_SHARE = None, 0.0   # --focus: a species added later gets a run of its own
 FLOOR_Y = TANK_H - 55       # floor walkers keep below this (the C tank's floor band)
 
 
@@ -117,12 +117,11 @@ SYSTEM_PROMPT_V3 = SYSTEM_PROMPT + (
     "view (friend none), following is impossible - choose something else."
 )
 
-# v4 (2026-09-14): the shadow is gone from the game, so the predator paragraph
-# goes; `bored` arrives; explore is a real activity, not the fallback; stress
-# gets its own meaning now that nothing looms. Identity wording stays the v2
-# text that produced the personality cliffs v3m ships with (docs/stats.md:
-# the v3 rewrite flattened them - prompt-is-DNA). Check with prompt_check.py
-# before any overnight run.
+# v4: there is no shadow in the game, so no predator paragraph; `bored` is in;
+# explore is a real activity, not the fallback; stress has its own meaning, with
+# nothing looming. Identity wording stays the v2 text, which produces the
+# personality cliffs (docs/stats.md: the v3 rewrite flattened them -
+# prompt-is-DNA). Check with prompt_check.py before any overnight run.
 SYSTEM_PROMPT_V4 = (
     "You are the sparse instinct advisor for a small aquarium fish. "
     "You receive one line describing the fish's identity and drives (0-9) and what "
@@ -174,7 +173,7 @@ SYSTEM_PROMPT_V4 = (
 )
 
 
-# v5 (2026-10-05, docs/species.md): the v4 prompt VERBATIM (it is the classic
+# v5 (docs/species.md): the v4 prompt VERBATIM (it is the classic
 # fish's DNA - the personality cliffs and the boredom rules live in it) plus one
 # species paragraph: each species' real-life temperament and what each goal
 # means for its body. The goal set and the JSON reply are unchanged. Check with
@@ -326,7 +325,7 @@ class Fish:
 
     def reroll_species_identity(self, rng):
         """v5: bold / social rolled inside the species' range, widened by 0.1 as
-        a newborn's inheritance can reach (tank.c), on the C encoder's
+        a newborn's inheritance can reach (creature.c), on the C encoder's
         (int)(v * 9 + 0.5) scale; stage and trust as the fish's."""
         b0, b1, s0, s1 = SPECIES[self.species][:4]
         self.bold = trait9(rng.uniform(max(0.0, b0 - 0.1), min(1.0, b1 + 0.1)))
@@ -359,7 +358,7 @@ class Tank:
 
     def __init__(self, rng, n_fish=None):
         self.rng = rng
-        if SCHEMA >= 5:                                          # v5: up to N_FISH_MAX 10, ten species
+        if SCHEMA >= 5:                                          # v5: tanks of 2-10 creatures, ten species
             n_fish = n_fish or rng.randint(2, 10)
             self.fish = [Fish(f"c{i}", rng, sp) for i, sp in enumerate(species_mix(rng, n_fish))]
         else:
@@ -372,17 +371,16 @@ class Tank:
         self.reef = (TANK_W * 0.15, TANK_H * 0.85)
         self.tick_n = 0
         self.night = False
-        self.night_until = 0    # a perturbed night ends here (v4: it used to stick until a random flip)
+        self.night_until = 0    # a perturbed night ends here
 
     def tick(self):
         self.tick_n += 1
         rng = self.rng
         # Day/night flips occasionally. A night set by the "night" perturbation
-        # ends on its own: before 2026-09-14 it stuck until the next random
-        # flip and 55% of the v4 states were night (the first 640 pairs) -
-        # half the teacher's night spent labelling "rest".
+        # ends on its own: left to the next random flip, 55% of the v4 states are
+        # night, and half the teacher's time goes on labelling "rest".
         # (and the flip is asymmetric for v4: a symmetric toggle is night half
-        # the time; nights now end 3x faster than they start, ~25% night)
+        # the time; nights end 3x faster than they start, ~25% night)
         if rng.random() < (0.006 if (self.night and SCHEMA >= 4) else 0.002):
             self.night = not self.night
         if self.night_until and self.tick_n > self.night_until:
@@ -392,7 +390,7 @@ class Tank:
             self.food.append([rng.uniform(20, TANK_W - 20), 10.0])
         for p in self.food:
             p[1] = min(TANK_H - 5, p[1] + 0.6)
-        # Shadow: appears, roams, leaves (v2/v3 only: the predator left the game).
+        # Shadow: appears, roams, leaves (v2/v3 only: there is no predator in the game).
         if SCHEMA >= 4:
             self.shadow = None
         elif self.shadow is None:
@@ -498,8 +496,8 @@ class Tank:
 
     def perturb(self, f):
         """Push a fish into an edge case before sampling. Cases are weighted to
-        counter the natural skew toward hungry-fish-near-food (seek_food was 67%
-        of teacher labels before the sated/social/playful/famine cases existed)."""
+        counter the natural skew toward hungry-fish-near-food (seek_food is 67%
+        of teacher labels without the sated/social/playful/famine cases)."""
         rng = self.rng
         cases = [
             "starve", "exhausted", "panic", "night", "crowd", "calm",
@@ -865,11 +863,8 @@ def ask_ollama(host, model, state, timeout):
         "keep_alive": "5m",
         "options": {"temperature": 0.7, "num_predict": 48, "num_ctx": num_ctx()},
     }).encode()
-    # Transport is curl, not urllib. Root cause found 2026-08-21: Little Snitch
-    # had a per-process rule allowing this app's Python only to pypi.org /
-    # pythonhosted.org (left over from the torch install) while curl had
-    # "any outgoing" - python's sockets silently stalled. Rule fixed; curl kept
-    # because it is robust to that class of drift and costs ~10ms per call.
+    # Transport is curl, not urllib: a per-process firewall rule can silently
+    # stall python's sockets while curl gets through, and curl costs ~10ms per call.
     proc = subprocess.run(
         ["curl", "-s", "--max-time", str(int(timeout)),
          f"{host}/api/chat", "-H", "Content-Type: application/json", "-d", "@-"],

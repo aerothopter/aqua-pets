@@ -4,7 +4,7 @@
 #
 #   nohup ./run_v4_overnight.sh > /dev/null 2>&1 &
 #
-# 1. three trace workers against the Mac Mini teacher (v4 prompt: no shadow,
+# 1. three trace workers against the teacher (v4 prompt: no shadow,
 #    + bored), hard wall-clock cap
 # 2. fold + closed-vocabulary verify -> out/v4_clean.jsonl
 # 3. re-encode the v2 + v3 datasets as v4 (convert_to_v4.py: shadow field

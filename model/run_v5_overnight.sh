@@ -12,7 +12,7 @@
 #    mix, or v2 + v3 + v4 if there is no v4m file) and fold it in ->
 #    out/v5m_clean.jsonl (the personality cliffs and the boredom rules live in
 #    the old labels; the species live only in the new ones)
-# 4. train the 14M student (AQUA_PETS_SCHEMA=5, vocab 65) on the mix, export
+# 4. train the 14M student (AQUA_PETS_SCHEMA=5, vocab 66) on the mix, export
 #    4-bit + fp32, probe
 # Step 5 (eval, then shipping) is deliberately manual.
 #

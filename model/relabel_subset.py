@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Relabel a subset of an already-folded v5 file with the CURRENT teacher prompt.
 
-Used for the dart fix (2026-10-07): the classic fish's bold / energetic / calm
+Used for the dart fix: the classic fish's bold / energetic / calm
 daytime states are re-asked after the identity paragraph gained its dart
 sentence (bold 7-9 only: elsewhere the sentence changes nothing it should); every other label is kept as it was. Writes the merged file and a
 side file of (state, old, new) for the record.

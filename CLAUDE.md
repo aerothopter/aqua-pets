@@ -86,5 +86,5 @@ No dates, no "used to" or "until then", and no names of who asked in code commen
 
 - This is a fork. "Strato", in the HANDOFF.md entries git keeps, is the original owner (@mediacutlet), whose own HANDOFF.md was never committed. In `sim/net_port_sim.c` and `sim/main.c` the name is a pretend Wi-Fi network for the tests.
 - `sim/lvgl/` and `model/llama2.c/` are separate clones and are not tracked.
-- The dev repo may not track `model/out/`. The public repo ships `model_q4.bin` and `tokenizer.bin`.
-- Releases and installer publishing only run from `fiatminimalist/aqua-pets` ([.github/workflows/](.github/workflows/)). Each board gets its own signed image, identified by `PT_BOARD` in `common/version.h`.
+- This repo tracks `model/out/model_q4.bin` and `tokenizer.bin`. A checkout without them uses `NOMODEL=1`.
+- Releases and installer publishing only run from `aerothopter/aqua-pets` ([.github/workflows/](.github/workflows/)), which needs the `OTA_SIGNING_KEY` secret. Each board gets its own signed image, identified by `PT_BOARD` in `common/version.h`.

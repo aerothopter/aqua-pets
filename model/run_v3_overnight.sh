@@ -1,10 +1,10 @@
 #!/bin/bash
-# run_v3_overnight.sh — the schema v3 data cycle, unattended (docs/retrain.md
-# steps 1-3). Launch with nohup; everything logs to out/v3_overnight.log.
+# run_v3_overnight.sh — the schema v3 data cycle, unattended (docs/retrain.md).
+# Launch with nohup; everything logs to out/v3_overnight.log.
 #
 #   nohup ./run_v3_overnight.sh > /dev/null 2>&1 &
 #
-# 1. three trace workers against the Mac Mini teacher, hard 8 h wall-clock cap
+# 1. three trace workers against the teacher, hard 8 h wall-clock cap
 # 2. fold + closed-vocabulary verify -> out/v3_clean.jsonl
 # 3. train the 14M student (AQUA_PETS_SCHEMA=3), export 4-bit + fp32, probe
 # Step 4 (shipping the model into sim/firmware) is deliberately manual.

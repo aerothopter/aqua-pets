@@ -12,10 +12,10 @@ packed nibbles (weight 2i -> low nibble, 2i+1 -> high nibble, value q+8 in
     per tensor (emb, wq*, wk*, wv*, wo*, w1*, w2*, w3*[, wcls]):
         uint8 nibbles [numel/2]  then  fp16 scales [numel/GS]
 
-Size for the 14.3M student at GS=64: ~7.6 MB (fits the 5-8 MB flash target).
-Reader: model/runq4.c (Mac) and firmware/components/llm (ESP32).
+Size for the 14.2M student at GS=64: ~7.6 MB (fits the 5-8 MB flash target).
+Reader: model/runq4.c (a computer) and common/llm/q4_model.c (the tank).
 
-  ~/.venvs/aquapets/bin/python export_q4.py out/model_q4.bin --checkpoint out/ckpt_v2w.pt
+  ~/.venvs/aquapets/bin/python export_q4.py out/model_q4.bin --checkpoint out/ckpt_v5j.pt
 """
 import argparse, os, struct, sys
 import numpy as np

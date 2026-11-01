@@ -17,7 +17,7 @@ bundle into ONE static folder that any HTTPS host can serve as-is:
                             the same pair for each other board built
                             (--board-build): the 1.8 keeps the plain names every page
                             already points at
-        firmware/*.bin      bootloader, partition table, app, model; a board's
+        firmware/*.bin      bootloader, partition table, app, otadata, model, model trailer; a board's
                             file that differs from the 1.8's is <name>-<board>.bin
         vendor/esp-web-tools-<tag>/*.js   the flasher (Apache-2.0, vendored so the
                                     page has no third-party runtime deps;

@@ -20,13 +20,13 @@ jobs:
           git clone --depth 1 --branch v9.2.2 https://github.com/lvgl/lvgl.git sim/lvgl
       - name: Build and test the simulator
         run: |
-          # all three boards' worlds (docs/BOARDS.md): the rectangle, the bowl, the watch.
-          # the dev repo does not track model/out; the public one does (the LLM selftest needs it)
+          # every board's world (docs/BOARDS.md; one for now).
+          # a checkout with no model/out/model_q4.bin skips the LLM selftest, which needs it
           if [ -f model/out/model_q4.bin ]; then make -C sim -j"$(nproc)" check-all
           else echo "no model in this checkout: the LLM selftest is skipped"; make -C sim -j"$(nproc)" NOMODEL=1 check-all; fi
       - name: Schema-5 encoder agreement (C vs gen_traces.py)
         run: |
-          # the next model's line (docs/retrain.md): the sim's encoder with a v5
+          # the shipped model's line (docs/retrain.md): the sim's encoder with a v5
           # tokenizer must write exactly what gen_traces.py trains on
           set -o pipefail
           python3 model/train_tokenizer.py --schema 5 --out "$RUNNER_TEMP/tok5.bin"

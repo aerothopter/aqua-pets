@@ -5,7 +5,7 @@ Every pair the teacher ever labelled was about the classic fish, so v5 reuses
 them all as `species fish`: the v5 line is the v4 line with `species fish`
 inserted after `stage <x>`. v2 / v3 lines go through convert_to_v4.to_v4 first
 (names out, trust 5, the shadow field and every shadow-in-view or flee pair
-dropped, bored 0-2); v4 lines (the 2026-09-14 teacher data and the converted
+dropped, bored 0-2); v4 lines (the v4 teacher data and the converted
 v4m mix) only gain the species field.
 
   python3 convert_to_v5.py out/v4m_clean.jsonl --out out/old_as_v5.jsonl

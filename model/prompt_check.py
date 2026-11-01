@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Check a teacher prompt BEFORE the overnight run. Stdlib only.
 
-The v3 overnight taught us the expensive way that one sentence in the teacher
-prompt reshapes every label (P(follow | social>=8) fell 0.50 -> 0.18). This
+One sentence in the teacher prompt can reshape every label (a v3 sentence took
+P(follow | social>=8) from 0.50 to 0.18). This
 asks the teacher ~300 questions on a fixed diagnostic panel and prints the
 conditional rates the student will inherit - ~7 minutes with 3 workers, not
 8 hours. Use it to compare prompts, or teachers (--model qwen3.5:27b ...).
 
-  python3 prompt_check.py --schema 3                       # current v3 prompt
-  python3 prompt_check.py --schema 3 --prompt-file cand.txt # a candidate prompt
-  python3 prompt_check.py --schema 3 --model qwen3.5:27b   # another teacher
+  python3 prompt_check.py --schema 5                       # the v5 prompt
+  python3 prompt_check.py --schema 5 --prompt-file cand.txt # a candidate prompt
+  python3 prompt_check.py --schema 5 --model qwen3.5:27b   # another teacher
 
 Panel (per schema line, identity randomized unless the case pins it):
   social9   content fish, social 9 (expect follow_friend high)     x40
@@ -20,7 +20,7 @@ Panel (per schema line, identity randomized unless the case pins it):
   shadowcalm shadow near, stress 0-3 (expect flee high)             x40
   lonely    friend none, content (must not flee / seek food)        x30
   starving  hunger 9, food near (expect seek_food ~1.0)             x30
-  trust     content, trust 9 vs trust 0 (v3 only; expect a shade, not a flip) x40
+  trust     content, trust 9 vs trust 0 (v3 on; expect a shade, not a flip) x40
   v4 (--schema 4; the shadow cases are skipped, bored cases added):
   bored9bub  content, bored 9, last visit_bubbles (expect a change, explore up) x40
   bored9fol  social 8, friend near, bored 9, last follow_friend (expect a change) x40

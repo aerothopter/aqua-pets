@@ -3,15 +3,17 @@
 
 A minimal single-device training loop around llama2.c's Transformer (imported from
 ./llama2.c/model.py), replacing its tinystories-specific train.py. Data is every
-model/out/traces*.jsonl line, serialized per train_tokenizer.py (BOS-separated
-"state -> goal" docs, char-level vocab 355).
+line matching --data (default model/out/traces*.jsonl), serialized per
+train_tokenizer.py (BOS-separated "state -> goal" docs, one token per word, the
+schema from AQUA_PETS_SCHEMA).
 
   python3 train.py                          # tiny proof model: dim 128, 4 layers
-  python3 train.py --dim 288 --n-layers 6   # scale up once traces are plentiful
+  AQUA_PETS_SCHEMA=5 python3 train.py --data out/v5m_clean.jsonl --dim 384 --n-layers 8 \
+      --n-heads 8 --max-seq-len 64 --batch 64 --iters 7000 --lr 6e-4   # the 14M student
 
 Checkpoints are export.py-compatible:
   python3 llama2.c/export.py out/model.bin --checkpoint out/ckpt.pt
-  ./llama2.c/run out/model.bin -z out/tokenizer.bin -i "<state line> ->"
+  ./runw out/model.bin -z out/tokenizer.bin -i "<state line> ->"
 
 Requires torch (see README / venv). Everything else is stdlib.
 """

@@ -12,13 +12,13 @@ Vocab layout (llama2.c tokenizer.bin format, readable by run.c's decode()):
          token streams read as normal text ("seek_food urgency 8").
 
 Encoding is a plain split-and-lookup (encode()); run.c's BPE encoder is NOT
-used - sim/advisor_llm.c and model/runw.c carry the same lookup in C, and the
-firmware will too (simpler than BPE). Training doc: <BOS> state -> goal.
+used - common/llm/word_tok.c and model/runw.c carry the same lookup in C
+(simpler than BPE). Training doc: <BOS> state -> goal.
 
 Usage: python3 train_tokenizer.py [--out out/tokenizer.bin] [--verify out/v2_clean.jsonl]
        python3 train_tokenizer.py --schema 3          # out/tokenizer_v3.bin (no names, + trust)
        python3 train_tokenizer.py --schema 4          # out/tokenizer_v4.bin (no shadow, + bored)
-       python3 train_tokenizer.py --schema 5          # out/tokenizer_v5.bin (+ species, 10 species words)
+       python3 train_tokenizer.py --schema 5          # out/tokenizer_v5.bin (+ species, 11 species words)
 The schema is chosen by --schema, or by the AQUA_PETS_SCHEMA environment variable
 when imported (train.py / probe_dist.py): AQUA_PETS_SCHEMA=3 python train.py ...
 """
@@ -34,11 +34,11 @@ SEP = " -> "
 
 SCHEMA = int(os.environ.get("AQUA_PETS_SCHEMA", "2"))
 
-# v5 (2026-10-05, docs/species.md): the species words, in common/tank.h
+# v5 (docs/species.md): the species words, in common/creature.h
 # species_t order (SPECIES[].token). `fish` is the classic fish (the v2 line's
 # old `fish <name>` head word, reused). Appended after every v4 word, so ids
 # 0..53 keep the v4 layout and v5 adds ids 54..64: vocab 65. The jellyfish
-# (2026-10-09) is appended again as id 65: vocab 66, and a model built on the
+# is appended again as id 65: vocab 66, and a model built on the
 # 65-word vocab still reads this tokenizer's first 65 ids as its own (the C
 # advisor sends `species fish` for a word the loaded model lacks).
 SPECIES_WORDS = ["fish", "seahorse", "octopus", "puffer", "angler", "eel", "shark", "squid",
@@ -51,9 +51,9 @@ def lexicon_for(schema):
     ident = (["hunger", "energy", "stress", "curiosity", "bold", "social", "stage",
               "fry", "juv", "adult", "elder"] + (["trust"] if schema >= 3 else [])
              + (["bored"] if schema >= 4 else []))
-    # v4: the shadow field is gone (the predator left the game 2026-09-13).
+    # v4: the shadow field is gone (there is no predator in the game).
     # `flee_shadow` STAYS in the lexicon - it is never a v4 label, so the
-    # student learns ~0 probability for it - because common/tank.c keeps
+    # student learns ~0 probability for it - because common/tank.h keeps
     # GOAL_FLEE_SHADOW in its enum and advisor_core_init wants a token id for
     # every goal. One unused embedding row is cheaper than a C special case.
     return (head + ident
@@ -68,7 +68,7 @@ def lexicon_for(schema):
 
 
 def set_schema(schema):
-    """switch the module's lexicon (v2: vocab 58, v3/v4: vocab 54, v5: vocab 65)"""
+    """switch the module's lexicon (v2: vocab 58, v3/v4: vocab 54, v5: vocab 66)"""
     global SCHEMA, LEXICON, VOCAB, VOCAB_SIZE, _WORD_TO_ID
     SCHEMA = schema
     LEXICON = lexicon_for(schema)

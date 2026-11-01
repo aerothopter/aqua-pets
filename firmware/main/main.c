@@ -798,7 +798,7 @@ const char *version_port_string(void) { return esp_app_get_description()->versio
  * free pages" (a partition that can't mount at all) is answered with an
  * erase, and a raw copy of the partition goes to the unused front of
  * "storage" first, so the tank can still be pulled out by hand
- * (esptool read_flash 0xA90000 0x6000 rescue.bin). Any other error - a
+ * (esptool read_flash 0xD20000 0x6000 rescue.bin). Any other error - a
  * newer IDF's format after a rollback, say - leaves the flash alone: the tank
  * runs without saving until a build that can read it is back. */
 #define NVS_RESCUE_SIZE 0x6000

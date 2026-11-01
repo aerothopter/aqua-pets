@@ -5,7 +5,7 @@ Sends one schema state line to BOTH brains and shows the answers side by side
 with timing and size. Stdlib only.
 
   python3 teacher_vs_student.py                       # a built-in scenario
-  python3 teacher_vs_student.py "fish mira zone 2 ..."  # your own state line
+  python3 teacher_vs_student.py "zone 2 ..."          # your own state line
   python3 teacher_vs_student.py --host http://localhost:11434
 """
 
@@ -37,8 +37,8 @@ def main():
     ap.add_argument("--model", default="gemma4:26b")
     args = ap.parse_args()
 
-    # The project dir is a network share; run the student from a local cache so
-    # timing reflects inference (the device reads flash, not AFP).
+    # Run the student from a local cache so timing reflects inference, not the
+    # disk the project is on (the device reads flash).
     import shutil
     cache = os.path.expanduser("~/.cache/aqua-pets")
     os.makedirs(cache, exist_ok=True)

@@ -1,10 +1,9 @@
 # Browser installer, published to GitHub Pages on every push to main that
 # touches the firmware, the shared tank code, the model or the installer:
 # build the firmware for every board (docs/BOARDS.md: one manifest per board,
-# the 1.8's keeps the plain manifest.json; one board for now, 2026-10-26 - the
-# round and watch builds are at git tag multi-board-multi-theme) with the
-# same ESP-IDF, assemble
-# installer/dist (page + manifest + binaries + vendored ESP Web Tools) and
+# the 1.8's keeps the plain manifest.json; one board for now, the round and
+# watch builds are at git tag multi-board-multi-theme) with the same ESP-IDF,
+# assemble installer/dist (page + manifest + binaries + vendored ESP Web Tools) and
 # deploy it. Pages serves HTTPS with open CORS, so a page on another site
 # can point its <esp-web-install-button> at this manifest and always offer
 # the firmware of the latest push.
@@ -47,8 +46,8 @@ jobs:
           if [ -n "$OTA_SIGNING_KEY" ]; then
             printf '%s\n' "$OTA_SIGNING_KEY" > firmware/keys/ota_signing_key.pem
             echo "signing with the project's key"
-          elif [ "${{ github.repository }}" = "fiatminimalist/aqua-pets" ]; then
-            echo "no OTA_SIGNING_KEY secret on the public repo: an unsigned cable build could never update itself"; exit 1
+          elif [ "${{ github.repository }}" = "aerothopter/aqua-pets" ]; then
+            echo "no OTA_SIGNING_KEY secret on the publishing repo: an unsigned cable build could never update itself"; exit 1
           else
             openssl genrsa -out firmware/keys/ota_signing_key.pem 3072 2> /dev/null
             echo "THROWAWAY signing key (no secret here): this image compiles but can never take an update"
@@ -59,9 +58,9 @@ jobs:
           esp_idf_version: v5.4.1
           target: esp32s3
           path: firmware
-      # Only the public repo publishes: it tracks model/out/model_q4.bin and
-      # owns the Pages site. Anywhere else (the dev repo ignores model/out/*)
-      # the job stops here, a compile check of the firmware.
+      # Only aerothopter/aqua-pets publishes: it tracks model/out/model_q4.bin and
+      # owns the Pages site. Anywhere else the job stops here, a compile check of
+      # the firmware.
       - name: Assemble the installer
         if: github.repository == 'aerothopter/aqua-pets'
         run: |

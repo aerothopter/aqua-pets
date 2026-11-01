@@ -63,9 +63,8 @@ workflow:
 | over the air | a tank fetches `latest-<PT_BOARD>.json`; `common/update.c` refuses a manifest for another board (WRONG BOARD, never offered); the download reads the marker back from the slot at its first 4 KB and aborts on another board's (`NET_ERR_BOARD`). Boards share the signing key, so the signature alone would let one install another's image |
 | the release | `.github/workflows/release.yml` builds the image; `make_ota_manifest.py` names both files from the image's marker (`latest-<board>.json`, `aqua_pets-v<rel>-<board>.bin`) |
 | the installer | `installer.yml` builds it; `make_installer.py --build-dir <1.8> [--board-build <other>]`: the 1.8 keeps `manifest.json` / `manifest-erase.json`, another `manifest-<board>[-erase].json`, and a board's file that differs from the 1.8's is `<name>-<board>.bin`. The page shows a "Pick your board" step when it carries more than one |
-| the public installer page | `tools/build_site.py` offers a board only once its manifest is LIVE on GitHub Pages |
 
-The workflows publish only from `fiatminimalist/aqua-pets`, and the site gates on the live manifests. A cable install of the
+The workflows publish only from `aerothopter/aqua-pets`. A cable install of the
 wrong board's image is not caught on the board (the page's picker is the guard); it boots blank and the right install puts it
 back, the save untouched.
 

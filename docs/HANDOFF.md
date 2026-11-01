@@ -2,6 +2,47 @@
 
 Newest first. What was done, where each board stands, what's open, and why.
 
+## TODOs
+
+Open, in no fixed order. A finished item leaves this list, and its entry below says so.
+
+- [ ] **Solo mode:** a tank of one creature, with more interactive features. It needs `friend none` probed on the shipped model first.
+- [ ] **Trust:** make an untrusting creature and a trusting one differ much more.
+- [ ] **Play:** more games and interactions between the creatures and the keeper.
+- [ ] **Retrain schema:** the next retrain ([retrain.md](retrain.md) has what is queued). It also moves the `--schema` defaults to the
+  shipped line: `gen_traces.py`, `eval.py` and `probe_dist.py` default to 2, `fold_traces.py` and `prompt_check.py` to 3. Their help text
+  and `teacher_vs_student.py`'s default state line (v2) change with them.
+
+## 2026-10-31: aerothopter publishes; the workflows' and `model/`'s comments
+
+**What changed.**
+- **Which repo publishes.** `aerothopter/aqua-pets` does; the keeper retired the `fiatminimalist` references. `release.yml`'s guard and
+  `installer.yml`'s signing-key check now name aerothopter (both are code), and CLAUDE.md, BOARDS.md, the installer README and the "public
+  repo / dev repo" comments follow. BOARDS.md also loses its row for `tools/build_site.py`, which does not exist.
+- **Comments.** `checks.yml`, `installer.yml` and `release.yml`, and `model/`: no dates or history; `train.py` is word-level with vocab 66;
+  vocab 65 is 66 in `train_tokenizer.py` and `run_v5_overnight.sh`; `N_FISH_MAX` is not 10; `BORED_*`, `SPECIES[]`, `species_t` and
+  `GOAL_FLEE_SHADOW` are cited where they live; `word_tok.c` and `q4_model.c` replace paths that no longer exist.
+- **TODOs.** A list at the top of this file: the three open items of the keeper's list, plus retraining.
+
+**Why the guards changed too.** With no `OTA_SIGNING_KEY` secret, the old check let aerothopter publish an image signed with a throwaway
+key, which can never take an update. Now that build fails instead.
+
+**Proof.** The scripted check compared the Python and C-family files with the last commit: comments and docstrings only. The workflows'
+diffs were read by eye: comments, the two guards and one log message. No C changed, so `make check-all` was not re-run; `compileall` is
+clean.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes (last run this pass; no C changed since) | not retaken | not rebuilt: `firmware/` changed in one comment | not flashed; what is on the tank is still 2026-10-28 20:40 | - |
+
+**Open.**
+- Set `OTA_SIGNING_KEY` on aerothopter if it is not there: `gh` is not installed here, so the secret was not checked. Without it the
+  installer workflow now fails on a push to `main` that touches its paths, and a release tag fails too.
+- `checks.yml` keeps its commented-out audio mixer step, so CI does not test the mixer; `firmware/host_test/audio_host.c` is still there.
+- Nothing refers to `model/run_v3_overnight.sh`, `run_v3m_mixed.sh`, `run_v4_overnight.sh` or `train_tokenizer_char.py.bak`.
+
 ## 2026-10-31: the line-by-line comment pass, firmware too; this log stays under 1000 lines
 
 **What changed.** No behaviour. Every line of `firmware/`, `sim/`, `tools/` and `common/` (generated files aside) was checked
@@ -23,6 +64,10 @@ found three more stale comments there. The rest were read in full this round.
 - **`model/schema.md`.** Only the v5 line now, as one spec with each field's meaning: the v2, v3 and v4 sections and their history are
   gone (git keeps them). Those encoders stay in `gen_traces.py` and `advisor_core.c`, so the comments in `model/` that sent readers to
   schema.md for them were corrected. The rest of `model/`'s comments were not part of this pass and still carry dates.
+- **`installer/README.md`.** Rewritten as it stands: no dates, no one machine's addresses, no other site's name, and the three-board
+  "local theme build" section is gone. Wrong facts fixed: six parts, not four; the button names; which repo publishes.
+- **The NVS rescue address.** `main.c`'s comment and the README said `read_flash 0xA90000`, which is otadata. `storage` starts at
+  `0xD20000`, where `nvs_start` writes the copy (`st->address`).
 
 **Proof.** The scripted check compared 101 changed files in `common/`, `sim/`, `tools/` and `firmware/` with HEAD, comments
 stripped: 99 identical. The other two are expected: `sim/testdata/saves/README.md` (prose) and `tools/gen_icons.py` (the template
@@ -49,6 +94,8 @@ for `icons.h`'s comments). `.sh`, `CMakeLists.txt`, `partitions.csv`, `Makefile`
   board error; the `ESP_LOGI("card tap...")` in `touch_port_ft3168.c` sits inside a comment and never compiles (its text was
   removed from that comment, so the tokens are unchanged).
 - `installer/index.html` was left as it is, on the keeper's call.
+- **Reviewed:** `docs/design/`, whose pages describe the removed theme picker and boards, stays as a record. `gen_jellyfish_assets.py` and
+  `export_living_lagoon_art.cjs` read two of its files. The workflows and `model/`: the entry above.
 
 ## 2026-10-31: the documentation pass (the keeper's "Docs" TODO)
 
@@ -80,7 +127,7 @@ template text for icons.h's comments. `make check-all` passes.
 | 1.8 rect | passes (18 selftests) | every doc picture regenerated and the changed ones looked at | not rebuilt: `common/` is token-identical, and `firmware/` changed in one comment | not flashed; what is on the tank is still 2026-10-28 20:40 | - |
 
 **Open.**
-- The keeper's TODOs still open: **Solo mode**, **Trust**, **Play**. For Solo mode: the v2 model broke on `friend none`, the
+- The keeper's TODOs still open: see the list at the top. For Solo mode: the v2 model broke on `friend none`, the
   training data has carried a `lonely` case since schema 3, and v5j has not been probed for it (`model/probe_dist.py`).
 - Generated files keep their dated comments until they are regenerated (needs Pillow): `common/icons.h` (its generator is already
   fixed) and `common/*_assets.c`.
@@ -947,35 +994,3 @@ first planned. Its line numbers have drifted, so look the places up again.
   CREATURE_DRAW[] row, and a case in each of those three.
 - `docs/media/sim-stats-card.png` still shows the card's old MORE button
   (2026-10-21).
-
-## 2026-10-23: draw_creature is a table (refactor phase 3, the last piece)
-
-**What changed.** A pure refactor: both oracles are identical on all three
-boards.
-- `draw_creature`'s switch became `CREATURE_DRAW[SP_COUNT]` (creatures.inc).
-  Each species' row holds:
-  - its drawer
-  - `sk_setup`'s body span (`l0`, `l1`) and lean (`pmax`)
-  - a lean level shared between rows: none, with its pace (/25), a slower
-    one's (/20), full, with its jet, or only in its tail-flip
-  - `posed`: whether its look eases into a jet first (`sk_pose`, the octopus
-    and the squid; called before `sk_setup`, as it was, since it keeps state
-    per slot)
-- A new species' art is now its drawer, a row here, and a case in each
-  theme's looks function. Those three switches (`draw_lagoon_species`,
-  `draw_theme_species`, `draw_blackwater_species`) are the only species
-  switches left in the drawing.
-
-**Board status.**
-
-| board | `make check-all` | pictured | firmware built | flashed | on the glass |
-|---|---|---|---|---|---|
-| 1.8 rect | passes (18 selftests) | both oracles identical | yes (5.4.4, throwaway key) | no | no |
-| 1.75C round | passes | both oracles identical | yes | no | no |
-| 2.06 watch | passes | both oracles identical | yes | no | no |
-
-Firmware against 3c: `.dram0.bss` and `.dram0.data` unchanged, `.flash.text`
--1.5 KB, `.flash.rodata` +~300 B (the table), the signed app still 0x271000,
-the same three deprecation warnings.
-
-**Next:** phase 4, the device architecture (refactor-plan.md).

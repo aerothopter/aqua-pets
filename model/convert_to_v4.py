@@ -5,7 +5,7 @@ Old datasets don't expire with a schema change (the v3m lesson, docs/stats.md):
 the personality cliffs the shipped model has come from the v2 labels. v4 drops
 the shadow field and adds `bored`, so:
   - `fish <name> ` and the friend name go (v2 lines), `trust 5` is inserted
-    where a v2 line has none (as run_v3m_mixed.sh did);
+    where a v2 line has none (as run_v3m_mixed.sh does);
   - the `shadow ...` field is removed. Any pair whose state HAD a shadow in
     view is dropped (its label may have been shaded by a predator the v4 line
     can no longer show), and so is every flee_shadow label;
