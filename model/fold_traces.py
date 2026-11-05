@@ -55,7 +55,7 @@ def main():
                     dups += 1
                     continue
                 seen.add(key)
-                kept.append({"state": state, "goal": goal})
+                kept.append({k: o[k] for k in ("state", "goal", "probs") if k in o})   # probs: --teacher student
                 g = goal.split()[0]
                 goals[g] = goals.get(g, 0) + 1
     with open(args.out, "w") as out:

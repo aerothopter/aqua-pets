@@ -38,3 +38,8 @@ sim/sheets/
 
 # this bench's boards (USB serials; flash_round.sh / flash_watch.sh, at git tag multi-board-multi-theme)
 tools/boards.local.sh
+model/label_q4
+model/label_q4.exe
+model/runmlp
+model/runmlp.exe
+model/.venv/

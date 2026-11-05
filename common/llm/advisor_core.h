@@ -1,7 +1,7 @@
 /* advisor_core.h — the platform-agnostic half of the LLM advisor: state
  * encoding (the schema the loaded tokenizer speaks, v2..v5), inference with
- * the shipped 4-bit engine, and the distribution layer (sampled goal token,
- * confidence, runner-up). sim/advisor_llm.c and firmware/main/advisor_llm_esp.c
+ * the shipped 4-bit engine or the MLP student (mlp_model.h, v5 only), and the
+ * distribution layer (sampled goal, confidence, runner-up). sim/advisor_llm.c and firmware/main/advisor_llm_esp.c
  * only add threading around this. One copy of the encoder = one place for the
  * byte-exact contract with model/gen_traces.py. */
 #ifndef ADVISOR_CORE_H
@@ -13,7 +13,9 @@
 #include <stddef.h>
 
 /* open model + tokenizer; alloc is the run-state allocator (PSRAM on device).
- * Detects the schema from the tokenizer (" trust" = v3, " bored" = v4,
+ * The model file's magic picks the engine: an MLP file ("AMLP") needs a v5
+ * tokenizer and a species slot for every species word it holds. Detects the
+ * schema from the tokenizer (" trust" = v3, " bored" = v4,
  * " species" = v5: the creature's species word after its stage). */
 bool advisor_core_init(const uint8_t *model_bin, size_t model_len,
                        const uint8_t *tok_bin, size_t tok_len,
@@ -25,8 +27,8 @@ int  advisor_core_schema(void);                 /* 2..5; 0 if no tokenizer is lo
 bool advisor_core_init_encoder(const uint8_t *tok_bin, size_t tok_len);
 /* how many words of a line the loaded tokenizer does not know (-1: none loaded) */
 int  advisor_core_unknown_words(const char *line);
-const q4_config_t *advisor_core_config(void);
-q4_model_t *advisor_core_model(void);           /* for q4_model_bench */
+const q4_config_t *advisor_core_config(void);   /* NULL with the MLP loaded */
+q4_model_t *advisor_core_model(void);           /* for q4_model_bench; NULL with the MLP loaded */
 
 /* encode fish idx's state line per schema (no trailing " ->") */
 void advisor_core_encode(const tank_t *t, int idx, char *out, size_t n);
@@ -34,8 +36,8 @@ const char *advisor_core_species_word(const fish_t *f);   /* the species token, 
 
 /* run the model on a state line. Returns the goal (id == GOAL_COUNT if the
  * output was unparseable: keep the previous goal), with confidence and
- * runner_up filled from the goal-token softmax. tokens_out (may be NULL)
- * receives prompt+generated token count for tok/s accounting. */
+ * runner_up filled from the goal softmax. tokens_out (may be NULL)
+ * receives prompt+generated token count for tok/s accounting (0 for the MLP). */
 goal_t advisor_core_infer(const char *state, int *tokens_out);
 
 /* the distribution layer knobs: sampling on (the model's own distribution,

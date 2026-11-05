@@ -5928,8 +5928,9 @@ int main(int argc, char **argv) {
             advisor_llm_narrate = true;   /* film the tank + this terminal */
             llm_active = true;
         }
-    llm_available = advisor_llm_init("../model/out/model_q4.bin",
-                                     "../model/out/tokenizer.bin");
+    /* AQUA_PETS_MODEL / AQUA_PETS_TOKENIZER: another model, as --selftest-llm takes it */
+    llm_available = advisor_llm_init(getenv("AQUA_PETS_MODEL") ? getenv("AQUA_PETS_MODEL") : "../model/out/model_q4.bin",
+                                     getenv("AQUA_PETS_TOKENIZER") ? getenv("AQUA_PETS_TOKENIZER") : "../model/out/tokenizer.bin");
     printf(llm_available
            ? "LLM advisor loaded (press L to toggle rule/LLM brain)\n"
            : "model.bin/tokenizer.bin not found; rule brain only\n");

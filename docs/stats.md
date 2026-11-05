@@ -61,6 +61,32 @@ states an hour per teacher host, up to ~45 states a minute with several workers.
 Size (a 14M student, dim 384) matters: at 25,903 pairs on the first schema, a 0.9M student reached 53%, 8.8M 78%,
 14.3M 87%.
 
+## The MLP student (a candidate; v5j ships)
+
+A 181 → 256 → 256 → 8 + 10 network over the state line's features ([pipeline.md](pipeline.md#the-mlp-student)),
+trained on v5j's own labels: no teacher labels yet, so its teacher agreement is not measured.
+
+| | |
+|---|---|
+| size | 117,010 parameters, **120,940 B** at int8 (v5j: 7,560,088 B) |
+| training data | 59,988 sim states + 59,958 widened states (1-4 fields re-rolled), v5j's 8 probabilities each |
+| training | 40 epochs, ~2 min on a CPU |
+| agreement with v5j, held-out states | **94.8%** top goal (sim states only: 93.9%); mean TV 0.055; urgency within 1: 97.5% |
+| per species | 93% (fish, seahorse) .. 98% (octopus) |
+| int8 vs fp32 | 99.8% same goal, mean TV 0.003 |
+| one decision on a PC | **86 µs** (featurize + forward + sample), against ~86 ms for v5j through `label_q4` |
+| sim, `--selftest-llm`, 60 s | 0 survival overrides; follow 48%, reef 23%, explore 20% (v5j on the same run: 43%, 26%, 26%) |
+
+The width barely matters on v5j's labels (sim states only): 17K parameters 92.9%, 42K 93.7%, 117K 93.9%, 183K
+(three layers) 94.6%, 365K 94.4%. What is left is mostly states where v5j itself is torn.
+
+**Real states vs the synthetic panel.** On 800 real states the two match: v5j's greedy goal is the MLP's 98% of
+the time, mean top-1 probability 0.87 vs 0.88. On `probe_dist.py`'s hand-made states they differ more, and
+widening the training states closed most of it (shark content day explore 0.21 → 0.70, octopus follow with a
+friend near 0.39 → 0.02, the social cliff 0.92 → 0.70 against v5j's 0.31). Still apart: the content classic
+fish picks the bubbles (0.54) where v5j picks the reef (0.86); squid starving at night 0.78 (v5j 0.40; the gate
+is 0.85); eel at night rests 0.26 (v5j 0.74; the gate is <= 0.50).
+
 ## Engine
 
 | | |

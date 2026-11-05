@@ -19,6 +19,9 @@ inside its species' trait ranges and living its species' situations (the
 anglerfish on the floor, the seahorse in the grass, the eel rising for air).
 `--teacher rules` labels with a small rule policy instead of Ollama - a
 pipeline smoke test, never training data for a model that ships.
+`--teacher student` labels with the shipped 4-bit model (label_q4.c) and adds
+its goal probabilities as `"probs"`: training data for a smaller student
+(train_mlp.py) that copies the shipped model's distribution.
 Keep this encoder in exact sync with common/llm/advisor_core.c
 (sim: ./fishsim --selftest-encoder + model/encoder_agree.py).
 """
@@ -842,11 +845,36 @@ def rules_goal(state, rng):
 
 _rules_rng = random.Random(5)
 
+# --teacher student: the shipped 4-bit model labels the states (label_q4.c), with
+# its 8 goal probabilities, for training a smaller student on its distribution
+_student = None
+student_probs = None        # the last student answer's probabilities, GOALS order
+
+
+def start_student(label_bin, model_bin, tok_bin):
+    global _student
+    _student = subprocess.Popen([label_bin, model_bin, tok_bin], stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE, text=True, bufsize=1)
+
+
+def ask_student(state):
+    global student_probs
+    _student.stdin.write(state + "\n")
+    _student.stdin.flush()
+    w = _student.stdout.readline().split()
+    if len(w) != 11:
+        return None
+    student_probs = [float(x) for x in w[3:]]
+    return " ".join(w[:3])
+
 
 def ask_teacher(host, model, state, timeout):
-    """the configured teacher: Ollama (the real one) or the --teacher rules stand-in"""
+    """the configured teacher: Ollama (the real one), the shipped model (--teacher
+    student) or the --teacher rules stand-in"""
     if TEACHER == "rules":
         return rules_goal(state, _rules_rng)
+    if TEACHER == "student":
+        return ask_student(state)
     return ask_ollama(host, model, state, timeout)
 
 
@@ -899,8 +927,13 @@ def main():
     ap.add_argument("--schema", type=int, choices=(2, 3, 4, 5), default=2,
                     help="state-line schema: 2 = frozen, 3 = (no names, trust, 2-6 fish), "
                          "4 = shipped (no shadow, + bored), 5 = next cycle (+ species, ten species)")
-    ap.add_argument("--teacher", choices=("ollama", "rules"), default="ollama",
-                    help="rules = a rule policy instead of Ollama (pipeline smoke tests only)")
+    ap.add_argument("--teacher", choices=("ollama", "rules", "student"), default="ollama",
+                    help="rules = a rule policy instead of Ollama (pipeline smoke tests only); "
+                         "student = the shipped 4-bit model via label_q4, with its probabilities")
+    here = os.path.dirname(os.path.abspath(__file__))
+    ap.add_argument("--label-bin", default=os.path.join(here, "label_q4"), help="--teacher student: label_q4.c's binary")
+    ap.add_argument("--label-model", default=os.path.join(here, "out", "model_q4.bin"))
+    ap.add_argument("--label-tok", default=os.path.join(here, "out", "tokenizer.bin"))
     ap.add_argument("--fish-share", type=float, default=None,
                     help="v5: the classic fish's share of creatures (default 1/3; the old data is all fish)")
     ap.add_argument("--focus", default=None, choices=SPECIES_TOKENS[1:],
@@ -919,6 +952,8 @@ def main():
     if args.focus:
         FOCUS, FOCUS_SHARE = args.focus, args.focus_share
     deadline = time.time() + args.max_minutes * 60 if args.max_minutes else None
+    if TEACHER == "student" and not args.dry_run:
+        start_student(args.label_bin, args.label_model, args.label_tok)
 
     rng = random.Random(args.seed)
     tank = Tank(rng)
@@ -967,7 +1002,10 @@ def main():
                 continue
 
             failures = 0
-            out.write(json.dumps({"state": state, "goal": goal}) + "\n")
+            row = {"state": state, "goal": goal}
+            if TEACHER == "student":
+                row["probs"] = student_probs
+            out.write(json.dumps(row) + "\n")
             out.flush()
             written += 1
             f.set_goal(goal.split()[0])  # advisor decision feeds back into the sim

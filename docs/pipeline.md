@@ -60,3 +60,41 @@ completes it with `<goal> urgency <0-9>` and stops.
 - `model/encoder_agree.py`: the C encoder's lines against `gen_traces.py`'s (in CI).
 - `model/runq4.c`: runs the 4-bit file that ships; `firmware/host_test/q4_host.c` checks batched against
   sequential inference (in CI).
+
+## The MLP student
+
+A small fully-connected network that reads the v5 state line as 181 0/1 features (`model/features.py`)
+instead of as tokens, and writes the goal and the urgency: ~120K parameters, ~125 KB at int8, and a
+decision in microseconds instead of seconds. `common/llm/mlp_model.c` runs it, and `advisor_core_init`
+picks it when the model file starts with the `AMLP` magic, so the sim and the firmware load either
+engine the same way. The tokenizer still ships alongside: it says the schema and which species words
+the encoder sends.
+
+It trains from two kinds of label, kept apart because they mean different things:
+
+- **The teacher's** (`gen_traces.py` as in step 2b): one goal per state.
+- **The shipped model's** (`gen_traces.py --teacher student`): its 8 goal probabilities per state, so
+  the network learns where the transformer is torn as well as what it picks. No GPU or teacher needed.
+
+```bash
+cd model
+cc -O3 -I../common/llm -o label_q4 label_q4.c ../common/llm/q4_model.c ../common/llm/word_tok.c -lm
+cc -O3 -I../common/llm -o runmlp runmlp.c ../common/llm/mlp_model.c -lm
+
+python3 gen_traces.py --schema 5 --teacher student --count 20000 --seed 21 \
+    --out out/mlp_student_21.jsonl                       # the shipped model's labels (several seeds)
+python3 fold_traces.py --schema 5 "out/mlp_student_*.jsonl" --out out/mlp_student_clean.jsonl
+
+.venv/bin/python train_mlp.py --data out/mlp_teacher_clean.jsonl \
+    --student-data out/mlp_student_clean.jsonl           # either or both; ~minutes on a CPU
+.venv/bin/python export_mlp.py --check out/mlp_student_clean.jsonl   # out/mlp.pt -> out/mlp.bin
+
+python3 features_agree.py                                # C features == Python features
+python3 probe_dist.py --schema 5 --mlp out/mlp.bin --data out/mlp_student_clean.jsonl
+python3 probe_dist.py --schema 5 --q4 --data out/mlp_student_clean.jsonl            # v5j, the same panel
+python3 eval.py --schema 5 --teacher --count 400 --min-per-species 30 --seed 5 \
+    --run-bin ./runmlp --model-bin out/mlp.bin --tok-bin out/tokenizer.bin         # the acceptance number
+./runmlp out/mlp.bin --bench                             # time per decision
+```
+
+In the sim: `AQUA_PETS_MODEL=../model/out/mlp.bin ./fishsim` (or `--selftest-llm`).

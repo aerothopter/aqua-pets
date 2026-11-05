@@ -12,6 +12,59 @@ Open, in no fixed order. A finished item leaves this list, and its entry below s
 - [ ] **Retrain schema:** the next retrain ([retrain.md](retrain.md) has what is queued). It also moves the `--schema` defaults to the
   shipped line: `gen_traces.py`, `eval.py` and `probe_dist.py` default to 2, `fold_traces.py` and `prompt_check.py` to 3. Their help text
   and `teacher_vs_student.py`'s default state line (v2) change with them.
+- [ ] **MLP student:** teacher labels for it and the teacher agreement number (the entry below says what is left).
+
+## 2026-11-04: an MLP student: a 121 KB network beside the 7.5 MB transformer, in the sim
+
+**Why.** The state line is a fixed 18-field record, not language. A small fully-connected network reading those
+fields as numbers might decide as well as v5j at a fraction of the cost: v5j takes 3.7-4.4 s per decision on the
+tank, and its 7.56 MB cannot go over OTA. Plan: train it, measure it, run it in the sim; the firmware is a later
+decision.
+
+**What was built.**
+- `model/label_q4.c`: the shipped 4-bit model labels state lines with its 8 goal probabilities.
+  `gen_traces.py --teacher student` uses it. `fold_traces.py` keeps `probs`.
+- `model/augment_states.py`: real states with 1-4 fields re-rolled, labelled the same way.
+- `model/features.py`: the line as 181 0/1 features.
+- `model/train_mlp.py`, `export_mlp.py`: training, and the int8 `AMLP` file.
+- `common/llm/mlp_model.c`: the C engine, about 200 lines.
+- `model/runmlp.c`: `runq4`'s command line, so `eval.py` works unchanged.
+- `features_agree.py`: checks the C features against Python's. `probe_dist.py --q4 / --mlp`: the panel through
+  either C engine.
+- `advisor_core_init` picks the engine by the file's magic. The tokenizer still says the schema and the species
+  words.
+- The interactive sim reads `AQUA_PETS_MODEL` / `AQUA_PETS_TOKENIZER` like `--selftest-llm`.
+- `mlp_model.c` is in the sim Makefile and the firmware's `llm` component.
+- The numbers are in [stats.md](stats.md#the-mlp-student-a-candidate-v5j-ships).
+
+**Results.** All of them are against v5j: no teacher was run in this session.
+- 94.8% agreement with v5j on held-out states, and 98% on 800 real states.
+- 86 µs per decision on a PC against ~86 ms for v5j.
+- 0 survival overrides in the sim.
+- On the synthetic probe panel it still differs from v5j:
+  - the content classic fish picks the bubbles where v5j picks the reef
+  - squid starving at night is 0.78, under the 0.85 gate
+- Widening the states fixed the shark and the octopus. More widening is the obvious next lever.
+
+**Decisions.**
+- Labels from v5j first, so the whole pipeline could be built and checked without the teacher.
+- The state line stays the interface, so the encoder contract, `--narrate` and the threading are untouched.
+- Re-ask intervals are unchanged. Asking more often would change behaviour, so it is a separate decision.
+
+**Board status.**
+
+| board | `make check-all` | pictured | firmware built | flashed | on the glass |
+|---|---|---|---|---|---|
+| 1.8 rect | passes | not retaken: no pixel can have changed | built and signed, 0x201000 (20% free); it still runs v5j from the model partition | not flashed; what is on the tank is still 2026-10-28 20:40 | - |
+
+**Open.**
+- Teacher labels: three workers for a night on the teacher machine (`prompt_check.py` first). Then
+  `eval.py --teacher` for the MLP and v5j on the same seed: the acceptance number.
+- The probe gaps above. Judge them against the teacher, not v5j: v5j's synthetic panel reads low (stats.md).
+- `features_agree.py` goes into CI once an `mlp.bin` is tracked.
+- On the tank: embed `mlp.bin` in the app (`EMBED_FILES`) and measure time and battery. `advisor_llm_esp.c`
+  calls `q4_model_bench` and reads `advisor_core_config()`; both are NULL with an MLP and would need a guard.
+- The first layer's inputs are 0/1 (about 40 of 181 set), so skipping zero columns would cut its work ~4x.
 
 ## 2026-10-31: one signing key: the keeper's, for the tank and for CI
 
@@ -917,53 +970,3 @@ bit for bit.
 
 **Next:** 4c, the bed table.
 
-## 2026-10-23: a board is a device header (refactor phase 4a)
-
-**The keeper's calls for phase 4** (refactor-plan.md has them):
-- every step is pure: nothing changes on any board
-- no pages oracle: the `--snapshot` frames, hashed, stand in
-- the `-DTANK_W=480` square-panel override goes
-
-Phase 4 is on `refactor/devices`, from `refactor/creatures`.
-
-**What changed.** A pure refactor:
-- `common/device.h` picks one of `common/devices/amoled18.h`, `round175c.h`
-  or `watch206.h` by `TANK_ROUND` / `TANK_WATCH` (both at once is an
-  `#error`). A header holds the board's:
-  - frame, floor and glass (`DEVICE_GLASS`: `GLASS_RECT` / `GLASS_BOWL` /
-    `GLASS_CORNERS`, with `TANK_RAD` or `TANK_CORNER_R`)
-  - film grid, `VEG_SEG_PX`, `FEED_ZONE_Y`, `DECOR_MARGIN` and
-    `PLANT_X_DEFAULT`
-  - `PT_BOARD` / `PT_BOARD_NAME` (version.h includes device.h for them)
-  - `DEVICE_WORN` (was `TANK_WORN`) and `DEVICE_PAGE_BOWL` (was render.h's
-    `PAGE_BOWL`)
-- tank.h, version.h and render.h lost their board blocks, and the
-  firmware's orientation (main.c) now asks `DEVICE_WORN`.
-- The plan's `DEVICE_CAN_TURN` was not added: it would be `!DEVICE_WORN` on
-  every board. Its "feature branches" step folded in here.
-- CLAUDE.md, BOARDS.md, tools/pt_boards.py and release.yml point at the
-  device headers.
-
-**How it was checked.** Three records, each on all three boards:
-- `--golden-decor`
-- `--golden-creatures`
-- md5 of every `--snapshot` frame (118 a board)
-
-The baseline was recorded from 04b15e5 (the edits stashed). Every build had
-`GIT_DIR` pointing nowhere and `persist_port_sim.o` rebuilt, so the settings
-and update pages all print the build id "sim". Before that, those four pages
-differed only by the id: a stale object had kept `26541d3-dirty`. All nine
-records are identical.
-
-**Board status.**
-
-| board | `make check-all` | pictured | firmware built | flashed | on the glass |
-|---|---|---|---|---|---|
-| 1.8 rect | passes (18 selftests) | oracles and snapshot pages identical | yes (5.4.4, throwaway key) | no | no |
-| 1.75C round | passes | identical | yes | no | no |
-| 2.06 watch | passes | identical | yes | no | no |
-
-Firmware against cd65114: every section byte for byte the same on each board
-(watch `.dram0.bss` 60,168; the app 0x271000), and the same warnings.
-
-**Next:** 4b, one glass module (refactor-plan.md).

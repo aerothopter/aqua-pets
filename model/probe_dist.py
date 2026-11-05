@@ -1,33 +1,54 @@
 """probe_dist.py — probe the student's goal *distribution* (not just argmax) on real and synthetic states.
 Runs on CPU with the checkpoint for --schema (v5: ckpt_v5j.pt, the shipped model), ~1 min.
+--q4 probes the shipped 4-bit file and --mlp an MLP student's file instead, each through
+its C engine (label_q4, runmlp --label: the code the tank runs; v5 only, no torch).
 Numbers feed docs/progression.md and docs/stats.md. Run: .venv/bin/python model/probe_dist.py"""
-import sys, os, json, random, math, argparse
+import sys, os, json, random, math, argparse, subprocess
 MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
 _ap = argparse.ArgumentParser()
 _ap.add_argument("--schema", type=int, choices=(2, 3, 4, 5), default=2)
 _ap.add_argument("--ckpt", default=None, help="checkpoint (default: ckpt_v2w.pt / ckpt_v3.pt)")
 _ap.add_argument("--data", default=None, help="clean jsonl to sample real states from")
+_ap.add_argument("--q4", action="store_true", help="probe out/model_q4.bin through label_q4")
+_ap.add_argument("--mlp", default=None, help="probe this MLP file (export_mlp.py) through runmlp")
 _args = _ap.parse_args()
 os.environ["AQUA_PETS_SCHEMA"] = str(_args.schema)
 sys.path.insert(0, MODEL_DIR); sys.path.insert(0, os.path.join(MODEL_DIR, "llama2.c"))
-import torch
-from export import load_checkpoint
-import train_tokenizer as tok
-
-torch.manual_seed(0); random.seed(0)
-model = load_checkpoint(_args.ckpt or os.path.join(MODEL_DIR, "out", {2: "ckpt_v2w.pt", 3: "ckpt_v3m.pt", 4: "ckpt_v4m.pt", 5: "ckpt_v5j.pt"}[_args.schema]))
+random.seed(0)
 GOALS = ["seek_food","flee_shadow","visit_bubbles","follow_friend","explore","rest","dart_play","inspect_reef"]
-GID = [tok.encode(g)[0] for g in GOALS]
 
-@torch.no_grad()
-def goal_probs(state, T=1.0):
-    ids = tok.encode(state + " ->", bos=True)
-    x = torch.tensor([ids], dtype=torch.long)
-    logits = model(x)[0, -1, :]            # next-token logits
-    g = logits[GID] / T
-    p = torch.softmax(g, dim=0)
-    mass = torch.softmax(logits, dim=0)[GID].sum().item()   # how much prob sits on goal tokens at all
-    return p.tolist(), mass
+if _args.q4 or _args.mlp:
+    # a C engine's answers: 8 probabilities at T = 1, so softmax(logits / T) is p^(1/T) renormalized
+    _cmd = ([os.path.join(MODEL_DIR, "runmlp"), _args.mlp, "--label"] if _args.mlp else
+            [os.path.join(MODEL_DIR, "label_q4"), os.path.join(MODEL_DIR, "out", "model_q4.bin"),
+             os.path.join(MODEL_DIR, "out", "tokenizer.bin")])
+    _engine = subprocess.Popen(_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
+
+    def goal_probs(state, T=1.0):
+        _engine.stdin.write(state + "\n"); _engine.stdin.flush()
+        p = [float(v) for v in _engine.stdout.readline().split()[3:]]
+        if T != 1.0:
+            p = [q ** (1 / T) for q in p]
+        s = sum(p)
+        return [q / s for q in p], 1.0      # the engine's goals are the only candidates
+else:
+    import torch
+    from export import load_checkpoint
+    import train_tokenizer as tok
+
+    torch.manual_seed(0)
+    model = load_checkpoint(_args.ckpt or os.path.join(MODEL_DIR, "out", {2: "ckpt_v2w.pt", 3: "ckpt_v3m.pt", 4: "ckpt_v4m.pt", 5: "ckpt_v5j.pt"}[_args.schema]))
+    GID = [tok.encode(g)[0] for g in GOALS]
+
+    @torch.no_grad()
+    def goal_probs(state, T=1.0):
+        ids = tok.encode(state + " ->", bos=True)
+        x = torch.tensor([ids], dtype=torch.long)
+        logits = model(x)[0, -1, :]            # next-token logits
+        g = logits[GID] / T
+        p = torch.softmax(g, dim=0)
+        mass = torch.softmax(logits, dim=0)[GID].sum().item()   # how much prob sits on goal tokens at all
+        return p.tolist(), mass
 
 def ent(p): return -sum(q*math.log(q+1e-12) for q in p)
 def tv(p, q): return 0.5*sum(abs(a-b) for a,b in zip(p,q))

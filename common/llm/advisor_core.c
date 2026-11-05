@@ -1,11 +1,14 @@
 /* advisor_core.c — see advisor_core.h. */
 #include "advisor_core.h"
 #include "word_tok.h"
+#include "mlp_model.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 
 static q4_model_t *g_model;
+static mlp_model_t *g_mlp;           /* the MLP student instead of the transformer (mlp_model.h) */
+_Static_assert(MLP_N_GOALS == GOAL_COUNT, "the MLP goal head is the goal enum");
 static word_tok_t  g_tok;
 static int   g_schema;                /* 2 | 3 | 4 | 5 */
 static bool  g_sp_known[SP_COUNT];    /* v5: the species words this vocab has (a later species falls back to `fish`) */
@@ -129,27 +132,53 @@ static bool detect_schema(void) {
     return true;
 }
 
+/* the tokenizer's entry count, for a load with no transformer to say the vocab size; 0 if malformed */
+static int tok_entries(const uint8_t *tok_bin, size_t tok_len) {
+    size_t off = 4; int n = 0;
+    while (off + 8 <= tok_len) {
+        int32_t len; memcpy(&len, tok_bin + off + 4, 4);
+        if (len < 0 || off + 8 + (size_t)len > tok_len) return 0;
+        off += 8 + (size_t)len; n++;
+    }
+    return off == tok_len ? n : 0;
+}
+
+/* the MLP must have a slot for every species word the vocab knows: the
+ * encoder sends those words, and a line it cannot featurize keeps the goal */
+static bool mlp_slots_cover_vocab(void) {
+    for (int s = 0; s < SP_COUNT; s++) {
+        if (!g_sp_known[s]) continue;
+        bool slot = false;
+        for (int i = 0; i < 16; i++) if (strcmp(mlp_model_species_slot(g_mlp, i), SPECIES[s].token) == 0) slot = true;
+        if (!slot) return false;
+    }
+    return true;
+}
+
 bool advisor_core_init(const uint8_t *model_bin, size_t model_len,
                        const uint8_t *tok_bin, size_t tok_len,
                        void *(*alloc)(size_t), uint32_t seed) {
-    g_model = q4_model_open(model_bin, model_len, alloc);
-    if (!g_model) return false;
-    if (word_tok_init(&g_tok, tok_bin, tok_len, q4_model_config(g_model)->vocab_size) != 0) return false;
-    if (!detect_schema()) return false;
+    g_model = NULL; g_mlp = NULL;
+    if (mlp_model_is(model_bin, model_len)) {
+        /* the MLP reads the v5 line: the tokenizer still says the schema and which species words to send */
+        g_mlp = mlp_model_open(model_bin, model_len, alloc);
+        int n = tok_entries(tok_bin, tok_len);
+        if (!g_mlp || !n || word_tok_init(&g_tok, tok_bin, tok_len, n) != 0) return false;
+        if (!detect_schema() || g_schema != 5 || !mlp_slots_cover_vocab()) { g_mlp = NULL; return false; }
+    } else {
+        g_model = q4_model_open(model_bin, model_len, alloc);
+        if (!g_model) return false;
+        if (word_tok_init(&g_tok, tok_bin, tok_len, q4_model_config(g_model)->vocab_size) != 0) return false;
+        if (!detect_schema()) return false;
+    }
     if (seed) g_rng = seed;
     return true;
 }
 
 bool advisor_core_init_encoder(const uint8_t *tok_bin, size_t tok_len) {
-    /* no model to say the vocab size: count the tokenizer's entries */
-    size_t off = 4; int n = 0;
-    while (off + 8 <= tok_len) {
-        int32_t len; memcpy(&len, tok_bin + off + 4, 4);
-        if (len < 0 || off + 8 + (size_t)len > tok_len) return false;
-        off += 8 + (size_t)len; n++;
-    }
-    if (n == 0 || off != tok_len) return false;
-    g_model = NULL;
+    int n = tok_entries(tok_bin, tok_len);      /* no model to say the vocab size */
+    if (n == 0) return false;
+    g_model = NULL; g_mlp = NULL;
     if (word_tok_init(&g_tok, tok_bin, tok_len, n) != 0) return false;
     return detect_schema();
 }
@@ -175,14 +204,32 @@ q4_model_t *advisor_core_model(void) { return g_model; }
 const q4_config_t *advisor_core_config(void) { return g_model ? q4_model_config(g_model) : NULL; }
 const float *advisor_core_last_probs(void) { return g_last_p; }
 
+/* the chosen goal's probability and the runner-up, from g_last_p */
+static void set_confidence(goal_t *g) {
+    g->confidence = g_last_p[g->id];
+    int ru = -1;
+    for (int i = 0; i < GOAL_COUNT; i++)
+        if (i != (int)g->id && (ru < 0 || g_last_p[i] > g_last_p[ru])) ru = i;
+    g->runner_up = ru >= 0 ? (goal_id_t)ru : GOAL_COUNT;
+}
+
 goal_t advisor_core_infer(const char *state, int *tokens_out) {
     goal_t g = { GOAL_COUNT, 5, 1.0f, GOAL_COUNT };   /* GOAL_COUNT = "no change" */
+    float temp = advisor_core_sample ? advisor_core_temp : 0;
+    if (g_mlp) {
+        int urg, pick = mlp_model_decide(g_mlp, state, temp, &g_rng, g_last_p, &urg);
+        if (tokens_out) *tokens_out = 0;
+        if (pick < 0) return g;
+        g.id = (goal_id_t)pick;
+        g.urgency = (float)urg;
+        set_confidence(&g);
+        return g;
+    }
     if (!g_model) return g;
     char prompt[400];
     snprintf(prompt, sizeof prompt, "%s ->", state);
     int toks[64]; int n = word_tok_encode(&g_tok, prompt, toks, 60);
     int out[8];
-    float temp = advisor_core_sample ? advisor_core_temp : 0;
     /* max_out 3 = goal + " urgency" + digit: everything the parser reads;
        each extra token would cost a full weight pass */
     int nout = q4_model_decide(g_model, toks, n, g_goal_ids, GOAL_COUNT, temp, &g_rng,
@@ -191,13 +238,7 @@ goal_t advisor_core_infer(const char *state, int *tokens_out) {
     /* first token is the goal (one of the candidates); then "urgency <d>" */
     if (nout >= 1)
         for (int i = 0; i < GOAL_COUNT; i++) if (out[0] == g_goal_ids[i]) { g.id = (goal_id_t)i; break; }
-    if (g.id < GOAL_COUNT) {
-        g.confidence = g_last_p[g.id];
-        int ru = -1;
-        for (int i = 0; i < GOAL_COUNT; i++)
-            if (i != (int)g.id && (ru < 0 || g_last_p[i] > g_last_p[ru])) ru = i;
-        g.runner_up = ru >= 0 ? (goal_id_t)ru : GOAL_COUNT;
-    }
+    if (g.id < GOAL_COUNT) set_confidence(&g);
     for (int i = 0; i + 1 < nout; i++) {
         const char *p = word_tok_piece(&g_tok, out[i]);
         if (strcmp(p, " urgency") == 0) {
