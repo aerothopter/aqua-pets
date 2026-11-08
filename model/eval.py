@@ -43,7 +43,7 @@ def main():
     ap.add_argument("--count", type=int, default=20)
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--teacher", action="store_true", help="also query Ollama and score agreement")
-    ap.add_argument("--host", default="http://192.168.0.139:11434")
+    ap.add_argument("--host", default="http://localhost:11434")
     ap.add_argument("--model", default="gemma4:26b")
     ap.add_argument("--run-bin", default=os.path.join(HERE, "runw"))
     ap.add_argument("--model-bin", default=os.path.join(HERE, "out", "model.bin"))

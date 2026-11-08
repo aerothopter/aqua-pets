@@ -911,17 +911,31 @@ def ask_ollama(host, model, state, timeout):
     return f"{goal} urgency {urgency}"
 
 
+def warm_up(host, model, timeout):
+    """One untimed-out call so Ollama loads the model (at this num_ctx) before the
+    real ones: a cold load of a model larger than the GPU takes minutes, longer
+    than --timeout. It uses no rng, so a seed's states are unchanged."""
+    if TEACHER != "ollama":
+        return
+    print(f"warming up {model} @ {host} (a cold load can take minutes) ...", file=sys.stderr, flush=True)
+    t = time.time()
+    ask_ollama(host, model, "warm up", timeout)
+    print(f"warm in {time.time() - t:.0f} s", file=sys.stderr, flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--count", type=int, required=True, help="number of (state, goal) pairs")
     ap.add_argument("--dry-run", action="store_true", help="print states, skip Ollama")
-    ap.add_argument("--host", default="http://192.168.0.139:11434", help="Ollama base URL")
+    ap.add_argument("--host", default="http://localhost:11434", help="Ollama base URL")
     ap.add_argument("--model", default="gemma4:26b")
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "out", "traces.jsonl"))
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--ticks-between", type=int, default=40, help="sim ticks between samples")
     ap.add_argument("--perturb", type=float, default=0.45, help="edge-case perturbation probability")
     ap.add_argument("--timeout", type=float, default=30.0, help="per-request timeout, seconds")
+    ap.add_argument("--warmup-timeout", type=float, default=900.0,
+                    help="the first call's timeout, seconds: it loads the model")
     ap.add_argument("--max-minutes", type=float, default=None,
                     help="hard wall-clock cap; stop cleanly when exceeded")
     ap.add_argument("--schema", type=int, choices=(2, 3, 4, 5), default=2,
@@ -954,6 +968,8 @@ def main():
     deadline = time.time() + args.max_minutes * 60 if args.max_minutes else None
     if TEACHER == "student" and not args.dry_run:
         start_student(args.label_bin, args.label_model, args.label_tok)
+    if not args.dry_run:
+        warm_up(args.host, args.model, args.warmup_timeout)
 
     rng = random.Random(args.seed)
     tank = Tank(rng)

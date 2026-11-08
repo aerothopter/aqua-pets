@@ -128,7 +128,7 @@ def main():
     ap.add_argument("--schema", type=int, choices=(2, 3, 4, 5), default=3)
     ap.add_argument("--teacher", choices=("ollama", "rules"), default="ollama",
                     help="rules = gen_traces' rule policy: exercises this script without Ollama")
-    ap.add_argument("--host", default="http://192.168.0.139:11434")
+    ap.add_argument("--host", default="http://localhost:11434")
     ap.add_argument("--model", default="gemma4:26b")
     ap.add_argument("--prompt-file", default=None, help="candidate system prompt (default: gen_traces' prompt for the schema)")
     ap.add_argument("--n", type=int, default=40, help="calls per major case (default 40 -> ~320 calls)")
@@ -146,6 +146,7 @@ def main():
     rng = random.Random(args.seed)
     P = panel(rng, args.schema, args.n)
     who = "the RULE teacher (a dry run)" if args.teacher == "rules" else f"{args.model} @ {args.host}"
+    gt.warm_up(args.host, args.model, 900)   # a cold load outlasts the 30 s per call
     print(f"{len(P)} calls to {who} ({args.workers} workers) ...", flush=True)
 
     def ask(item):
