@@ -12,8 +12,28 @@ Open, in no fixed order. A finished item leaves this list, and its entry below s
 - [ ] **Retrain schema:** the next retrain ([retrain.md](retrain.md) has what is queued). It also moves the `--schema` defaults to the
   shipped line: `gen_traces.py`, `eval.py` and `probe_dist.py` default to 2, `fold_traces.py` and `prompt_check.py` to 3. Their help text
   and `teacher_vs_student.py`'s default state line (v2) change with them.
-- [ ] **MLP student:** on the device: embed `mlp.bin`, build, flash, and measure a decision's time, RAM and battery draw.
+- [ ] **MLP student:** the battery draw with it ([DEVICE.md](DEVICE.md) "Awake draw").
 - [ ] **Teacher machine:** the next overnight run is 10 hours (`--max-minutes 600`).
+
+## 2026-11-09: the MLP student runs on the tank
+
+**What was done.** `firmware/main/mlp.bin` (`model/out/mlp_ts01.bin`, the 83.2% one below) is embedded in the app
+like `tokenizer.bin`. `main.c` opens it first (copied to PSRAM only if the embed is not 4-byte aligned; it is, "in
+place") and falls back to the model partition's v5j. `advisor_llm_esp.c` skips the transformer's bench, profile and
+config lines when the MLP is loaded. The model partition is untouched.
+
+**On the glass** (5 creatures, plugged in): a decision takes 6.0-6.5 ms against v5j's 3.7-4.4 s; asks 57, decisions
+57 in 93 s; internal heap free 71 KB (v5j ~40 KB). App 0x221000 of 0x280000 (15% free), `.bss` unchanged.
+Numbers in [stats.md](stats.md).
+
+**Why the app image, not the partition.** 121 KB fits the app slot, so an OTA carries the network; the 7.5 MB
+partition never can (docs/OTA.md).
+
+**Boards.** 1.8: built, flashed (`mlp-student` at 2421d1f, archive `docs/batlog/2026-11-09_0919.txt`), tried on the
+glass (the log). Sim: unchanged since the 11-04 check-all; `--selftest-llm` passes with this network.
+
+**Open.** The battery draw. The re-ask cadence (`ADVISOR_MIN_INTERVAL`, the signature bands) is unchanged: a
+decision is now cheap enough to ask far more often, a separate decision.
 
 ## 2026-11-09: the MLP student against the teacher: level with v5j
 

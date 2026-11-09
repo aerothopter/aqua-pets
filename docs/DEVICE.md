@@ -38,9 +38,10 @@ Everything needed is committed.
 
 ## Firmware on the tank right now
 
-**Flashed 2026-10-28 20:40** on the keeper's machine: `main` at a93c056, app only (archive `docs/batlog/2026-10-28_2040.txt`).
+**Flashed 2026-11-09 09:19** on the keeper's machine: `mlp-student` at 2421d1f, app only (archive `docs/batlog/2026-11-09_0919.txt`).
 
-- **App:** save layout 3, the 1.8 alone and the Original theme alone.
+- **App:** save layout 3, the 1.8 alone and the Original theme alone. **The advisor is the MLP student** embedded in the app
+  (`firmware/main/mlp.bin`); the model partition's v5j is the fallback, used only if the MLP fails to open.
 - **Signed with the keeper's key** (`tools/ota_key.sh`, `firmware/keys/ota_signing_key.pem`), the one key every aerothopter build
   signs with: CI holds it as the `OTA_SIGNING_KEY` secret. This tank refuses any over-the-air image signed with another key until
   it is flashed by cable. Back the key up off this disk.

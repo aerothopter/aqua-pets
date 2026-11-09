@@ -114,6 +114,16 @@ is 0.85); eel at night rests 0.26 (v5j 0.74; the gate is <= 0.50).
 
 The model is mmapped from flash. [memory_budget.md](memory_budget.md) has the budget.
 
+**The MLP student on the 1.8** (2026-11-09, 5 creatures, plugged in):
+
+| | |
+|---|---|
+| a decision | **6.0-6.5 ms** (v5j: 3.7-4.4 s), fp32 activations, int8 weights read from the app image |
+| keeping up | every ask answered before the next (asks 57, decisions 57 in 93 s) |
+| internal heap free | 71 KB (v5j: ~40 KB; the transformer's hot buffers are not allocated) |
+| signed app | 0x221000 of the 0x280000 slot (15% free) |
+| `.dram0.bss` | 58,928 B (unchanged) |
+
 ## Power
 
 The AXP2101 has no current sense, so these are gauge numbers, off the %-scale. Compare them with each other.

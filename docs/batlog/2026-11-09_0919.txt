@@ -1,0 +1,21 @@
+# Aqua Pets preflight 2026-11-09_0919 on COM4
+I (342539) batlog: 2 samples (h:mm since the first | SoC | VBAT | bright | state | mA since previous)
+I (342540) batlog:     0:00 |  60% | 3805 mV |   0 | asleep | bed
+I (342543) batlog:   233:23 |  27% | 3837 mV |  91 | awake  | boot      0.3 mA
+I (342550) batlog:   asleep: 233.4 h, 66.0 mAh -> 0.28 mA average
+I (342556) batlog:   (SoC is 1% = 2 mAh; short awake windows are coarse, a night is not)
+I (346643) director: 0 kelp    fish    /0 elder age 85.0h size 1.25 hunger 4.7 energy 10.0 stress 4.8 curiosity 0.0 trust 0.4 ms 1f3b  rest at 99,316
+I (346645) director: 1 pip     fish    /0 elder age 85.0h size 1.31 hunger 3.7 energy 10.0 stress 4.8 curiosity 0.0 trust 0.4 ms 1f33  rest at 114,297
+I (346659) director: 2 clack   crab    /1 elder age 55.1h size 1.32 hunger 2.8 energy 10.0 stress 4.8 curiosity 4.0 trust 4.3 ms 1e23  rest at 205,343
+I (346672) director: 3 bubbles puffer  /0 elder age 43.8h size 1.15 hunger 3.1 energy 10.0 stress 4.8 curiosity 0.0 trust 4.2 ms 1e33  rest at 159,267
+I (346685) director: 4 zap     eel     /2 elder age 43.5h size 1.53 hunger 4.1 energy 10.0 stress 5.8 curiosity 7.4 trust 4.1 ms 1e13  rest at 133,113
+I (346698) director: pellets 0 | trickle on | ravenous 0 | night idle 310s | veg 0.83 0.77 0.86 | algae cells 193/644 | courting no | arrival -
+I (346711) director: sand dollars 164 (earned 444) | shop: castle coral | colonies 136 | 2028 cm trimmed
+I (346720) director: species: fish 2, puffer 1, eel 1, crab 1 | 5 of 25 places | courting pair of one species: no
+I (346731) director: bed 0 fronds (x from 19, pitch 12): 0.91 0.90 0.89 0.88 0.87 0.85 0.84 0.83 0.82 0.81 0.79 0.78 0.77 0.76 0.75
+I (346742) director: bed 1 fronds (x from 376, pitch 12): 0.80 0.78 0.77 0.76 0.75
+I (346749) director: bed 2 fronds (x from 278, pitch 12): 0.91 0.89 0.88 0.87 0.86 0.85 0.83 0.82
+I (346758) director: castle placed: centre x 286 (the keeper's), IN FRONT of the grass (the fish swim through)
+I (346768) director: coral placed: centre x 62 (the keeper's), IN FRONT, colour 8a5be0, growth 0.69 of 1.25 (growing)
+I (346778) director: nursery bed 2 (a bed >= 0.12) | parked real tank: no (this IS the real tank)
+I (346786) director: battery 28% charging, VBAT 3841 mV | brightness 91/255 (level 60%)
