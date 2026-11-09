@@ -1,7 +1,8 @@
 /* main.c — Aqua Pets firmware entry (ESP32-S3).
  *   core 0: tank reflex layer + render at up to 25 fps, frames to the display port
- *   core 1: LLM advisor (q4_model over the mmap'd flash model partition)
- * Boot: assert the PSRAM plan, mmap the model partition, start both loops.
+ *   core 1: the advisor (the MLP embedded in the app, else q4_model over the
+ *           mmap'd flash model partition)
+ * Boot: assert the PSRAM plan, open the advisor, start both loops.
  * Without a panel (QEMU / bring-up) the display port is a counting stub and
  * every decision + tok/s goes to the log. */
 #include <stdio.h>
@@ -77,6 +78,10 @@ static i2c_master_bus_handle_t board_i2c_bus(void) { return NULL; }
 /* tokenizer.bin is tiny: embed it in the app image */
 extern const uint8_t tokenizer_bin_start[] asm("_binary_tokenizer_bin_start");
 extern const uint8_t tokenizer_bin_end[]   asm("_binary_tokenizer_bin_end");
+/* the MLP student (model/export_mlp.py), 121 KB: in the app image too, so an
+   OTA carries it. The advisor runs it; the model partition's transformer is the fallback */
+extern const uint8_t mlp_bin_start[] asm("_binary_mlp_bin_start");
+extern const uint8_t mlp_bin_end[]   asm("_binary_mlp_bin_end");
 
 static const char *TAG = "aqua-pets";
 static tank_t tank;
@@ -895,6 +900,19 @@ void app_main(void) {
     net_clock_boot(fb[0]);            /* no RTC chip and a saved network: the time from the internet, before the advisor takes the heap */
     /* the advisor's hot buffers (~70 KB of internal SRAM, advisor_llm_esp.c)
        come before the discretionary caches below: the LLM is not optional */
+    /* the MLP first: its weights are read in place, and mlp_model needs them 4-byte aligned */
+    {
+        size_t n = mlp_bin_end - mlp_bin_start;
+        const uint8_t *bin = mlp_bin_start;
+        if ((uintptr_t)bin & 3) {
+            uint8_t *copy = heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if (copy) { memcpy(copy, bin, n); bin = copy; }
+        }
+        if (!((uintptr_t)bin & 3))
+            llm_ok = advisor_llm_esp_init(bin, n, tokenizer_bin_start, tokenizer_bin_end - tokenizer_bin_start);
+        ESP_LOGI(TAG, "MLP %u B %s, advisor %s", (unsigned)n, bin == mlp_bin_start ? "in place" : "copied",
+                 llm_ok ? "MLP" : "not the MLP: the model partition");
+    }
     /* model: mmap the raw partition; weights are read through the flash cache */
     const esp_partition_t *mp = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, 0x40, "model");
     if (!mp) { ESP_LOGE(TAG, "no model partition"); }
@@ -902,9 +920,11 @@ void app_main(void) {
         const void *map; esp_partition_mmap_handle_t h;
         if (esp_partition_mmap(mp, 0, mp->size, ESP_PARTITION_MMAP_DATA, &map, &h) == ESP_OK) {
             model_trailer_check(mp, map);    /* the trailer stands, or is healed for the shipped model (docs/OTA.md) */
-            llm_ok = advisor_llm_esp_init(map, mp->size, tokenizer_bin_start,
-                                          tokenizer_bin_end - tokenizer_bin_start);
-            ESP_LOGI(TAG, "model partition %u KB mmap'd, advisor %s", (unsigned)mp->size / 1024, llm_ok ? "LLM" : "rules (model missing)");
+            if (!llm_ok) {
+                llm_ok = advisor_llm_esp_init(map, mp->size, tokenizer_bin_start,
+                                              tokenizer_bin_end - tokenizer_bin_start);
+                ESP_LOGI(TAG, "model partition %u KB mmap'd, advisor %s", (unsigned)mp->size / 1024, llm_ok ? "LLM" : "rules (model missing)");
+            }
         } else ESP_LOGE(TAG, "model mmap failed");
     }
     ESP_LOGI(TAG, "after the advisor: internal heap %u KB free", (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024);

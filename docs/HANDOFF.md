@@ -12,7 +12,41 @@ Open, in no fixed order. A finished item leaves this list, and its entry below s
 - [ ] **Retrain schema:** the next retrain ([retrain.md](retrain.md) has what is queued). It also moves the `--schema` defaults to the
   shipped line: `gen_traces.py`, `eval.py` and `probe_dist.py` default to 2, `fold_traces.py` and `prompt_check.py` to 3. Their help text
   and `teacher_vs_student.py`'s default state line (v2) change with them.
-- [ ] **MLP student:** teacher labels for it and the teacher agreement number (the entry below says what is left).
+- [ ] **MLP student:** on the device: embed `mlp.bin`, build, flash, and measure a decision's time, RAM and battery draw.
+- [ ] **Teacher machine:** the next overnight run is 10 hours (`--max-minutes 600`).
+
+## 2026-11-09: the MLP student against the teacher: level with v5j
+
+**What was done.** The keeper's PC is the teacher machine now: Radeon RX 5700 (8 GB) and 16 GB of RAM, gemma4:26b
+split about 20/80 CPU/GPU. A cold load takes 190-230 s, longer than the 30 s per call, so `gen_traces.py` and
+`prompt_check.py` warm up with one long-timeout call first. The scripts' default host is `localhost:11434`.
+One worker labels about 400 states an hour (9 s each). One night (seed 11, 480 minutes) gave 3,213 clean pairs,
+`model/out/mlp_traces_11.jsonl`.
+
+**prompt_check on this teacher.** Every gate passes but three: `social 1` follow 0.07 (3 of 40; noise), the content
+fish's attractor 0.55 (explore; the original teacher's was the reef at 0.55), and the lobster rests by day 0.07
+(want >= 0.40; v5j learned 0.83 from the original teacher). The prompt is the one v5j's data was labelled with, so
+the lobster is this copy of the teacher. The night's fold has `seek_food` at 47% of labels (the fold's warning
+is at 40%). Both stay as they are: the point of this cycle is whether a network runs on the device, and the
+training changes later.
+
+**Results.** 500 of the pairs were held out; neither network trained on them. Agreement with the teacher on them:
+
+| model | agreement | worst species |
+|---|---|---|
+| v5j (shipped transformer, 7.56 MB) | 82.6% | lobster 62% (n 13) |
+| MLP on v5j's labels only (the 11-04 one) | 82.2% | lobster 62% |
+| MLP on the 2,713 teacher pairs only | 79.2% | fish 71% |
+| MLP, teacher + v5j's labels at 0.5 | 82.4% | lobster 62% |
+| MLP, teacher + v5j's labels at 0.1 (`out/mlp_ts01.bin`) | **83.2%** | lobster 62% |
+
+At n = 500 the spread is about ±1.7 points, so the MLPs with v5j's labels and v5j are level. Teacher labels alone
+are too few to train on (79%); with v5j's 60K copies they add a little.
+
+**Boards.** 1.8: not flashed, firmware not rebuilt (no `common/` change since 11-04). Checked: the Python scripts
+compile; the warm-up ran from cold (`warm in 187 s`). Sim: not re-run (no engine change).
+
+**Open.** The MLP on the device (the TODO above). `out/` stays out of git, the binaries too.
 
 ## 2026-11-04: an MLP student: a 121 KB network beside the 7.5 MB transformer, in the sim
 
@@ -932,41 +966,4 @@ Firmware against 4b: RAM unchanged, `.flash.text` -32 / -36 / -36 B,
 `.flash.rodata` +16 B (the table), the app still 0x271000.
 
 **Next:** 4d, the layout sections.
-
-## 2026-10-23: one glass module (refactor phase 4b)
-
-**What changed.** A pure move: `common/glass.h` / `glass.c` hold every piece
-of code whose body depends on the glass's shape, one body a shape by
-`DEVICE_GLASS`:
-- from tank.c: `tank_glass_*`, `rand_water`, and the film's cells
-  (`glass_holds_cell`, was `algae_ok`)
-- from creature.c: `glass_bounce` (the swim's hard bounds and reflection),
-  `glass_clamp_target`, and `glass_avoidance` (was `wall_avoidance`)
-
-`corner_in` and `corner_clamp` are glass.c's own now. Code that needs only to
-know that the glass curves asks `GLASS_CURVED` (device.h): an explore point,
-the shrimp, the snail's stand, and the sim's window mask (one loop over
-`tank_glass_x0` / `x1` for the bowl and the watch, the same maths as the
-bowl's own loop). tank.c's last board blocks are the beds (4c).
-
-**How it was checked.** All nine records are identical to 04b15e5's (both
-oracles and the snapshot pages, on all three boards; see 4a for the build-id
-pin).
-
-**Board status.**
-
-| board | `make check-all` | pictured | firmware built | flashed | on the glass |
-|---|---|---|---|---|---|
-| 1.8 rect | passes (18 selftests) | oracles and snapshot pages identical | yes (5.4.4, throwaway key) | no | no |
-| 1.75C round | passes | identical | yes | no | no |
-| 2.06 watch | passes | identical | yes | no | no |
-
-Firmware against 4a: `.dram0.bss`, `.dram0.data` and `.flash.rodata`
-unchanged; `.flash.text` -72 B (1.8), -460 B (bowl), -236 B (watch); the app
-still 0x271000; the same warnings. The functions left their callers' files,
-so on the device the compiler inlines (and, with `-ffast-math`, may contract)
-differently. As with 3b+, the sim's oracles can't prove the device's floats
-bit for bit.
-
-**Next:** 4c, the bed table.
 

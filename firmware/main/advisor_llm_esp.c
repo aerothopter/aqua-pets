@@ -1,7 +1,8 @@
 /* advisor_llm_esp.c — the LLM advisor on the device. Same shape as
  * sim/advisor_llm.c (pending set + one-slot box + async worker), worker is a
  * FreeRTOS task pinned to core 1; encoding/inference/distribution layer are
- * common/llm/advisor_core.c over the mmap'd flash model. */
+ * common/llm/advisor_core.c over the model main.c hands it: the MLP from the
+ * app image, else the mmap'd flash transformer. */
 #include "advisor_llm_esp.h"
 #include "advisor_core.h"
 #include "freertos/FreeRTOS.h"
@@ -48,12 +49,17 @@ static void worker(void *arg) {
         goal_t g = advisor_core_infer(st, &ntok);
         int64_t dt = esp_timer_get_time() - t0;
         g_last_ms = (uint32_t)(dt / 1000); g_tok_s = ntok / (dt / 1e6f);
-        ESP_LOGI(TAG, "%s -> %s urgency %.0f p=%.2f  [%lu ms, %.1f tok/s]", st,
-                 g.id < GOAL_COUNT ? GOAL_NAMES[g.id] : "?", g.urgency, g.confidence,
-                 (unsigned long)g_last_ms, g_tok_s);
-        ESP_LOGI(TAG, "prof ms: matmul %lld attn %lld norm/quant %lld rope %lld swiglu %lld decode %lld",
-                 q4_prof_us[0] / 1000, q4_prof_us[1] / 1000, q4_prof_us[2] / 1000,
-                 q4_prof_us[3] / 1000, q4_prof_us[4] / 1000, q4_prof_us[5] / 1000);
+        if (!advisor_core_model()) {         /* the MLP: no tokens, microseconds */
+            ESP_LOGI(TAG, "%s -> %s urgency %.0f p=%.2f  [%lld us, MLP]", st,
+                     g.id < GOAL_COUNT ? GOAL_NAMES[g.id] : "?", g.urgency, g.confidence, (long long)dt);
+        } else {
+            ESP_LOGI(TAG, "%s -> %s urgency %.0f p=%.2f  [%lu ms, %.1f tok/s]", st,
+                     g.id < GOAL_COUNT ? GOAL_NAMES[g.id] : "?", g.urgency, g.confidence,
+                     (unsigned long)g_last_ms, g_tok_s);
+            ESP_LOGI(TAG, "prof ms: matmul %lld attn %lld norm/quant %lld rope %lld swiglu %lld decode %lld",
+                     q4_prof_us[0] / 1000, q4_prof_us[1] / 1000, q4_prof_us[2] / 1000,
+                     q4_prof_us[3] / 1000, q4_prof_us[4] / 1000, q4_prof_us[5] / 1000);
+        }
         xSemaphoreTake(g_mx, portMAX_DELAY);
         g_resp_goal = g; g_resp_fish = fish; g_resp_gen = gen; g_busy = false; g_decisions++;
         xSemaphoreGive(g_mx);
@@ -67,21 +73,26 @@ bool advisor_llm_esp_init(const uint8_t *model_bin, size_t model_len, const uint
         ESP_LOGE(TAG, "bad model/tokenizer"); return false;
     }
     q4_clock_us = esp_timer_get_time;        /* per-stage inference profiling */
-    /* one-time kernel/memory bench on boot, to the log */
+    /* one-time kernel/memory bench on boot, to the log (the transformer only) */
     q4_model_t *bm = advisor_core_model();
-    ESP_LOGI(TAG, "bench: dot100k %lld us | batch44 flash %lld us ram %lld us | decode flash %lld us ram %lld us",
-             q4_model_bench(bm, 0, 44, esp_timer_get_time),
-             q4_model_bench(bm, 1, 44, esp_timer_get_time),
-             q4_model_bench(bm, 2, 44, esp_timer_get_time),
-             q4_model_bench(bm, 3, 44, esp_timer_get_time),
-             q4_model_bench(bm, 4, 44, esp_timer_get_time));
+    if (bm)
+        ESP_LOGI(TAG, "bench: dot100k %lld us | batch44 flash %lld us ram %lld us | decode flash %lld us ram %lld us",
+                 q4_model_bench(bm, 0, 44, esp_timer_get_time),
+                 q4_model_bench(bm, 1, 44, esp_timer_get_time),
+                 q4_model_bench(bm, 2, 44, esp_timer_get_time),
+                 q4_model_bench(bm, 3, 44, esp_timer_get_time),
+                 q4_model_bench(bm, 4, 44, esp_timer_get_time));
     g_mx = xSemaphoreCreateMutex(); g_req_sem = xSemaphoreCreateBinary();
     /* inference on core 1; render/tank own core 0 */
     xTaskCreatePinnedToCore(worker, "advisor", 16384, NULL, 5, NULL, 1);
     const q4_config_t *c = advisor_core_config();
-    ESP_LOGI(TAG, "model dim %d layers %d vocab %d seq %d, schema v%d, %s decoding",
-             c->dim, c->n_layers, c->vocab_size, c->seq_len, advisor_core_schema(),
-             advisor_core_sample ? "sampled" : "greedy");
+    if (c)
+        ESP_LOGI(TAG, "model dim %d layers %d vocab %d seq %d, schema v%d, %s decoding",
+                 c->dim, c->n_layers, c->vocab_size, c->seq_len, advisor_core_schema(),
+                 advisor_core_sample ? "sampled" : "greedy");
+    else
+        ESP_LOGI(TAG, "model: the MLP, schema v%d, %s decoding", advisor_core_schema(),
+                 advisor_core_sample ? "sampled" : "greedy");
     g_ok = true;
     return true;
 }

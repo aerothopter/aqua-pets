@@ -64,7 +64,12 @@ Size (a 14M student, dim 384) matters: at 25,903 pairs on the first schema, a 0.
 ## The MLP student (a candidate; v5j ships)
 
 A 181 → 256 → 256 → 8 + 10 network over the state line's features ([pipeline.md](pipeline.md#the-mlp-student)),
-trained on v5j's own labels: no teacher labels yet, so its teacher agreement is not measured.
+trained on v5j's own labels.
+
+**Against the teacher** (500 held-out pairs from one night on an RX 5700 copy of gemma4:26b, whose lobster rests by
+day 0.07 in `prompt_check` where the original teacher's rested): v5j **82.6%**; the MLP on v5j's labels 82.2%; on
+2,713 teacher pairs alone 79.2%; on the teacher pairs plus v5j's labels at weight 0.1 **83.2%**. The spread at
+n = 500 is about ±1.7 points: level. That teacher labels ~400 states an hour with one worker.
 
 | | |
 |---|---|
